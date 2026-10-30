@@ -6103,10 +6103,6 @@ export class PilotSwarmUiController {
     submitCanvasAction(sessionId, message, slot = 1) {
         if (!sessionId) return Promise.resolve({ ok: false, reason: "no session" });
         if (!Number.isInteger(slot) || slot < 1 || slot > 5) return Promise.resolve({ ok: false, reason: "invalid canvas slot" });
-        // Creator-only, mirrored from the server's enforcement (the server is
-        // the authority; this is the friendly refusal). The canvas mutates —
-        // a shared viewer may be looking at a different revision than the one
-        // the creator is conversing through, so their clicks must not speak.
         // Who may ring is the SERVER's decision (owner, admin, or anyone with
         // session write — interactive-canvas-apps Part E). The client no
         // longer pre-refuses non-owners: a write-shared collaborator's click

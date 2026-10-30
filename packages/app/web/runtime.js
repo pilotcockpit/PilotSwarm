@@ -1076,16 +1076,12 @@ export class PortalRuntime {
                 return this._callProvider(method, safeParams, { principal: owner, isAdmin, adminScope: this.authz.adminScope });
 
             case "sendMessage": {
-                // Canvas actions are CREATOR-only — not shared writers, not
-                // admins. The canvas mutates: two viewers can be looking at
-                // different revisions of the same surface, so only the one
-                // person whose view the agent is provably conversing with may
-                // answer through it (everyone else has the chat box, which
-                // quotes its own words). The prefix is the wire marker the
-                // browser bridge stamps on validated actions; enforcement
-                // must live HERE because the prefix is trivially forgeable by
-                // any API caller. Enforced even during the ownership
-                // dark-launch: a brand-new capability has no pre-model
+                // Canvas actions need WRITE access to the session (see below).
+                // The prefix is the wire marker the browser bridge stamps on
+                // validated actions; enforcement must live HERE because the
+                // prefix is trivially forgeable by any API caller. Enforced
+                // even during the ownership dark-launch: a brand-new
+                // capability has no pre-model
                 // behavior to preserve (same rule as session:share). Fails
                 // closed when no access snapshot is resolvable.
                 if (typeof safeParams.prompt === "string" && safeParams.prompt.startsWith("[canvas-action] ")) {

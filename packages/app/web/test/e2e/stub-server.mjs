@@ -8,6 +8,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { PORTAL_SHELL_HEADERS } from "../../../ui/react/src/sandboxed-document.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // PS_E2E_DIST: test a build kept apart from dist/, which a running local
@@ -308,12 +309,14 @@ export function startStubServer(port = 0, { sessionCount = 6, transcriptTurns = 
         const rel = pathname === "/" ? "index.html" : pathname.replace(/^\//, "");
         const file = path.join(DIST, rel);
         if (!file.startsWith(DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-            // SPA fallback.
-            res.writeHead(200, { "content-type": MIME[".html"] });
+            // SPA fallback, with the portal server's frame policy.
+            res.writeHead(200, { "content-type": MIME[".html"], ...PORTAL_SHELL_HEADERS });
             res.end(fs.readFileSync(path.join(DIST, "index.html")));
             return;
         }
-        res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream" });
+        const headers = { "content-type": MIME[path.extname(file)] || "application/octet-stream" };
+        if (path.extname(file) === ".html") Object.assign(headers, PORTAL_SHELL_HEADERS);
+        res.writeHead(200, headers);
         res.end(fs.readFileSync(file));
     });
 

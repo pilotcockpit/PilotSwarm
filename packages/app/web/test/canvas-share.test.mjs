@@ -96,7 +96,9 @@ test("share-scoped WS connections may ONLY subscribe to their canvas, slot-filte
 });
 
 test("the doc route renders under CSP sandbox and both routes answer 404 for every failure", () => {
-    assert.match(SERVER, /Content-Security-Policy", "sandbox allow-scripts"/, "direct navigation gets an OPAQUE origin");
+    assert.match(SERVER, /Content-Security-Policy", "sandbox; default-src 'none'"/, "opened directly, nothing in it runs");
+    assert.match(SERVER, /res\.type\("text\/plain"\)\.send\(doc\.html\)/, "the doc is data for the viewer, not a page");
+    assert.match(SERVER, /"X-Content-Type-Options", "nosniff"/);
     assert.match(SERVER, /canvas-share\/doc/, "doc route present");
     assert.match(SERVER, /canvas-share\/live/, "live route present");
     const docRoute = SERVER.slice(SERVER.indexOf("/api/canvas-share/doc"), SERVER.indexOf("/api/canvas-share/live"));
@@ -105,7 +107,9 @@ test("the doc route renders under CSP sandbox and both routes answer 404 for eve
 
 test("the share view bypasses auth gates but sandboxes the frame and never forwards canvas actions", () => {
     assert.match(APP, /canvasShareToken/, "token mode detected from the URL");
-    assert.match(APP, /sandbox: "allow-scripts"/, "the shared document runs origin-isolated");
+    assert.match(APP, /sandbox: SANDBOXED_FRAME_SANDBOX/, "the shared document runs origin-isolated");
+    assert.match(APP, /setDoc\(\{ html: wrapSandboxedDocument\(html\) \}\)/, "the fetched canvas is wrapped in the same policy as every canvas");
+    assert.match(APP, /srcDoc: doc\.html/, "and shown through srcdoc, never a blob: URL");
     assert.ok(!/CanvasShareView[\s\S]*?canvas-action[\s\S]*?sendMessage/.test(APP.slice(APP.indexOf("function CanvasShareView"), APP.indexOf("export default function App"))),
         "the share view has no postback path at all");
 });

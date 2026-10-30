@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import license from "rollup-plugin-license";
 import { fileURLToPath } from "node:url";
+import { PORTAL_SHELL_HEADERS } from "../ui/react/src/sandboxed-document.js";
 
 // Third-party notices for everything the portal's browser bundle includes:
 // each package's name, version, license and full license text, written next
@@ -58,6 +59,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // The same frame policy the portal server sends, so `npm run web:dev`
+    // behaves like production for canvases (sandboxed-document.js).
+    headers: { ...PORTAL_SHELL_HEADERS },
     proxy: {
       // ws:true forwards the /api/v1/ws WebSocket upgrade to the portal
       // server; it is harmless for the plain HTTP /api/v1 routes. Without it,

@@ -194,6 +194,10 @@ these produces a blank or broken page, not an error message:
    no web fonts, no remote images, no `fetch`. Inline every byte: CSS in
    `<style>`, JS in `<script>`, data in a JS literal, images as `data:` URIs.
    If you need a charting library you cannot inline, hand-write the SVG.
+1b. **No nested frames, no WebRTC.** `<iframe>`, `<object>` and `<embed>` are
+   removed as soon as they appear, declared shadow roots
+   (`<template shadowrootmode>`) stay inert, and `RTCPeerConnection` does not
+   exist. Build everything in the one document.
 2. **No storage.** `localStorage`, `sessionStorage`, cookies and `parent` property reads all
    throw — `parent.postMessage` is the one allowed call. Keep state in memory.
    Shared state, the session's files, and commands such as `git log` go
@@ -237,8 +241,10 @@ these produces a blank or broken page, not an error message:
 4. **Budget.** The canvas caps at 900 KB; text artifacts cap at 1 MiB. A few hundred KB of inlined data
    is fine and normal; a multi-megabyte dump is not — aggregate first.
 
-Links to the outside world are fine (`<a href="https://…" target="_blank">`) —
-popups are allowed.
+Links to the outside world are fine (`<a href="https://…">`): the portal shows
+the viewer the full address and opens it in a new tab when they confirm.
+Never put data in a link's URL, and don't call `window.open` on load: nothing
+opens without the viewer's click.
 
 ## Responsive, and why it matters here
 

@@ -3,7 +3,7 @@ import { CompactViewNavigation } from "./navigation/CompactViewNavigation.jsx";
 import { useMoa, MoaWorkspace, MobileZen } from "./moa/MoaWorkspace.jsx";
 import React from "react";
 import { createPortal } from "react-dom";
-import { createWebPilotSwarmController, PilotSwarmWebApp, setPortalLinkOrigins, setPortalWorkspaceFiles } from "pilotswarm/ui-react";
+import { EXTERNAL_LINK_MESSAGE, ExternalLinkPrompt, SANDBOXED_FRAME_SANDBOX, createWebPilotSwarmController, PilotSwarmWebApp, setPortalLinkOrigins, setPortalWorkspaceFiles, useExternalLinkRequests, wrapSandboxedDocument } from "pilotswarm/ui-react";
 import { jsonMergePatch } from "pilotswarm-sdk/api";
 import { getTheme } from "pilotswarm/ui-core";
 import { selectSessionFilterExceptionNotice, selectStatusBar } from "pilotswarm/ui-core";
@@ -749,6 +749,9 @@ function PortalWorkspace({ auth, portal, shellStyle }) {
 function CanvasShareView({ token }) {
     const [doc, setDoc] = React.useState(null);          // { url, docRev }
     const [status, setStatus] = React.useState("loading"); // loading | live | gone
+    // Links the shared page asks to open, one at a time, confirmed by the viewer.
+    const links = useExternalLinkRequests();
+    const offerLink = links.offer;
     const iframeRef = React.useRef(null);
     const mirrorRef = React.useRef({ seq: 0, payload: null });
     const docRevRef = React.useRef(0);
@@ -781,12 +784,11 @@ function CanvasShareView({ token }) {
     const refetchDoc = React.useCallback(async () => {
         const response = await fetch(`/api/canvas-share/doc?t=${encodeURIComponent(token)}`);
         if (!response.ok) throw new Error("gone");
+        // The route sends the canvas as inert text; the viewer wraps it in
+        // the same policy and guards as every canvas, and shows it through
+        // srcdoc (sandboxed-document.js).
         const html = await response.text();
-        const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-        setDoc((old) => {
-            if (old?.url) window.setTimeout(() => URL.revokeObjectURL(old.url), 1000);
-            return { url };
-        });
+        setDoc({ html: wrapSandboxedDocument(html) });
     }, [token]);
 
     React.useEffect(() => {
@@ -875,6 +877,10 @@ function CanvasShareView({ token }) {
             const frame = iframeRef.current;
             if (!frame || !event.source || event.source !== frame.contentWindow) return;
             const payload = event.data;
+            if (payload?.type === EXTERNAL_LINK_MESSAGE) {
+                offerLink(payload.href);
+                return;
+            }
             if (!payload || typeof payload !== "object" || payload.type !== "canvas-kv") return;
             const id = payload.id;
             const op = String(payload.op || "");
@@ -905,7 +911,7 @@ function CanvasShareView({ token }) {
         };
         window.addEventListener("message", onMessage);
         return () => window.removeEventListener("message", onMessage);
-    }, [status, token]);
+    }, [status, token, offerLink]);
 
     if (status === "gone") {
         return React.createElement("div", { className: "ps-share-view ps-share-view-gone" },
@@ -919,12 +925,15 @@ function CanvasShareView({ token }) {
             ? React.createElement("iframe", {
                 ref: iframeRef,
                 className: "ps-share-view-frame",
-                src: doc.url,
-                sandbox: "allow-scripts",
+                srcDoc: doc.html,
+                sandbox: SANDBOXED_FRAME_SANDBOX,
                 title: "Shared canvas",
                 onLoad: () => postState(),
             })
-            : React.createElement("div", { className: "ps-share-view-loading" }, "Loading canvas..."));
+            : React.createElement("div", { className: "ps-share-view-loading" }, "Loading canvas..."),
+        links.request
+            ? React.createElement(ExternalLinkPrompt, { key: links.request, href: links.request, onClose: links.close })
+            : null);
 }
 
 export default function App() {
