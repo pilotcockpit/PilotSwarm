@@ -11,13 +11,22 @@ import { cn } from "@/lib/utils";
  * Structured error: a plain sentence, the fix as a button, the raw detail
  * behind "Show details". Never a paragraph of environment variables.
  */
-export function StructuredErrorCard({ raw, onRetry, onSwitchModel, compact = false, className }: { raw: unknown; onRetry?: () => void; onSwitchModel?: () => void; compact?: boolean; className?: string }) {
+export function StructuredErrorCard({ raw, onRetry, onSwitchModel, compact = false, className }: { raw: unknown; onRetry?: () => void | Promise<void>; onSwitchModel?: () => void; compact?: boolean; className?: string }) {
   const err = describeError(raw);
   const navigate = useNavigate();
   const { data: profile } = useProfile();
   const isAdmin = Boolean(profile?.isAdmin);
   const [open, setOpen] = React.useState(false);
   const detailsId = React.useId();
+  // One retry at a time: the ref is set synchronously, so a double click cannot send twice.
+  const retrying = React.useRef(false);
+  const [busy, setBusy] = React.useState(false);
+  const retry = async () => {
+    if (retrying.current || !onRetry) return;
+    retrying.current = true;
+    setBusy(true);
+    try { await onRetry(); } finally { retrying.current = false; setBusy(false); }
+  };
   return (
     <div role="alert" className={cn(cardVariants({ tone: "failed", enter: true }), compact ? "p-3" : "p-4", className)}>
       <div className="flex items-start gap-2.5">
@@ -40,8 +49,8 @@ export function StructuredErrorCard({ raw, onRetry, onSwitchModel, compact = fal
               </Button>
             ) : null}
             {err.fixes.includes("retry") && onRetry ? (
-              <Button size="sm" onClick={onRetry}>
-                <RotateCw /> Ask to retry
+              <Button size="sm" disabled={busy} onClick={() => void retry()}>
+                <RotateCw className={busy ? "motion-safe:animate-spin" : undefined} /> Ask to retry
               </Button>
             ) : null}
             {err.raw ? (

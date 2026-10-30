@@ -338,9 +338,9 @@ function Section({ title, defaultOpen = false, children }: { title: string; defa
   return (
     <section className="mb-3">
       <h3>
-        <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="flex min-h-8 items-center gap-1.5 rounded-control pr-2 text-sm font-semibold hover:text-accent pointer-coarse:min-h-11">
-          <ChevronRight className={cn("size-4 text-muted transition-transform duration-(--duration-fast)", open && "rotate-90")} aria-hidden /> {title}
-        </button>
+        <Button variant="quiet" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="-ml-2 font-semibold text-fg hover:text-accent">
+          <ChevronRight className={cn("text-muted transition-transform duration-(--duration-fast)", open && "rotate-90")} aria-hidden /> {title}
+        </Button>
       </h3>
       {open ? <div id={id} className="mt-1 animate-fade">{children}</div> : null}
     </section>

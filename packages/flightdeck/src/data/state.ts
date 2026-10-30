@@ -65,8 +65,10 @@ export function sessionState(s: Session | null | undefined, now = Date.now()): S
     };
   }
   const children = Number(s.activeChildCount) || 0;
-  // Child count is metadata. A parent waits on sub-agents only when the server says it is waiting.
-  if (children > 0 && status === "waiting") {
+  // Child count is metadata. A parent waits on sub-agents only when the server says so: the SDK's agent
+  // wait reads "waiting for N agent(s)". A timer, schedule or workspace wait keeps its own reason.
+  const agentWait = /^waiting for \d+ agent\(s\)/i.test(String(s.waitReason || ""));
+  if (children > 0 && status === "waiting" && agentWait) {
     return { key: "waiting", word: "Waiting", waitKind: "sub-agents", reason: `on ${children} sub-agent${children === 1 ? "" : "s"}`, next: "resumes when they finish" };
   }
   if (status === "waiting") {
@@ -118,6 +120,8 @@ export const STATE_TINT: Record<StateKey, string> = {
 // "Show details". Never a raw stack in the chat.
 
 export interface StructuredError {
+  /** Which known cause this is; failures only group when this and the provider match. */
+  code?: "wif-missing" | "no-key" | "usage-limit" | "rate-limit" | "workspace";
   headline: string;
   detail?: string;
   provider?: string;
@@ -131,6 +135,7 @@ export function describeError(raw: unknown): StructuredError {
   const wif = text.match(/Provider "([^"]+)" authenticates with workload identity, but the worker is missing ([^.]+?)(?: \(|\.|$)/);
   if (wif) {
     return {
+      code: "wif-missing",
       headline: "Can't reach its model",
       detail: `The ${wif[1]} provider isn't set up on the worker: its workload identity settings are missing.`,
       provider: wif[1],
@@ -140,16 +145,16 @@ export function describeError(raw: unknown): StructuredError {
   }
   const noKey = text.match(/(?:no|missing) (?:api )?(?:key|credential)s? for (?:provider )?"?([\w.-]+)"?/i);
   if (noKey) {
-    return { headline: "Can't reach its model", detail: `The ${noKey[1]} provider has no key.`, provider: noKey[1], fixes: ["open-provider", "switch-model"], raw: text };
+    return { code: "no-key", headline: "Can't reach its model", detail: `The ${noKey[1]} provider has no key.`, provider: noKey[1], fixes: ["open-provider", "switch-model"], raw: text };
   }
   if (/budget|limit exceeded|quota/i.test(text)) {
-    return { headline: "Paused by a usage limit", detail: "This provider's token limit was reached.", fixes: ["open-provider"], raw: text };
+    return { code: "usage-limit", headline: "Paused by a usage limit", detail: "This provider's token limit was reached.", fixes: ["open-provider"], raw: text };
   }
   if (/rate.?limit|429/i.test(text)) {
-    return { headline: "The model is rate limiting", detail: "The provider asked us to slow down. Retrying usually works.", fixes: ["retry"], raw: text };
+    return { code: "rate-limit", headline: "The model is rate limiting", detail: "The provider asked us to slow down. Retrying usually works.", fixes: ["retry"], raw: text };
   }
   if (/clone|git|workspace/i.test(text)) {
-    return { headline: "Its working folder failed", detail: "The repository could not be prepared.", fixes: ["retry"], raw: text };
+    return { code: "workspace", headline: "Its working folder failed", detail: "The repository could not be prepared.", fixes: ["retry"], raw: text };
   }
   const first = text.replace(/^Failed after \d+ attempts?:\s*/i, "").replace(/^Activity '[^']+' JS execution failed:\s*(GenericFailure,\s*)?(Error:\s*)?/i, "");
   return { headline: "The last turn failed", detail: first.length > 180 ? `${first.slice(0, 177)}…` : first, fixes: ["retry"], raw: text };
@@ -183,22 +188,32 @@ export function needsYou(s: Session): boolean {
 }
 
 /**
- * Two failures with the same key have the same cause and one fix. Known provider causes group by
- * provider; anything else groups only when the error text is the same once ids, hashes and numbers
- * are masked, so unrelated failures never merge.
+ * Two failures with the same key have the same cause and one fix. A known provider cause groups by
+ * its code and provider (a missing credential and a missing workload identity are different fixes).
+ * Anything else groups only when the error text is the same: HTTP status, error class and message
+ * all count. Only fields that change on every occurrence are masked: ids, timestamps, durations
+ * and attempt counts.
  */
 export function failureKey(s: Session): string {
   const text = String(s.error || "").trim();
   const e = describeError(text);
-  if (e.provider) return `provider:${e.provider}|${e.headline}`;
-  const masked = text
+  if (e.provider && e.code) return `${e.code}:${e.provider}`;
+  return `raw:${maskVolatile(text)}`;
+}
+
+export function maskVolatile(text: string): string {
+  return text
     .toLowerCase()
-    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "#")
-    .replace(/\b[0-9a-f]{7,}\b/g, "#")
-    .replace(/\d+/g, "#")
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "<id>")
+    .replace(/\d{4}-\d{2}-\d{2}[t ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:z|[+-]\d{2}:?\d{2})?/g, "<time>")
+    .replace(/\b\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\b/g, "<time>")
+    .replace(/\b\d+(?:\.\d+)?\s?(?:ms|msec|millis|seconds?|secs?|minutes?|mins?|hours?|hrs?)\b/g, "<dur>")
+    .replace(/\b\d+(?:\.\d+)?\s?s\b/g, "<dur>")
+    .replace(/\bafter \d+ attempts?\b/g, "after <n> attempts")
+    .replace(/\b(\w*id|\w*token|trace|span|session|request|run|turn)([\s:=#"']+)[0-9a-z][\w.-]{5,}/g, "$1$2<id>")
+    .replace(/\b[0-9a-f]{7,}\b/g, "<id>")
     .replace(/\s+/g, " ")
-    .slice(0, 200);
-  return `raw:${masked}`;
+    .slice(0, 240);
 }
 
 /**

@@ -12,7 +12,7 @@ import { Tag } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StructuredErrorCard } from "@/components/structured-error";
-import { AnswerChoices } from "@/components/answer-choices";
+import { AnswerChoices, QuestionChangedError, useGuardedAnswer } from "@/components/answer-choices";
 import { questionKey } from "@/data/state";
 import { clock, cn, dayLabel } from "@/lib/utils";
 
@@ -274,6 +274,7 @@ export function QuestionCard({ sessionId, question, agentName, onAnswer, busy }:
 function QuestionCardBody({ sessionId, question, agentName, onAnswer, busy }: { sessionId: string; question: PendingQuestion; agentName: string; onAnswer: (answer: string, question: PendingQuestion) => void | Promise<void>; busy?: boolean }) {
   const [free, setFree] = React.useState(false);
   const [text, setText] = React.useState("");
+  const guarded = useGuardedAnswer(sessionId, onAnswer);
   return (
     <section aria-label="Question from the agent" className={cn(cardVariants({ tone: "accent", enter: true }), "p-4")}>
       <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-accent">
@@ -290,7 +291,7 @@ function QuestionCardBody({ sessionId, question, agentName, onAnswer, busy }: { 
         extra={question.allowFreeform !== false && !free ? <Button variant="quiet" disabled={busy} onClick={() => setFree(true)}>Reply in chat…</Button> : null}
       />
       {free ? (
-        <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) Promise.resolve(onAnswer(text.trim(), question)).catch((err: any) => toast.error("Couldn't send your answer", { description: err?.message })); }}>
+        <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) guarded(text.trim(), question).catch((err: any) => (err instanceof QuestionChangedError ? toast.error(err.message) : toast.error("Couldn't send your answer", { description: err?.message }))); }}>
           <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Your answer" aria-label="Your answer" />
           <Button type="submit" variant="primary" disabled={!text.trim() || busy}>Send</Button>
         </form>

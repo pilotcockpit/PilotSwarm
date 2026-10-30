@@ -12,6 +12,7 @@ import { describeError, modelShort, questionKey, sessionState, STATE_TINT, type 
 import type { PendingQuestion, Session } from "@/data/types";
 import { StateGlyph, StatePill } from "@/components/state";
 import { QuestionCard, Transcript } from "@/components/chat";
+import { useRetry } from "@/lib/retry";
 import { StructuredErrorCard } from "@/components/structured-error";
 import { EmptyState } from "@/components/empty";
 import { Button } from "@/components/ui/button";
@@ -520,14 +521,11 @@ function ChatPane({ session, sessionId, history, onOpenCanvas }: { session?: Ses
   };
   // There is no "restart this turn" operation in the API. Asking the agent to retry is the honest
   // equivalent, so the message says what it is instead of replaying the user's last message.
-  const retry = async () => {
-    const cause = describeError(session?.error).headline;
-    try {
-      await source.sendMessage(sessionId, `[Sent from Flight Deck] The last turn failed (${cause.toLowerCase()}). Please retry from where you left off.`);
-      refresh(sessionId);
-      toast.success("Asked the agent to retry", { description: "It picks up from where it stopped." });
-    } catch (e: any) { toast.error("Couldn't send the retry request", { description: e?.message }); }
-  };
+  const retryMessage = React.useCallback(
+    () => `[Sent from Flight Deck] The last turn failed (${describeError(session?.error).headline.toLowerCase()}). Please retry from where you left off.`,
+    [session?.error],
+  );
+  const { retry } = useRetry(sessionId, retryMessage);
 
   return (
     <div className="flex h-full min-h-0 flex-col">

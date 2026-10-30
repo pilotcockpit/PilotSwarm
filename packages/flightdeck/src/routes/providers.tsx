@@ -70,7 +70,7 @@ export function ProvidersPage() {
                         return (
                           <tr key={p.name} className={cn("border-b border-line-subtle last:border-0 hover:bg-raised/60", search.provider === p.name && "bg-raised")} onClick={open}>
                             <td className="px-3 py-3">
-                              <button type="button" className="text-left font-mono text-sm font-medium hover:underline" onClick={(e) => { e.stopPropagation(); open(); }}>{p.name}</button>
+                              <Button variant="link" size="sm" className="h-auto min-h-6 justify-start px-0 py-0.5 font-mono text-sm font-medium text-fg pointer-coarse:min-h-11" onClick={(e) => { e.stopPropagation(); open(); }}>{p.name}</Button>
                               <div className="text-xs text-muted">{p.class === "personal" ? `Yours${p.ownerDisplayName ? ` · ${p.ownerDisplayName}` : ""}` : "Shared"} · <span className="font-mono">{p.typeId}</span>{n ? ` · ${n} model${n === 1 ? "" : "s"}` : ""}</div>
                             </td>
                             <td className="px-3 py-3"><KeyStatus provider={p} broken={brokenOnWorkers.has(p.name)} /></td>

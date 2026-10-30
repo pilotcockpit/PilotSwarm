@@ -1,8 +1,36 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useRefresh, useSource } from "@/data/source";
 import { isDestructiveChoice, questionKey, recommendedChoice } from "@/data/state";
 import type { PendingQuestion } from "@/data/types";
+
+export class QuestionChangedError extends Error {
+  constructor() { super("The question changed; review it and answer again"); }
+}
+
+/**
+ * Just before an answer goes out, read the session afresh (not from the cache) and refuse to send
+ * if its pending question is no longer the one the person was looking at. The captured question is
+ * still what is sent as the expected question. This narrows the window; it cannot close it, because
+ * the question can still change between this read and the server's receipt. Closing it needs the
+ * server to fail closed on a stale expected question.
+ */
+export function useGuardedAnswer<T extends (choice: string, question: PendingQuestion) => void | Promise<void>>(sessionId: string, onAnswer: T) {
+  const { source } = useSource();
+  const refresh = useRefresh();
+  return React.useCallback(
+    async (choice: string, question: PendingQuestion) => {
+      const fresh = await source.getSession(sessionId);
+      if (questionKey(sessionId, fresh?.pendingQuestion) !== questionKey(sessionId, question)) {
+        refresh(sessionId);
+        throw new QuestionChangedError();
+      }
+      await onAnswer(choice, question);
+    },
+    [source, sessionId, onAnswer, refresh],
+  );
+}
 
 /**
  * The one way to answer an agent's question from a list, a tile or the chat: its choices as
@@ -34,10 +62,11 @@ export function AnswerChoices({
   extra?: React.ReactNode;
   className?: string;
 }) {
-  return <Inner key={questionKey(sessionId, question)} question={question} onAnswer={onAnswer} size={size} busy={busy} extra={extra} className={className} />;
+  return <Inner key={questionKey(sessionId, question)} sessionId={sessionId} question={question} onAnswer={onAnswer} size={size} busy={busy} extra={extra} className={className} />;
 }
 
-function Inner({ question, onAnswer, size, busy, extra, className }: Omit<React.ComponentProps<typeof AnswerChoices>, "sessionId">) {
+function Inner({ sessionId, question, onAnswer: send_, size, busy, extra, className }: React.ComponentProps<typeof AnswerChoices>) {
+  const onAnswer = useGuardedAnswer(sessionId, send_);
   const [confirming, setConfirming] = React.useState<string | null>(null);
   const [sent, setSent] = React.useState<string | null>(null);
   const choices = Array.isArray(question.choices) ? question.choices : [];
@@ -49,7 +78,8 @@ function Inner({ question, onAnswer, size, busy, extra, className }: Omit<React.
       await onAnswer(choice, question);
     } catch (e: any) {
       setSent(null);
-      toast.error("Couldn't send the answer", { description: e?.message });
+      if (e instanceof QuestionChangedError) toast.error(e.message);
+      else toast.error("Couldn't send the answer", { description: e?.message });
     }
   };
   const row = `flex flex-wrap items-center gap-1.5 ${className || ""}`;

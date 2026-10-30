@@ -175,7 +175,8 @@ export interface DataSource {
   getSession(id: string): Promise<Session | null>;
   getEvents(id: string): Promise<SessionEvent[]>;
   subscribe(id: string, onEvent: (e: SessionEvent) => void): () => void;
-  sendMessage(id: string, prompt: string, opts?: { enqueueOnly?: boolean }): Promise<void>;
+  /** `clientMessageId` makes a send idempotent: resend the same id when delivery is uncertain. */
+  sendMessage(id: string, prompt: string, opts?: { enqueueOnly?: boolean; clientMessageId?: string }): Promise<void>;
   sendAnswer(id: string, answer: string, question?: PendingQuestion | null): Promise<void>;
   stopTurn(id: string): Promise<string>;
   steerTurn(id: string, text: string): Promise<string>;

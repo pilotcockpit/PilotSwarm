@@ -75,6 +75,10 @@ export function bytes(n: number | null | undefined): string {
   return `${v} B`;
 }
 
+export function newId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+}
+
 export function shortId(id: string | null | undefined) {
   return String(id || "").slice(0, 8);
 }

@@ -48,7 +48,7 @@ const sessions: Session[] = [
   },
   {
     sessionId: RELEASE, title: "Release readiness 0.8.8", agentId: "release-captain", status: "waiting", createdAt: m(110), updatedAt: m(2),
-    model: "anthropic-wif:claude-sonnet-5", activeChildCount: 2, visibility: "shared_write", iterations: 9, pinned: true,
+    model: "anthropic-wif:claude-sonnet-5", activeChildCount: 2, waitReason: "waiting for 2 agent(s)", visibility: "shared_write", iterations: 9, pinned: true,
     workspace: { repo: "pilotswarm", branch: "dev", root: "main" }, unseenCanvas: true,
     spine: ["run", "run", "sleep", "run", "done", "run", "wait", "wait"],
   },

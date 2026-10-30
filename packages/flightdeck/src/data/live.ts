@@ -130,7 +130,7 @@ export function createLiveSource(): DataSource {
       });
     },
     async sendMessage(id, prompt, opts) {
-      await api.call("sendMessage", { sessionId: id, prompt, options: { clientMessageIds: [requestId()], ...(opts?.enqueueOnly ? { enqueueOnly: true } : {}) } });
+      await api.call("sendMessage", { sessionId: id, prompt, options: { clientMessageIds: [opts?.clientMessageId || requestId()], ...(opts?.enqueueOnly ? { enqueueOnly: true } : {}) } });
     },
     async sendAnswer(id, answer, question) {
       await api.call("sendAnswer", { sessionId: id, answer, options: question ? { expectedQuestion: question } : {} });

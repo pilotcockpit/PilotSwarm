@@ -10,6 +10,9 @@
 //   1. no raw colour: hex, rgb(), hsl(), oklch(), color-mix() in TS/TSX
 //   2. no colour escapes in class names: bg-[#fff], bg-[red], bg-white, text-red-500, border-x-red-500 ...
 //   3. no arbitrary font sizes at all: text-[13px], text-[length:0.5rem], text-[clamp(...)]; use the type scale
+//   4. no arbitrary CSS properties: [font-size:10px], [background:red], hover:[color:#fff]. Allowed
+//      by design: arbitrary variants ([&_svg]:size-4, [&>div]:p-2) and custom properties ([--row:30px]),
+//      because neither can set a value that bypasses a token.
 // Ratchet: arbitrary size values like h-[26px] are counted per file against
 // scripts/token-guard.baseline.json. The count may not rise, and may not silently fall either:
 // when you remove some, re-run with --update and commit the lower baseline.
@@ -43,6 +46,12 @@ const rules = [
     msg: "arbitrary colour in a class",
   },
   { id: "palette-class", test: (l) => new RegExp(`(?<![\\w-])(?:${COLOR_PROPS})-(?:${PALETTE})(?:-\\d{2,3})?(?:/\\d+)?(?![\\w-])`).test(l), msg: "Tailwind default palette; use a semantic token (bg-surface, text-muted, text-failed ...)" },
+  {
+    id: "arbitrary-property",
+    // [prop:value] at the start of a class or after a variant colon. `[&...]` variants and `[--x:y]` are fine.
+    test: (l) => /(?:^|[\s"'`:{])\[(?!&|--)[a-zA-Z][a-zA-Z-]*:[^\]]+\]/.test(l),
+    msg: "arbitrary CSS property in a class; use a utility or add a token",
+  },
   { id: "arbitrary-font-size", test: (l) => /(?<![\w-])text-\[(?:length:|size:|-?\.?\d|calc\(|clamp\(|min\(|max\()/.test(l), msg: "arbitrary font size; use the type scale (text-xs ... text-xl)" },
 ];
 const arbitrary = /(?<![\w-])(?:size|[hw]|min-[hw]|max-[hw]|p[xytblr]?|m[xytblr]?|gap(?:-[xy])?|top|left|right|bottom|inset(?:-[xy])?|rounded|text|leading|translate-[xy])-\[-?\d*\.?\d+(?:px|rem|em)\]/g;
@@ -87,7 +96,9 @@ export function checkSource(rel, text) {
   const { byLine, code } = parseComments(text);
   code.split("\n").forEach((line, i) => {
     const comments = byLine.get(i) || [];
-    const reasoned = comments.some((c) => /token-ok:\s*\S+/.test(c));
+    // Strip the comment delimiters first: `/* token-ok: */` has no reason.
+    const bare = comments.map((c) => c.replace(/^\s*(?:\/\/+|\/\*+)/, "").replace(/\*+\/\s*$/, "").trim());
+    const reasoned = bare.some((c) => /token-ok:\s*\S+/.test(c));
     if (comments.some((c) => /token-ok/.test(c)) && !reasoned) violations.push(`${rel}:${i + 1}  [bad-exception] token-ok needs a reason: // token-ok: <why>`);
     if (!reasoned) for (const r of rules) if (r.test(line)) violations.push(`${rel}:${i + 1}  [${r.id}] ${r.msg}\n    ${line.trim().slice(0, 140)}`);
     const m = line.match(arbitrary);

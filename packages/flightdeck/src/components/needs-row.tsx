@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, MessageSquareReply } from "lucide-react";
+import { ChevronRight, Loader2, MessageSquareReply } from "lucide-react";
 import { toast } from "sonner";
 import { useRefresh, useSession, useSource } from "@/data/source";
 import { describeError, pauseSentence, sessionState } from "@/data/state";
@@ -8,25 +8,18 @@ import type { PendingQuestion, Session } from "@/data/types";
 import { AnswerChoices } from "@/components/answer-choices";
 import { StateGlyph } from "@/components/state";
 import { Button } from "@/components/ui/button";
+import { useRetry } from "@/lib/retry";
 import { ago, cn, plural } from "@/lib/utils";
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 /** Asks the agent to retry. There is no restart operation, so the request is a chat message and says so. */
+const retryMessage = () => "Please retry the last step.";
 function RetryButton({ session: s }: { session: Session }) {
-  const { source } = useSource();
-  const refresh = useRefresh();
+  const { retry, busy } = useRetry(s.sessionId, retryMessage, s.title);
   return (
-    <Button
-      size="sm"
-      variant="quiet"
-      title="Asks the agent to retry its last step; it appears in the chat"
-      onClick={async () => {
-        try { await source.sendMessage(s.sessionId, "Please retry the last step."); toast.success("Asked to retry", { description: s.title }); refresh(s.sessionId); }
-        catch (e: any) { toast.error("Couldn't retry", { description: e?.message }); }
-      }}
-    >
-      Retry
+    <Button size="sm" variant="quiet" disabled={busy} title="Asks the agent to retry its last step; it appears in the chat" onClick={() => void retry()}>
+      {busy ? <Loader2 className="animate-spin" aria-hidden /> : null} Retry
     </Button>
   );
 }
