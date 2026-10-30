@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { Card, type CardProps } from "@/components/ui/card";
 
 /** What will appear here, and the one action that makes it appear. */
 export function EmptyState({ icon, title, children, action, className }: { icon?: React.ReactNode; title: string; children?: React.ReactNode; action?: React.ReactNode; className?: string }) {
@@ -15,13 +16,14 @@ export function EmptyState({ icon, title, children, action, className }: { icon?
 export function SectionTitle({ children, count, action, className, id }: { children: React.ReactNode; count?: number; action?: React.ReactNode; className?: string; id?: string }) {
   return (
     <div className={cn("mb-2 flex items-baseline gap-2", className)}>
-      <h2 id={id} className="text-[15px] font-semibold text-fg">{children}</h2>
+      <h2 id={id} className="text-prose font-semibold text-fg">{children}</h2>
       {count != null ? <span className="font-mono text-sm tabular-nums text-faint">{count}</span> : null}
       {action ? <div className="ml-auto text-sm">{action}</div> : null}
     </div>
   );
 }
 
-export function Panel({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("overflow-hidden rounded-pane border border-line bg-surface", className)} {...props} />;
+/** A static container for lists, tables and settings: a Card that clips its rows. */
+export function Panel({ className, ...props }: Omit<CardProps, "as" | "interactive" | "clip">) {
+  return <Card clip className={className} {...props} />;
 }

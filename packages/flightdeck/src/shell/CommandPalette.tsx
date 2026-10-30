@@ -32,8 +32,8 @@ export function CommandPalette() {
   return (
     <D.Root open={paletteOpen} onOpenChange={setPaletteOpen}>
       <D.Portal>
-        <D.Overlay className="fixed inset-0 z-50 bg-black/45" />
-        <D.Content onCloseAutoFocus={restoreFocus} className="fixed left-1/2 top-[14vh] z-50 w-[calc(100vw-24px)] max-w-[620px] -translate-x-1/2 overflow-hidden rounded-dialog border border-line bg-overlay shadow-pop outline-none" aria-describedby={undefined}>
+        <D.Overlay className="fixed inset-0 z-50 bg-scrim data-[state=open]:animate-fade" />
+        <D.Content onCloseAutoFocus={restoreFocus} className="fixed left-1/2 top-[14vh] z-50 w-[calc(100vw-24px)] max-w-[620px] -translate-x-1/2 overflow-hidden rounded-dialog border border-line bg-overlay shadow-pop outline-none data-[state=open]:animate-pop" aria-describedby={undefined}>
           <D.Title className="sr-only">Command palette</D.Title>
           <Command label="Command palette" loop className="flex max-h-[64vh] flex-col">
             <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-line px-4">

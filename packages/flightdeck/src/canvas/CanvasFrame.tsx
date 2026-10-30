@@ -37,7 +37,7 @@ export function CanvasFrame({ html, title, zoom = 1, className }: { html: string
   }, [refused]);
 
   return (
-    <div className={cn("relative h-full w-full overflow-hidden bg-white", className)}>
+    <div className={cn("relative h-full w-full overflow-hidden bg-white", className)}>{/* token-ok: agent canvases are documents drawn on white */}
       <iframe
         ref={frameRef}
         title={title}

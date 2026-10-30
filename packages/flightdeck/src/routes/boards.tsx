@@ -17,6 +17,7 @@ import { Segmented } from "@/components/ui/tabs";
 import { useCanvases } from "./session-views";
 import { CanvasFrame } from "@/canvas/CanvasFrame";
 import { cn } from "@/lib/utils";
+import { cardVariants } from "@/components/ui/card";
 
 // Boards (was Master of Agents): saved tiled views of chats and canvases.
 // Up to five boards of sixteen tiles, as today. Stored in this browser so the
@@ -132,7 +133,7 @@ function BoardTile({ tile, session, focused = false, onFocus, onRemove }: { tile
       tabIndex={0}
       onKeyDown={(e) => { if (e.key.toLowerCase() === "f" && e.target === e.currentTarget) { e.preventDefault(); onFocus(); } }}
       aria-label={`${session?.title || "Session"} ${tile.kind}`}
-      className="flex h-full min-h-0 w-full shrink-0 snap-center flex-col overflow-hidden rounded-pane border border-line bg-surface max-md:w-[calc(100vw-24px)]"
+      className={cn(cardVariants({ clip: true, enter: true }), "flex h-full min-h-0 w-full shrink-0 snap-center flex-col max-md:w-[calc(100vw-24px)]")}
     >
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
         {tile.kind === "canvas" ? <LayoutPanelLeft className="size-3.5 shrink-0 text-muted" aria-hidden /> : <MessagesSquare className="size-3.5 shrink-0 text-muted" aria-hidden />}

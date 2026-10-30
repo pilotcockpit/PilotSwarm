@@ -18,6 +18,7 @@ import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/compo
 import { Tooltip } from "@/components/ui/tooltip";
 import { ClassicLink } from "@/shell/AppShell";
 import { ago, bytes, clock, cn, plural, shortId } from "@/lib/utils";
+import { cardVariants } from "@/components/ui/card";
 import { canvasSlot, isCanvasFile } from "./home";
 import { rovingKeyDown } from "@/lib/roving";
 
@@ -129,7 +130,7 @@ export function FilesView({ session, tab, file, onTab, onFile }: { session: Sess
               <li key={a.filename}>
                 <button type="button" onClick={() => onFile(selected?.filename === a.filename ? undefined : a.filename)} aria-pressed={selected?.filename === a.filename} className={cn("flex h-[38px] w-full items-center gap-2.5 border-b border-line-subtle px-3 text-left hover:bg-raised/70", selected?.filename === a.filename && "bg-raised")}>
                   <FileText className="size-4 shrink-0 text-muted" aria-hidden />
-                  <span className="min-w-0 flex-1 truncate font-mono text-[13px]">{a.filename}</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-sm">{a.filename}</span>
                   <span className="shrink-0 text-xs tabular-nums text-faint">{a.size ? bytes(a.size) : ""}</span>
                   <span className="w-14 shrink-0 text-right text-xs text-faint">{ago(a.updatedAt as any)}</span>
                 </button>
@@ -152,7 +153,7 @@ function FilePreview({ session, file }: { session: Session; file: Artifact }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
-        <span className="min-w-0 flex-1 truncate font-mono text-[13px] font-medium">{file.filename}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium">{file.filename}</span>
         {url ? <Button asChild size="sm"><a href={url} download={file.filename}><Download /> Download</a></Button> : <Tooltip content="Demo files have no download"><span><Button size="sm" disabled><Download /> Download</Button></span></Tooltip>}
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
@@ -267,8 +268,8 @@ function Timeline({ history, filter, session }: { history: HistoryModel | null; 
   if (filter === "wait") events = events.filter((e) => /wait|sleep|timer|cron|spawn|child|pause|affinity/i.test(e.eventType));
   return (
     <div className="p-3">
-      {filter === "wait" ? <p className="mb-3 rounded-pane border border-line bg-surface px-3 py-2 text-sm"><StatePill state={sessionState(session)} size="sm" className="mr-2" />{sessionState(session).next || "It resumes when its wait ends."}</p> : null}
-      {filter === "error" && session.error ? <p className="mb-3 rounded-pane border border-failed/35 bg-failed-tint px-3 py-2 text-sm">{describeError(session.error).detail || describeError(session.error).headline}</p> : null}
+      {filter === "wait" ? <p className={cn(cardVariants(), "mb-3 px-3 py-2 text-sm")}><StatePill state={sessionState(session)} size="sm" className="mr-2" />{sessionState(session).next || "It resumes when its wait ends."}</p> : null}
+      {filter === "error" && session.error ? <p className={cn(cardVariants({ tone: "failed" }), "mb-3 px-3 py-2 text-sm")}>{describeError(session.error).detail || describeError(session.error).headline}</p> : null}
       {events.length === 0 ? <p className="text-sm text-muted">No events{filter ? " match this question" : ""}.</p> : (
         <ol className="relative border-l border-line pl-4">
           {events.slice(0, 200).map((e) => (
@@ -276,9 +277,9 @@ function Timeline({ history, filter, session }: { history: HistoryModel | null; 
               <span className={cn("absolute -left-[4.5px] mt-1.5 size-2 rounded-full", /error|fail/.test(e.eventType) ? "bg-failed" : /complete|done/.test(e.eventType) ? "bg-ok" : "bg-line-strong")} aria-hidden />
               <div className="flex items-baseline gap-2">
                 <span className="font-mono text-xs text-fg">{e.eventType}</span>
-                <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-faint">#{e.seq} · {clock(e.createdAt)}</span>
+                <span className="ml-auto shrink-0 font-mono text-xs tabular-nums text-faint">#{e.seq} · {clock(e.createdAt)}</span>
               </div>
-              {e.data && Object.keys(e.data).length ? <p className="truncate font-mono text-[11px] text-muted">{summarize(e.data)}</p> : null}
+              {e.data && Object.keys(e.data).length ? <p className="truncate font-mono text-xs text-muted">{summarize(e.data)}</p> : null}
             </li>
           ))}
         </ol>

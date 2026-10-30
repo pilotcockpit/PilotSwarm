@@ -12,6 +12,7 @@ import { Segmented } from "@/components/ui/tabs";
 import { Badge, Skeleton } from "@/components/ui/misc";
 import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog";
 import { cn, tokens } from "@/lib/utils";
+import { cardVariants } from "@/components/ui/card";
 
 const route = getRouteApi("/providers");
 
@@ -68,7 +69,7 @@ export function ProvidersPage() {
                         return (
                           <tr key={p.name} className={cn("border-b border-line-subtle last:border-0 hover:bg-raised/60", search.provider === p.name && "bg-raised")} onClick={open}>
                             <td className="px-3 py-3">
-                              <button type="button" className="text-left font-mono text-[13px] font-medium hover:underline" onClick={(e) => { e.stopPropagation(); open(); }}>{p.name}</button>
+                              <button type="button" className="text-left font-mono text-sm font-medium hover:underline" onClick={(e) => { e.stopPropagation(); open(); }}>{p.name}</button>
                               <div className="text-xs text-muted">{p.class === "personal" ? `Yours${p.ownerDisplayName ? ` · ${p.ownerDisplayName}` : ""}` : "Shared"} · <span className="font-mono">{p.typeId}</span>{n ? ` · ${n} model${n === 1 ? "" : "s"}` : ""}</div>
                             </td>
                             <td className="px-3 py-3"><KeyStatus provider={p} broken={brokenOnWorkers.has(p.name)} /></td>
@@ -135,7 +136,7 @@ function KeyStatus({ provider: p, broken }: { provider: Provider; broken: boolea
 function UsageStrip({ usage }: { usage?: UsageSummary | null }) {
   const w = usage?.windows;
   return (
-    <dl className="mb-6 grid grid-cols-3 divide-x divide-line rounded-pane border border-line bg-surface">
+    <dl className={cn(cardVariants({ clip: true, enter: true }), "mb-6 grid grid-cols-3 divide-x divide-line")}>
       {(["day", "week", "month"] as const).map((k) => (
         <div key={k} className="px-4 py-2.5">
           <dt className="text-xs text-muted">{k === "day" ? "Today" : k === "week" ? "This week" : "This month"}</dt>
@@ -181,7 +182,7 @@ function PausedNotice({ providers, paused, isAdmin, onOpen }: { providers: Provi
   const name = hot?.name || String(paused[0]?.pauseState?.provider || "A provider");
   const pct = hot?.usage?.month?.limit ? Math.round((hot.usage.month.used / hot.usage.month.limit) * 100) : null;
   return (
-    <div role="status" className="mb-4 flex flex-col gap-3 rounded-pane border border-waiting/40 bg-waiting-tint px-4 py-3 sm:flex-row sm:items-center">
+    <div role="status" className={cn(cardVariants({ tone: "waiting", enter: true }), "mb-4 flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center")}>
       <p className="flex min-w-0 flex-1 items-start gap-2.5 text-sm">
         <StateGlyph state="waiting" className="mt-[5px]" />
         <span className="min-w-0">
@@ -206,7 +207,7 @@ function LimitsSection({ providers }: { providers: Provider[] }) {
       <Panel>
         {rows.map(({ p, l }, i) => (
           <div key={i} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line-subtle px-4 py-2.5 text-sm first:border-t-0">
-            <span className="w-44 shrink-0 font-mono text-[13px]">{p.name}</span>
+            <span className="w-44 shrink-0 font-mono text-sm">{p.name}</span>
             <span className="text-muted">{l.model ? <span className="font-mono">{l.model.split(":").pop()}</span> : "All models"}</span>
             <span className="ml-auto font-mono tabular-nums">{tokens(l.tokens)} per {l.period}</span>
             <span className="w-32 text-right text-xs text-muted">{p.allowancePct ?? 100}% per person</span>
@@ -231,7 +232,7 @@ function ProviderDetail({ provider, broken, usage, onClose }: { provider?: Provi
             {tab === "overview" ? (
               <>
                 {broken ? (
-                  <div role="alert" className="rounded-pane border border-failed/35 bg-failed-tint p-3 text-sm">
+                  <div role="alert" className={cn(cardVariants({ tone: "failed", enter: true }), "p-3 text-sm")}>
                     <p className="font-semibold">Sessions can't reach this provider.</p>
                     <p className="mt-0.5 text-fg/85">The key is set here, but the workers are missing its workload identity settings. A worker admin needs to add them to the worker environment, then retry the failed sessions.</p>
                   </div>
@@ -243,7 +244,7 @@ function ProviderDetail({ provider, broken, usage, onClose }: { provider?: Provi
                 </dl>
                 <div>
                   <div className="mb-1.5 text-sm font-medium">Models <span className="font-mono text-faint">{list.length}</span></div>
-                  <ul className="rounded-pane border border-line">
+                  <ul className={cardVariants({ clip: true })}>
                     {list.map((m) => (
                       <li key={m.qualifiedName} className="border-t border-line-subtle px-3 py-2 first:border-t-0">
                         <div className="font-mono text-sm">{m.modelName}</div>

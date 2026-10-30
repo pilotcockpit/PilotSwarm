@@ -17,12 +17,12 @@ export function SessionRow({ session, childCount = 0, depth = 0, active = false,
     <>
       {session.pinned ? <Pin className="size-3 shrink-0 text-faint" aria-label="Pinned" /> : null}
       {session.unseenCanvas ? (
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-chip bg-accent-tint px-1.5 text-[11px] font-medium text-accent">
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-chip bg-accent-tint px-1.5 text-xs font-medium text-accent">
           <LayoutPanelLeft className="size-3" aria-hidden /> canvas updated
         </span>
       ) : null}
       {childCount > 0 ? (
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-chip bg-raised px-1.5 text-[11px] text-muted" title={`${childCount} sub-agents`}>
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-chip bg-raised px-1.5 text-xs text-muted" title={`${childCount} sub-agents`}>
           <GitBranch className="size-3" aria-hidden /> {childCount}<span className="sr-only"> sub-agents</span>
         </span>
       ) : null}

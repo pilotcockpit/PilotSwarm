@@ -23,18 +23,28 @@
   /* Light state colours are darkened so they hold 4.5:1 as text on their own tints. */
   --accent: #1a5fcc;
   --accent-fg: #ffffff;
-  --accent-tint: color-mix(in oklab, #1a5fcc 8%, transparent);
   --live: #09705f;
   --waiting: #855607;
   --failed: #b8293a;
   --ok: #1a6e46;
   --needs: #1a5fcc;
-  --live-tint: color-mix(in oklab, #09705f 9%, transparent);
-  --waiting-tint: color-mix(in oklab, #855607 9%, transparent);
-  --failed-tint: color-mix(in oklab, #b8293a 8%, transparent);
-  --ok-tint: color-mix(in oklab, #1a6e46 9%, transparent);
+  /* How much of a hue a tint carries; the dark theme needs more to read on its ground. */
+  --tint: 9%;
+  --scrim: rgb(14 15 17 / 0.45);
+  /* Elevation is a response, not a resting state: pop is for what floats (menus, dialogs),
+     lift is the hover response of an interactive card. */
   --shadow-pop: 0 8px 28px -6px rgb(17 18 20 / 0.18), 0 2px 6px -2px rgb(17 18 20 / 0.1);
+  --shadow-lift: 0 6px 16px -8px rgb(17 18 20 / 0.2), 0 1px 2px rgb(17 18 20 / 0.06);
   color-scheme: light;
+}
+
+/* Tints are derived from their hue, in both themes, so a hue changes in one place. */
+:root, .dark {
+  --accent-tint: color-mix(in oklab, var(--accent) var(--tint), transparent);
+  --live-tint: color-mix(in oklab, var(--live) var(--tint), transparent);
+  --waiting-tint: color-mix(in oklab, var(--waiting) var(--tint), transparent);
+  --failed-tint: color-mix(in oklab, var(--failed) var(--tint), transparent);
+  --ok-tint: color-mix(in oklab, var(--ok) var(--tint), transparent);
 }
 
 .dark {
@@ -50,17 +60,15 @@
   --faint: #8b8d95;
   --accent: #5c9dff;
   --accent-fg: #0b1220;
-  --accent-tint: color-mix(in oklab, #5c9dff 14%, transparent);
   --live: #3ec7b0;
   --waiting: #e2a93b;
   --failed: #f2666f;
   --ok: #57c785;
   --needs: #5c9dff;
-  --live-tint: color-mix(in oklab, #3ec7b0 13%, transparent);
-  --waiting-tint: color-mix(in oklab, #e2a93b 13%, transparent);
-  --failed-tint: color-mix(in oklab, #f2666f 11%, transparent);
-  --ok-tint: color-mix(in oklab, #57c785 12%, transparent);
+  --tint: 13%;
+  --scrim: rgb(0 0 0 / 0.62);
   --shadow-pop: 0 12px 36px -8px rgb(0 0 0 / 0.6), 0 2px 8px -2px rgb(0 0 0 / 0.45);
+  --shadow-lift: 0 8px 20px -8px rgb(0 0 0 / 0.55), 0 1px 2px rgb(0 0 0 / 0.3);
   color-scheme: dark;
 }
 
@@ -87,6 +95,7 @@
   --color-failed: var(--failed);
   --color-ok: var(--ok);
   --color-needs: var(--needs);
+  --color-scrim: var(--scrim);
   --color-live-tint: var(--live-tint);
   --color-waiting-tint: var(--waiting-tint);
   --color-failed-tint: var(--failed-tint);
@@ -119,12 +128,39 @@
   --spacing-control: var(--control);
 
   --shadow-pop: var(--shadow-pop);
+  --shadow-lift: var(--shadow-lift);
+
+  /* Motion. 120ms hover and press, 180ms panels and menus, 260ms an arrival that
+     travels. out-fd for standing changes, emphasized for arrivals, in-fd for exits. */
   --ease-out-fd: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-fd: cubic-bezier(0.4, 0, 1, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
 
   --animate-pulse-live: pulse-live 1.6s ease-in-out infinite;
   @keyframes pulse-live {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.35; }
+  }
+
+  /* Arrivals. Travel is a variable, so reduced motion keeps the fade and drops the movement. */
+  --animate-enter: fd-enter var(--duration-slow) var(--ease-emphasized) backwards;
+  --animate-pop: fd-pop var(--duration-base) var(--ease-emphasized) backwards;
+  --animate-fade: fd-fade var(--duration-base) var(--ease-out-fd) backwards;
+  --animate-sheet: fd-sheet var(--duration-slow) var(--ease-emphasized) backwards;
+  @keyframes fd-enter {
+    from { opacity: 0; transform: translateY(var(--fd-rise)); }
+  }
+  @keyframes fd-pop {
+    from { opacity: 0; transform: translateY(var(--fd-rise-sm)) scale(var(--fd-scale)); }
+  }
+  @keyframes fd-fade {
+    from { opacity: 0; }
+  }
+  @keyframes fd-sheet {
+    from { opacity: 0; transform: translateX(var(--fd-slide)); }
   }
 }
 
@@ -152,8 +188,13 @@
   * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   button, [role="button"] { cursor: default; }
   a { color: inherit; }
+  :root { --fd-rise: 6px; --fd-rise-sm: 4px; --fd-scale: 0.985; --fd-slide: 24px; }
+  /* Reduced motion keeps what carries meaning (fades, colour and state changes) and drops
+     travel, scale and every ambient loop. Spinners stay: they say "working". */
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+    :root { --fd-rise: 0px; --fd-rise-sm: 0px; --fd-scale: 1; --fd-slide: 0px; }
+    .animate-pulse-live, .animate-pulse { animation: none; }
+    * { scroll-behavior: auto !important; }
   }
 }
 

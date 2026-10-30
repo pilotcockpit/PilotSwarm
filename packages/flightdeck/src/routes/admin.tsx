@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/misc";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ADMIN_TABS } from "@/router";
 import { ago, bytes, clock, cn, tokens } from "@/lib/utils";
+import { Card, Stat, cardVariants } from "@/components/ui/card";
 
 const route = getRouteApi("/admin");
 
@@ -93,7 +94,7 @@ function Workers() {
         <tbody>
           {(workers || []).map((w) => (
             <tr key={w.workerNodeId} className="border-b border-line-subtle last:border-0">
-              <td className="px-3 py-2.5"><div className="font-mono text-[13px]">{w.workerNodeId}</div><div className="text-xs text-faint">{w.info?.runtime?.hostname}</div></td>
+              <td className="px-3 py-2.5"><div className="font-mono text-sm">{w.workerNodeId}</div><div className="text-xs text-faint">{w.info?.runtime?.hostname}</div></td>
               <td className="px-3 py-2.5"><span className="inline-flex items-center gap-1.5"><span className={cn("size-2 rounded-full", w.phase === "ready" ? "bg-live" : "bg-waiting")} aria-hidden />{w.phase}</span></td>
               <td className="px-3 py-2.5 font-mono text-xs">{w.info?.sdkVersion ? `v${w.info.sdkVersion}` : "—"}</td>
               <td className="px-3 py-2.5 text-right tabular-nums">{w.health?.activeSessions ?? 0}{w.health?.workerSlots?.total ? ` / ${w.health.workerSlots.total}` : ""}</td>
@@ -115,7 +116,7 @@ function SystemSessions() {
   return (
     <>
       {err ? (
-        <div role="alert" className="mb-4 rounded-pane border border-failed/35 bg-failed-tint p-3 text-sm">
+        <div role="alert" className={cn(cardVariants({ tone: "failed", enter: true }), "mb-4 p-3 text-sm")}>
           <p className="font-semibold">{failed.length} of {system.length} system sessions failed with the same cause.</p>
           <p className="mt-0.5 text-fg/85">{err.detail || err.headline}</p>
         </div>
@@ -160,14 +161,13 @@ function ClusterUsage() {
   const entries = Object.entries(data).filter(([, v]) => typeof v !== "object");
   return (
     <>
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        {entries.slice(0, 6).map(([k, v]) => (
-          <div key={k} className="rounded-pane border border-line bg-surface p-3.5">
-            <div className="text-xs text-muted">{k.replace(/([A-Z])/g, " $1").toLowerCase()}</div>
-            <div className="mt-0.5 font-mono text-xl font-semibold tabular-nums">{typeof v === "number" && v > 9999 ? tokens(v) : String(v)}</div>
-          </div>
-        ))}
-      </div>
+      <Card as="div" enter clip className="mb-4">
+        <dl className="grid grid-cols-2 divide-line sm:grid-cols-3 [&>div]:border-line [&>div:nth-child(n+3)]:border-t sm:[&>div:nth-child(n+4)]:border-t sm:[&>div:nth-child(-n+3)]:border-t-0 [&>div:nth-child(even)]:border-l sm:[&>div]:border-l sm:[&>div:nth-child(3n+1)]:border-l-0">
+          {entries.slice(0, 6).map(([k, v]) => (
+            <Stat key={k} label={k.replace(/([A-Z])/g, " $1").toLowerCase()} value={typeof v === "number" && v > 9999 ? tokens(v) : String(v)} />
+          ))}
+        </dl>
+      </Card>
       {Array.isArray((data as any).noisiest) ? (
         <Panel>
           <div className="border-b border-line px-4 py-2 text-sm font-semibold">Noisiest sessions</div>

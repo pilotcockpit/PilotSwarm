@@ -1,4 +1,5 @@
 import { getRouteApi } from "@tanstack/react-router";
+import { Card } from "@/components/ui/card";
 import { AppWindow, Bot, Package, Play, Wrench } from "lucide-react";
 import { TopBar, ClassicLink } from "@/shell/AppShell";
 import { useUi } from "@/shell/ui-state";
@@ -38,10 +39,10 @@ export function LibraryPage() {
                 <section key={pkg} className="mb-6">
                   <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted"><Package className="size-4" aria-hidden /> {pkg}</h2>
                   <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                    {list.map((a) => (
-                      <article key={a.name} className="flex flex-col rounded-pane border border-line bg-surface p-4">
+                    {list.map((a, i) => (
+                      <Card as="article" key={a.name} enter index={i} className="group flex flex-col p-4 transition-colors duration-(--duration-fast) hover:border-line-strong">
                         <div className="flex items-start gap-3">
-                          <span className="grid size-9 shrink-0 place-items-center rounded-control bg-raised text-muted"><Bot className="size-4" aria-hidden /></span>
+                          <span className="grid size-9 shrink-0 place-items-center rounded-control bg-raised text-muted transition-colors duration-(--duration-fast) group-hover:bg-accent-tint group-hover:text-accent"><Bot className="size-4" aria-hidden /></span>
                           <div className="min-w-0">
                             <h3 className="truncate text-base font-semibold">{a.title || a.name}</h3>
                             <p className="truncate font-mono text-xs text-faint">{a.name}</p>
@@ -50,11 +51,11 @@ export function LibraryPage() {
                         <p className="mt-2 line-clamp-3 flex-1 text-sm text-muted">{a.description || "No description."}</p>
                         {a.tools?.length ? (
                           <p className="mt-2 flex flex-wrap gap-1">
-                            {a.tools.slice(0, 4).map((t) => <span key={t} className="inline-flex items-center gap-1 rounded-chip bg-raised px-1.5 font-mono text-[11px] text-muted"><Wrench className="size-3" aria-hidden />{t}</span>)}
+                            {a.tools.slice(0, 4).map((t) => <span key={t} className="inline-flex items-center gap-1 rounded-chip bg-raised px-1.5 font-mono text-xs text-muted"><Wrench className="size-3" aria-hidden />{t}</span>)}
                           </p>
                         ) : null}
                         <Button className="mt-3 self-start" onClick={() => openNewSession({ agent: a.name })}><Play /> Start session</Button>
-                      </article>
+                      </Card>
                     ))}
                   </div>
                 </section>

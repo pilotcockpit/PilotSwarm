@@ -60,7 +60,7 @@ function RailLink({ item, collapsed, path }: { item: NavItem; collapsed: boolean
       to={item.to}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "focus-inset group relative flex h-[34px] items-center gap-2.5 rounded-control text-sm font-medium transition-colors duration-[120ms]",
+        "focus-inset group relative flex h-[34px] items-center gap-2.5 rounded-control text-sm font-medium transition-colors duration-(--duration-fast)",
         collapsed ? "w-10 justify-center" : "px-2.5",
         active ? "bg-raised text-fg" : "text-muted hover:bg-raised/60 hover:text-fg",
       )}
@@ -119,14 +119,14 @@ function Rail() {
   return (
     <nav
       aria-label="Primary"
-      className={cn("flex h-full shrink-0 flex-col border-r border-line bg-surface py-3 transition-[width] duration-[180ms] ease-out-fd", collapsed ? "w-16 items-center px-3" : "w-[232px] px-3")}
+      className={cn("flex h-full shrink-0 flex-col border-r border-line bg-surface py-3 transition-[width] duration-(--duration-base) ease-out-fd", collapsed ? "w-16 items-center px-3" : "w-[232px] px-3")}
     >
       <div className={cn("mb-3 flex h-8 items-center gap-2", collapsed ? "justify-center" : "px-1.5")}>
         <Logo />
         {collapsed ? null : (
           <>
-            <span className="text-[15px] font-semibold tracking-tight">PilotSwarm</span>
-            <span className="ml-auto rounded-chip border border-line px-1.5 font-mono text-[11px] text-faint" title="Flight Deck preview build">next</span>
+            <span className="text-prose font-semibold tracking-tight">PilotSwarm</span>
+            <span className="ml-auto rounded-chip border border-line px-1.5 font-mono text-xs text-faint" title="Flight Deck preview build">next</span>
           </>
         )}
       </div>
@@ -147,7 +147,7 @@ function Rail() {
       <div className="mt-auto flex w-full flex-col gap-0.5 border-t border-line pt-3">
         {bottom.map((item) => <RailLink key={item.to} item={item} collapsed={collapsed} path={path} />)}
         <div className={cn("mt-2 flex items-center gap-2.5", collapsed ? "justify-center" : "px-2.5")}>
-          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent-tint text-[11px] font-semibold text-accent" aria-hidden>{initials(profile?.displayName)}</span>
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent-tint text-xs font-semibold text-accent" aria-hidden>{initials(profile?.displayName)}</span>
           {collapsed ? null : (
             <div className="min-w-0 flex-1 leading-tight">
               <div className="truncate text-sm font-medium">{profile?.displayName || "…"}</div>
@@ -199,7 +199,7 @@ function BottomTabs() {
           const active = t.match(path);
           const Icon = t.icon;
           return (
-            <Link key={t.to} to={t.to} aria-current={active ? "page" : undefined} className={cn("relative flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium", active ? "text-fg" : "text-muted")}>
+            <Link key={t.to} to={t.to} aria-current={active ? "page" : undefined} className={cn("relative flex h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium", active ? "text-fg" : "text-muted")}>
               <span className="relative">
                 <Icon className="size-5" />
                 {t.badge && t.badgeTone === "accent" ? <span className="absolute -right-1.5 -top-1 size-2 rounded-full bg-accent" aria-hidden /> : null}
@@ -209,7 +209,7 @@ function BottomTabs() {
             </Link>
           );
         })}
-        <button type="button" onClick={() => setMore(true)} className={cn("flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium", moreActive ? "text-fg" : "text-muted")}>
+        <button type="button" onClick={() => setMore(true)} className={cn("flex h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium", moreActive ? "text-fg" : "text-muted")}>
           <MenuIcon className="size-5" /> More
         </button>
       </nav>

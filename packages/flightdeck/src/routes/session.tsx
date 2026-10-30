@@ -174,13 +174,13 @@ function ViewTabs({ view, counts, onView, includeChat = false, closable = false,
             className={cn(
               "focus-inset relative inline-flex h-10 shrink-0 items-center gap-1.5 px-2.5 text-sm font-medium",
               // Phones: five equal columns, icon over a short label, so every view fits without scrolling.
-              includeChat && "max-sm:h-12 max-sm:flex-col max-sm:justify-center max-sm:gap-0.5 max-sm:px-0 max-sm:text-[11px]",
+              includeChat && "max-sm:h-12 max-sm:flex-col max-sm:justify-center max-sm:gap-0.5 max-sm:px-0 max-sm:text-xs",
               active ? "text-fg" : "text-muted hover:text-fg",
             )}
           >
             <Icon className="size-4" />
             {VIEW_META[v].label}
-            {counts[v] ? <span className={cn("font-mono text-xs tabular-nums text-faint", includeChat && "max-sm:absolute max-sm:right-2 max-sm:top-1 max-sm:text-[10px]")}>{counts[v]}</span> : null}
+            {counts[v] ? <span className={cn("font-mono text-xs tabular-nums text-faint", includeChat && "max-sm:absolute max-sm:right-2 max-sm:top-1 max-sm:text-xs")}>{counts[v]}</span> : null}
             {v === "chat" && needsBadge && view !== "chat" ? <span className="size-1.5 rounded-full bg-accent max-sm:absolute max-sm:left-[calc(50%+10px)] max-sm:top-2" aria-label="needs attention" /> : null}
             {v === "canvas" && canvasUpdated && view !== "canvas" ? <span className="size-1.5 rounded-full bg-accent max-sm:absolute max-sm:left-[calc(50%+10px)] max-sm:top-2" aria-label="updated" /> : null}
             {active ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-t bg-accent" aria-hidden /> : null}
@@ -241,15 +241,15 @@ function SessionHeader({ session, childCount }: { session: Session; childCount: 
         )}
         <div className="fd-session-meta mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 text-sm text-muted">
           <StatePillWithSchedule state={st} session={session} />
-          <span className="font-mono text-[13px]">{session.agentId || "generic"}</span>
+          <span className="font-mono text-sm">{session.agentId || "generic"}</span>
           {/* Phones keep the state and the agent; the rest is one tap away in the ⋯ menu. */}
           <span className="hidden items-center gap-x-2.5 sm:inline-flex">
             <span aria-hidden className="text-faint">·</span>
-            <span className="font-mono text-[13px]">{modelShort(session.model)}</span>
+            <span className="font-mono text-sm">{modelShort(session.model)}</span>
             {session.workspace?.repo ? (
               <>
                 <span aria-hidden className="text-faint">·</span>
-                <span className="inline-flex items-center gap-1 font-mono text-[13px]"><FolderGit2 className="size-3.5" aria-hidden />{session.workspace.repo}{session.workspace.branch ? ` @ ${session.workspace.branch}` : ""}</span>
+                <span className="inline-flex items-center gap-1 font-mono text-sm"><FolderGit2 className="size-3.5" aria-hidden />{session.workspace.repo}{session.workspace.branch ? ` @ ${session.workspace.branch}` : ""}</span>
               </>
             ) : null}
             <span aria-hidden className="text-faint">·</span>
@@ -269,7 +269,7 @@ function VisibilityLabel({ visibility }: { visibility?: string }) {
   const v = visibility || "private";
   const Icon = v === "private" ? Lock : v === "shared_write" ? Users : Globe;
   const label = v === "private" ? "Private" : v === "shared_write" ? "Shared · can reply" : "Shared · view only";
-  return <span className="inline-flex items-center gap-1 text-[13px]"><Icon className="size-3.5" aria-hidden />{label}</span>;
+  return <span className="inline-flex items-center gap-1 text-sm"><Icon className="size-3.5" aria-hidden />{label}</span>;
 }
 
 /** When a session runs on a schedule, its state pill opens the schedule. */

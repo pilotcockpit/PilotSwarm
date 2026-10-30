@@ -78,7 +78,10 @@ agent and tool names, paths, payloads, logs and every number that lines up
   Settings → Appearance.
 - Radius: chip 4, control 6, pane 8, dialog 10; full pills only for status.
 - Elevation: none at rest; tone steps (bg → surface → raised) separate
-  layers. Only menus, popovers, the palette and dialogs cast a shadow.
+  layers. Only menus, popovers, the palette and dialogs cast a shadow, plus
+  the small `shadow-lift` an interactive card shows on hover.
+- The shipped system (tokens, Card, motion, guard) is documented in
+  [`packages/flightdeck/DESIGN.md`](../../../packages/flightdeck/DESIGN.md).
 - Icons: Lucide, 16px, 1.6 stroke, `muted` colour. Every destination has an
   icon **and** a label; icon-only buttons appear only in dense toolbars and
   always have a tooltip and an accessible name.

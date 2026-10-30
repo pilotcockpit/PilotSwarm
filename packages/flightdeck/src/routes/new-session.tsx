@@ -10,6 +10,7 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/misc";
 import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
+import { cardVariants } from "@/components/ui/card";
 import { rovingKeyDown } from "@/lib/roving";
 
 /**
@@ -81,7 +82,7 @@ function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent:
   if (noProvider) {
     return (
       <DialogBody>
-        <div className="rounded-pane border border-line bg-surface p-4">
+        <div className={cn(cardVariants({ enter: true }), "p-4")}>
           <KeyRound className="mb-2 size-5 text-muted" aria-hidden />
           <h3 className="text-base font-semibold">Add a model provider to start</h3>
           <p className="mt-1 text-sm text-muted">Sessions need a model. Either add your own key, or ask an admin to share a provider with you.</p>
@@ -126,7 +127,7 @@ function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent:
           )}
         </fieldset>
 
-        <div className="rounded-pane border border-line">
+        <div className={cardVariants()}>
           <button type="button" aria-expanded={optionsOpen} onClick={() => setOptionsOpen((v) => !v)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
             <span className="text-sm font-medium">Options</span>
             <span className="min-w-0 flex-1 truncate text-xs text-muted">
@@ -191,17 +192,17 @@ function AgentCard({ selected, onSelect, title, name, description, recent }: { s
       aria-checked={selected}
       tabIndex={selected ? 0 : -1}
       onClick={onSelect}
-      className={cn("flex min-h-[68px] items-start gap-2.5 rounded-pane border p-2.5 text-left transition-colors", selected ? "border-accent bg-accent-tint" : "border-line hover:border-line-strong hover:bg-raised/50")}
+      className={cn(cardVariants({ interactive: true, selected }), "flex min-h-[68px] items-start gap-2.5 p-2.5 text-left", !selected && "hover:bg-raised/50")}
     >
-      <span className={cn("mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border", selected ? "border-accent bg-accent text-accent-fg" : "border-line-strong")} aria-hidden>
-        {selected ? <Check className="size-3" strokeWidth={3} /> : null}
+      <span className={cn("mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border transition-colors duration-(--duration-fast)", selected ? "border-accent bg-accent text-accent-fg" : "border-line-strong")} aria-hidden>
+        {selected ? <Check className="size-3 animate-pop" strokeWidth={3} /> : null}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
           <span className="truncate text-sm font-semibold">{title}</span>
-          {recent ? <span className="shrink-0 text-[11px] text-faint">recent</span> : null}
+          {recent ? <span className="shrink-0 text-xs text-faint">recent</span> : null}
         </span>
-        <span className="block truncate font-mono text-[11px] text-faint">{name}</span>
+        <span className="block truncate font-mono text-xs text-faint">{name}</span>
         {description ? <span className="mt-0.5 line-clamp-2 text-xs text-muted">{description}</span> : null}
       </span>
     </button>

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { cardVariants } from "@/components/ui/card";
 import { Link } from "@tanstack/react-router";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
@@ -82,7 +83,7 @@ function TranscriptItem({ item, agentName, onOpenCanvas, errorActions }: { item:
   }
   if (item.kind === "canvas-update" || item.role === "canvas-update") {
     return (
-      <li className="ml-9 flex items-center gap-3 rounded-pane border border-line bg-surface px-3 py-2.5">
+      <li className={cn(cardVariants({ enter: true }), "ml-9 flex items-center gap-3 px-3 py-2.5")}>
         <span className="grid size-8 shrink-0 place-items-center rounded-control bg-raised text-muted"><LayoutPanelLeft className="size-4" aria-hidden /></span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold">Drew {item.note ? `“${item.note}”` : "the canvas"}</span>
@@ -144,14 +145,14 @@ export function ToolCall({ item }: { item: ChatItem }) {
   const done = item.status === "Done" || item.status === "Started";
   const spawn = item.category === "Agent" && item.result?.childSessionId;
   return (
-    <div className={cn("ml-9 overflow-hidden rounded-pane border bg-surface", failed ? "border-failed/40" : "border-line")}>
-      <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="flex h-[34px] w-full items-center gap-2 px-3 text-left hover:bg-raised/60 pointer-coarse:h-11">
+    <div className={cn(cardVariants({ clip: true, tone: failed ? "failed" : "neutral" }), "ml-9")}>
+      <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="flex h-[34px] w-full items-center gap-2 px-3 text-left transition-colors duration-(--duration-fast) hover:bg-raised/60 pointer-coarse:h-11">
         {item.category === "Agent" ? <GitBranch className="size-3.5 shrink-0 text-muted" aria-hidden /> : <Wrench className="size-3.5 shrink-0 text-muted" aria-hidden />}
-        <span className="shrink-0 font-mono text-[13px] text-fg">{item.name}</span>
+        <span className="shrink-0 font-mono text-sm text-fg">{item.name}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">{item.text}</span>
         {failed ? <X className="size-3.5 shrink-0 text-failed" aria-label="Failed" /> : done ? <Check className="size-3.5 shrink-0 text-ok" aria-label="Done" /> : <Loader2 className="size-3.5 shrink-0 animate-spin text-live" aria-label="Running" />}
         {callDuration(item) ? <span className="shrink-0 font-mono text-xs tabular-nums text-faint">{callDuration(item)}</span> : null}
-        <ChevronRight className={cn("size-3.5 shrink-0 text-faint transition-transform", open && "rotate-90")} aria-hidden />
+        <ChevronRight className={cn("size-3.5 shrink-0 text-faint transition-transform duration-(--duration-fast)", open && "rotate-90")} aria-hidden />
       </button>
       {spawn ? (
         <div className="flex flex-wrap gap-1.5 border-t border-line-subtle px-3 py-2">
@@ -161,7 +162,7 @@ export function ToolCall({ item }: { item: ChatItem }) {
         </div>
       ) : null}
       {open ? (
-        <div id={id} className="border-t border-line-subtle bg-bg px-3 py-2.5 font-mono text-xs leading-5 text-muted">
+        <div id={id} className="animate-fade border-t border-line-subtle bg-bg px-3 py-2.5 font-mono text-xs leading-5 text-muted">
           <Payload label="Arguments" value={item.arguments} />
           {item.progress ? <Payload label="Progress" value={item.progress} /> : null}
           {item.result !== undefined ? <Payload label="Result" value={item.result} /> : null}
@@ -177,10 +178,10 @@ function SpawnBlock({ items }: { items: ChatItem[] }) {
   const { data: sessions } = useSessions();
   const byId = new Map((sessions || []).map((x) => [x.sessionId, x]));
   return (
-    <div className="ml-9 overflow-hidden rounded-pane border border-line bg-surface">
+    <div className={cn(cardVariants({ clip: true, enter: true }), "ml-9")}>
       <div className="flex h-[34px] items-center gap-2 px-3">
         <GitBranch className="size-3.5 shrink-0 text-muted" aria-hidden />
-        <span className="shrink-0 font-mono text-[13px] text-fg">spawn_agent{items.length > 1 ? ` ×${items.length}` : ""}</span>
+        <span className="shrink-0 font-mono text-sm text-fg">spawn_agent{items.length > 1 ? ` ×${items.length}` : ""}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">{items.map((i) => i.result?.agentId).filter(Boolean).join(", ")}</span>
         <Check className="size-3.5 shrink-0 text-ok" aria-label="Started" />
       </div>
@@ -206,7 +207,7 @@ function Payload({ label, value }: { label: string; value: unknown }) {
   const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
   return (
     <div className="mb-2 last:mb-0">
-      <div className="mb-0.5 font-sans text-[11px] font-semibold text-faint">{label}</div>
+      <div className="mb-0.5 font-sans text-xs font-semibold text-faint">{label}</div>
       <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-words">{text}</pre>
     </div>
   );
@@ -232,7 +233,7 @@ function CallRun({ items }: { items: ChatItem[] }) {
 function NativeTasks({ item }: { item: ChatItem }) {
   const tasks: any[] = Array.isArray(item.tasks) ? item.tasks : [];
   return (
-    <div className="ml-9 rounded-pane border border-line bg-surface p-3">
+    <div className={cn(cardVariants({ enter: true }), "ml-9 p-3")}>
       <div className="mb-2 text-xs font-semibold text-muted">In-session tasks</div>
       <ul className="flex flex-col gap-1.5">
         {(tasks.length ? tasks : [{ label: item.text || "Task" }]).map((t, i) => (
@@ -253,7 +254,7 @@ export function QuestionCard({ question, agentName, onAnswer, busy }: { question
   const [text, setText] = React.useState("");
   const choices = Array.isArray(question.choices) ? question.choices : [];
   return (
-    <section aria-label="Question from the agent" className="rounded-pane border border-accent/45 bg-accent-tint p-4">
+    <section aria-label="Question from the agent" className={cn(cardVariants({ tone: "accent", enter: true }), "p-4")}>
       <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-accent">
         <MessageSquareQuote className="size-4" aria-hidden /> <span className="font-mono">{agentName}</span> is asking
       </div>

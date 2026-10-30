@@ -36,7 +36,7 @@ export function OutputsPage() {
           {list.length === 0 ? (
             <Panel><EmptyState icon={<FolderOutput />} title={q ? "Nothing matches" : tab === "canvases" ? "No canvases yet" : "No output files yet"}>{tab === "canvases" ? "When an agent draws a canvas it appears here, newest first, with a dot when it changed since you looked." : "Files you attach and files agents publish to a session's Outputs show up here."}</EmptyState></Panel>
           ) : tab === "canvases" ? (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{list.map((o) => <OutputCard key={`${o.session.sessionId}/${o.filename}`} output={o} />)}</div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{list.map((o, i) => <OutputCard key={`${o.session.sessionId}/${o.filename}`} output={o} index={i} />)}</div>
           ) : (
             <Panel>
               <table className="w-full text-sm">
@@ -44,7 +44,7 @@ export function OutputsPage() {
                 <tbody>
                   {list.map((o) => (
                     <tr key={`${o.session.sessionId}/${o.filename}`} className="border-b border-line-subtle last:border-0 hover:bg-raised/60">
-                      <td className="px-3 py-2"><Link to="/s/$sessionId" params={{ sessionId: o.session.sessionId }} search={{ view: "files", files: "outputs", file: o.filename }} className="inline-flex items-center gap-2 font-mono text-[13px] hover:underline"><FileText className="size-4 text-muted" aria-hidden />{o.filename}</Link></td>
+                      <td className="px-3 py-2"><Link to="/s/$sessionId" params={{ sessionId: o.session.sessionId }} search={{ view: "files", files: "outputs", file: o.filename }} className="inline-flex items-center gap-2 font-mono text-sm hover:underline"><FileText className="size-4 text-muted" aria-hidden />{o.filename}</Link></td>
                       <td className="max-w-[260px] truncate px-3 py-2 text-muted">{o.session.title}</td>
                       <td className="hidden px-3 py-2 font-mono text-xs text-faint md:table-cell">{o.session.agentId}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-faint">{o.size ? bytes(o.size) : "—"}</td>

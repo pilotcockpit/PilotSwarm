@@ -1,4 +1,5 @@
 import * as React from "react";
+import { cardVariants } from "@/components/ui/card";
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronDown, RotateCw, Settings2, Shuffle, TriangleAlert } from "lucide-react";
 import { describeError } from "@/data/state";
@@ -15,7 +16,7 @@ export function StructuredErrorCard({ raw, onRetry, onSwitchModel, compact = fal
   const [open, setOpen] = React.useState(false);
   const detailsId = React.useId();
   return (
-    <div role="alert" className={cn("rounded-pane border border-failed/35 bg-failed-tint", compact ? "p-3" : "p-4", className)}>
+    <div role="alert" className={cn(cardVariants({ tone: "failed", enter: true }), compact ? "p-3" : "p-4", className)}>
       <div className="flex items-start gap-2.5">
         <TriangleAlert className="mt-0.5 size-4 shrink-0 text-failed" aria-hidden />
         <div className="min-w-0 flex-1">

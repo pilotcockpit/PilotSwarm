@@ -14,6 +14,7 @@ import { EmptyState, Panel, SectionTitle } from "@/components/empty";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/misc";
 import { ago, clock, cn, plural, tokens, until } from "@/lib/utils";
+import { cardVariants } from "@/components/ui/card";
 
 function greeting() {
   const h = new Date().getHours();
@@ -69,7 +70,7 @@ export function HomePage() {
           {groups.systemFailed.length && profile?.isAdmin ? <FleetNotice failed={groups.systemFailed} /> : null}
 
           {nothingYet ? (
-            <Panel className="mb-6">
+            <Panel enter className="mb-6">
               <EmptyState
                 icon={<Plus />}
                 title="Start your first session"
@@ -86,13 +87,13 @@ export function HomePage() {
               {groups.needs.length ? (
                 <section aria-labelledby="needs-h">
                   <SectionTitle id="needs-h" count={groups.needs.length}>Needs you</SectionTitle>
-                  <Panel>{groups.needs.map((s) => <NeedsRow key={s.sessionId} session={s} />)}</Panel>
+                  <Panel enter>{groups.needs.map((s) => <NeedsRow key={s.sessionId} session={s} />)}</Panel>
                 </section>
               ) : null}
               {groups.running.length ? (
                 <section aria-labelledby="running-h">
                   <SectionTitle id="running-h" count={groups.running.length} action={<Link to="/sessions" search={{ state: "running" }} className="text-accent hover:underline">All sessions</Link>}>Running</SectionTitle>
-                  <Panel>
+                  <Panel enter>
                     {groups.running.map((s) => (
                       <Link key={s.sessionId} to="/s/$sessionId" params={{ sessionId: s.sessionId }} className="flex min-h-[52px] items-center gap-3 border-t border-line-subtle px-4 py-2 first:border-t-0 hover:bg-raised/70">
                         <StateGlyph state="running" />
@@ -112,7 +113,7 @@ export function HomePage() {
               {groups.waiting.length ? (
                 <section aria-labelledby="sched-h">
                   <SectionTitle id="sched-h">Scheduled and waiting</SectionTitle>
-                  <Panel>{groups.waiting.map((s) => <WaitingRow key={s.sessionId} session={s} />)}</Panel>
+                  <Panel enter>{groups.waiting.map((s) => <WaitingRow key={s.sessionId} session={s} />)}</Panel>
                 </section>
               ) : null}
               <RecentOutputs sessions={groups.mine} />
@@ -219,7 +220,7 @@ function FleetNotice({ failed }: { failed: Session[] }) {
   const err = describeError(failed[0]?.error);
   const navigate = useNavigate();
   return (
-    <div role="alert" className="mb-6 flex flex-wrap items-center gap-3 rounded-pane border border-failed/35 bg-failed-tint px-4 py-3">
+    <div role="alert" className={cn(cardVariants({ tone: "failed", enter: true }), "mb-6 flex flex-wrap items-center gap-3 px-4 py-3")}>
       <ServerCrash className="size-4 shrink-0 text-failed" aria-hidden />
       <div className="min-w-0 flex-1 text-sm">
         <span className="font-semibold">{plural(failed.length, "system session")} failed.</span>{" "}
@@ -282,13 +283,13 @@ function RecentOutputs({ sessions }: { sessions: Session[] }) {
     <section aria-labelledby="outputs-h">
       <SectionTitle id="outputs-h" action={<Link to="/outputs" className="text-accent hover:underline">All outputs</Link>}>Recent outputs</SectionTitle>
       <div className="grid grid-cols-2 gap-3">
-        {outputs.map((o) => <OutputCard key={`${o.session.sessionId}/${o.filename}`} output={o} />)}
+        {outputs.map((o, i) => <OutputCard key={`${o.session.sessionId}/${o.filename}`} output={o} index={i} />)}
       </div>
     </section>
   );
 }
 
-export function OutputCard({ output: o }: { output: Artifact & { session: Session } }) {
+export function OutputCard({ output: o, index }: { output: Artifact & { session: Session }; index?: number }) {
   const canvas = isCanvasFile(o.filename);
   const slot = canvasSlot(o.filename);
   const { source } = useSource();
@@ -307,15 +308,21 @@ export function OutputCard({ output: o }: { output: Artifact & { session: Sessio
       to="/s/$sessionId"
       params={{ sessionId: o.session.sessionId }}
       search={canvas ? { view: "canvas", slot } : { view: "files", files: "outputs", file: o.filename }}
-      className="group flex flex-col overflow-hidden rounded-pane border border-line bg-surface hover:border-line-strong"
+      style={index != null ? { animationDelay: `${Math.min(index, 8) * 30}ms` } : undefined}
+      className={cn(cardVariants({ interactive: true, clip: true, enter: true }), "group flex flex-col")}
     >
-      <div className={cn("relative grid h-[92px] place-items-center border-b border-line", canvas ? "bg-raised" : "bg-bg")}>
-        {canvas ? <CanvasThumb kind={canvasKind(html)} /> : <FileText className="size-5 text-faint" aria-hidden />}
+      <div className={cn("relative grid h-[92px] place-items-center overflow-hidden border-b border-line", canvas ? "bg-raised" : "bg-bg")}>
+        <div className="grid size-full place-items-center transition-transform duration-(--duration-slow) ease-emphasized group-hover:scale-[1.04]">
+          {canvas ? <CanvasThumb kind={canvasKind(html)} /> : <FileText className="size-5 text-faint" aria-hidden />}
+        </div>
         {unseen ? <span className="absolute right-2 top-2 size-2 rounded-full bg-accent" aria-label="Updated since you looked" /> : null}
       </div>
       <div className="min-w-0 p-2.5">
-        <div className="truncate text-sm font-medium">{name}</div>
-        <div className="truncate text-xs text-muted">{canvas ? "Canvas" : "File"} · {o.session.title} · {ago(o.updatedAt as any)}</div>
+        <div className="truncate text-sm font-medium transition-colors duration-(--duration-fast) group-hover:text-accent"><span className="sr-only">{canvas ? "Canvas" : "File"}: </span>{name}</div>
+        <div className="mt-0.5 flex items-baseline gap-2 text-xs text-muted">
+          <span className="min-w-0 flex-1 truncate">{o.session.title}</span>
+          <span className="shrink-0 tabular-nums text-faint">{ago(o.updatedAt as any)}</span>
+        </div>
       </div>
     </Link>
   );
