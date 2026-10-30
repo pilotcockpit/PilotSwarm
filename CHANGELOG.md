@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+**Stale bound answers can now fail closed (orchestration 1.0.83).** An answer to a
+pending question that no longer matches the open question used to run as an
+ordinary prompt, so a choice such as "Delete old files" written for one question
+could execute while a different question was open. `sendAnswer` now accepts
+`requireQuestionMatch: true`: an answer that is not bound to the question open at
+that moment runs no turn, leaves the question and its hold timer untouched, and
+records a `session.answer_rejected` event (`stale-question`, `no-open-question` or
+`invalid-binding`). The option is opt-in, so existing callers keep today's lenient
+behaviour. The management and web clients refuse to send a strict answer without a
+valid `expectedQuestion`. This changes the orchestration, so 1.0.82 is frozen and
+1.0.83 is the new latest; workers must roll to a build that registers 1.0.83, and a
+session upgrades at its next continue-as-new (sessions still on 1.0.82 ignore the
+flag). See [the bug report](docs/bugreports/stale-bound-answer-runs-as-a-prompt.md)
+and [Bound answers](docs/architecture/orchestration/design.md#bound-answers-1083).
+
 ## 0.8.7 — 2026-10-28
 
 **Adopt the PostgreSQL lock-safety fix.** The SDK pins the official npm
