@@ -210,10 +210,10 @@ export function maskVolatile(text: string): string {
     .replace(/\b\d+(?:\.\d+)?\s?(?:ms|msec|millis|seconds?|secs?|minutes?|mins?|hours?|hrs?)\b/g, "<dur>")
     .replace(/\b\d+(?:\.\d+)?\s?s\b/g, "<dur>")
     .replace(/\bafter \d+ attempts?\b/g, "after <n> attempts")
-    .replace(/\b(\w*id|\w*token|trace|span|session|request|run|turn)([\s:=#"']+)[0-9a-z][\w.-]{5,}/g, "$1$2<id>")
+    .replace(/\b(\w*id|\w*token|trace|span|session|request|run|turn)([\s:=#"']+)(?=[\w.-]*\d)[0-9a-z][\w.-]{5,}/g, "$1$2<id>")
     .replace(/\b[0-9a-f]{7,}\b/g, "<id>")
     .replace(/\s+/g, " ")
-    .slice(0, 240);
+    .slice(0, 2000);
 }
 
 /**

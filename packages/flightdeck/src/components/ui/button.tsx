@@ -37,3 +37,19 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
   const Comp = asChild ? Slot.Root : "button";
   return <Comp ref={ref} type={asChild ? undefined : type || "button"} className={cn(buttonVariants({ variant, size }), className)} {...props} />;
 });
+
+/**
+ * The trigger for anything that expands: a tool-call row, a group header, a details panel.
+ * One recipe so every disclosure has the same height (24px, 44px on touch), radius, hover and focus.
+ * Pass aria-expanded and aria-controls; draw the chevron yourself so it can sit where the layout needs it.
+ */
+export const DisclosureButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(function DisclosureButton({ className, type, ...props }, ref) {
+  return (
+    <button
+      ref={ref}
+      type={type || "button"}
+      className={cn("inline-flex min-h-6 items-center gap-1.5 rounded-control text-left transition-colors duration-(--duration-fast) hover:text-fg pointer-coarse:min-h-11", className)}
+      {...props}
+    />
+  );
+});

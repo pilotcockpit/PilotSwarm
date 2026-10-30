@@ -48,9 +48,10 @@ const rules = [
   { id: "palette-class", test: (l) => new RegExp(`(?<![\\w-])(?:${COLOR_PROPS})-(?:${PALETTE})(?:-\\d{2,3})?(?:/\\d+)?(?![\\w-])`).test(l), msg: "Tailwind default palette; use a semantic token (bg-surface, text-muted, text-failed ...)" },
   {
     id: "arbitrary-property",
-    // [prop:value] at the start of a class or after a variant colon. `[&...]` variants and `[--x:y]` are fine.
-    test: (l) => /(?:^|[\s"'`:{])\[(?!&|--)[a-zA-Z][a-zA-Z-]*:[^\]]+\]/.test(l),
-    msg: "arbitrary CSS property in a class; use a utility or add a token",
+    // [prop:value] or [--token:value] at the start of a class or after a variant colon. `[&...]` variants are fine.
+    // Custom properties are refused too: `[--fg:red]` would override a semantic token locally.
+    test: (l) => /(?:^|[\s"'`:{])\[(?!&)-{0,2}[a-zA-Z][a-zA-Z-]*:[^\]]+\]/.test(l),
+    msg: "arbitrary CSS property or custom-property override in a class; use a utility or add a token",
   },
   { id: "arbitrary-font-size", test: (l) => /(?<![\w-])text-\[(?:length:|size:|-?\.?\d|calc\(|clamp\(|min\(|max\()/.test(l), msg: "arbitrary font size; use the type scale (text-xs ... text-xl)" },
 ];

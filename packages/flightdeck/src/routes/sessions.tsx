@@ -10,7 +10,7 @@ import type { Session } from "@/data/types";
 import { SessionColumnsHeader, SessionRow } from "@/components/session-row";
 import { StateFacets } from "@/components/state-facets";
 import { EmptyState, Panel } from "@/components/empty";
-import { Button } from "@/components/ui/button";
+import { Button, DisclosureButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox, Chip, Skeleton } from "@/components/ui/misc";
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
@@ -226,9 +226,9 @@ function Group({ title, count, children, open = true, onToggle }: { title?: stri
       {title ? (
         onToggle ? (
           <h2 className="mb-2">
-            <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-h-6 items-center gap-1.5 rounded-chip text-sm font-semibold text-muted hover:text-fg pointer-coarse:min-h-11">
+            <DisclosureButton aria-expanded={open} onClick={onToggle} className="rounded-chip text-sm font-semibold text-muted">
               <ChevronRight className={cn("size-4 transition-transform", open && "rotate-90")} aria-hidden /> {title} <span className="font-normal tabular-nums text-faint">{count}</span>
-            </button>
+            </DisclosureButton>
           </h2>
         ) : <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-muted">{title} {count != null ? <span className="font-normal tabular-nums text-faint">{count}</span> : null}</h2>
       ) : null}

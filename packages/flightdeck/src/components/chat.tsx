@@ -9,7 +9,7 @@ import type { PendingQuestion } from "@/data/types";
 import { useSessions } from "@/data/source";
 import { SessionChip } from "@/components/session-chip";
 import { Tag } from "@/components/ui/misc";
-import { Button } from "@/components/ui/button";
+import { Button, DisclosureButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StructuredErrorCard } from "@/components/structured-error";
 import { AnswerChoices, QuestionChangedError, useGuardedAnswer } from "@/components/answer-choices";
@@ -166,12 +166,11 @@ export function ToolRow({ item }: { item: ChatItem }) {
   const errorText = failed ? String(item.error?.message ?? item.error ?? "") : "";
   return (
     <div className="ml-9">
-      <button
-        type="button"
+      <DisclosureButton
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-8 w-full items-center gap-2 rounded-control px-2 text-left text-sm transition-colors duration-(--duration-fast) hover:bg-raised pointer-coarse:min-h-11"
+        className="flex min-h-8 w-full gap-2 px-2 text-sm hover:bg-raised"
       >
         <Wrench className={cn("size-3.5 shrink-0", failed ? "text-failed" : "text-muted")} aria-hidden />
         <span className={cn("shrink-0 font-mono text-sm", failed ? "font-medium text-failed" : "text-fg")}>{item.name}</span>
@@ -179,7 +178,7 @@ export function ToolRow({ item }: { item: ChatItem }) {
         {failed ? <Tag tone="failed"><X aria-hidden />Failed</Tag> : done ? <Check className="size-3.5 shrink-0 text-ok" aria-label="Done" /> : <Loader2 className="size-3.5 shrink-0 animate-spin text-live" aria-label="Running" />}
         {callDuration(item) ? <span className="w-11 shrink-0 text-right text-xs tabular-nums text-muted">{callDuration(item)}</span> : null}
         <ChevronRight className={cn("size-3.5 shrink-0 text-muted transition-transform duration-(--duration-fast)", open && "rotate-90")} aria-hidden />
-      </button>
+      </DisclosureButton>
       {failed && errorText && !open ? <p className="ml-7 mt-0.5 line-clamp-2 text-xs text-failed">{errorText}</p> : null}
       {open ? (
         <div id={id} className="ml-7 mt-1 animate-fade rounded-control bg-raised px-3 py-2.5 font-mono text-xs leading-5 text-muted">

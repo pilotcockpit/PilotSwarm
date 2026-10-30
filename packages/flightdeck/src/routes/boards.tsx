@@ -229,7 +229,7 @@ function TilePicker({ open, onOpenChange, sessions, onPick }: { open: boolean; o
         <div className="px-5 pb-2"><Segmented label="Tile type" value={kind} onChange={setKind} options={[{ value: "chat", label: "Chat" }, { value: "canvas", label: "Canvas" }]} /></div>
         <DialogBody className="flex flex-col gap-1">
           {sessions.map((s) => (
-            <button key={s.sessionId} type="button" onClick={() => onPick({ sessionId: s.sessionId, kind, slot: kind === "canvas" ? 1 : undefined })} className="flex h-10 items-center gap-2.5 rounded-control px-2.5 text-left hover:bg-raised">
+            <button key={s.sessionId} type="button" onClick={() => onPick({ sessionId: s.sessionId, kind, slot: kind === "canvas" ? 1 : undefined })} className="flex h-10 items-center gap-2.5 rounded-control px-2.5 text-left hover:bg-raised pointer-coarse:h-11">
               <StateGlyph state={sessionState(s).key} pulse={false} />
               <span className="min-w-0 flex-1 truncate text-sm">{s.title}</span>
               <span className="font-mono text-xs text-faint">{s.agentId}</span>
