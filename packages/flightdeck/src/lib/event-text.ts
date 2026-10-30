@@ -38,6 +38,7 @@ export function describeEvent(type: string, data: Record<string, any> = {}): Eve
     case "session.turn_started": return { text: "Started a turn", tone: "neutral" };
     case "session.turn_completed": return { text: "Finished a turn", tone: "ok" };
     case "session.turn_stopped": return { text: "Turn was stopped", tone: "wait" };
+    case "session.answer_rejected": return { text: "Answer not sent: the question changed", detail: data.currentQuestion?.question ? `Now asking: ${clip(data.currentQuestion.question)}` : "No question is open now.", tone: "wait" };
     case "assistant.usage": {
       const inT = Number(data.inputTokens) || 0, outT = Number(data.outputTokens) || 0;
       return { text: "Model usage", detail: inT || outT ? `${inT.toLocaleString()} in · ${outT.toLocaleString()} out` : undefined, tone: "neutral" };

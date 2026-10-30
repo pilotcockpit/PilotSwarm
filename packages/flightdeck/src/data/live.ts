@@ -133,7 +133,11 @@ export function createLiveSource(): DataSource {
       await api.call("sendMessage", { sessionId: id, prompt, options: { clientMessageIds: [opts?.clientMessageId || requestId()], ...(opts?.enqueueOnly ? { enqueueOnly: true } : {}) } });
     },
     async sendAnswer(id, answer, question) {
-      await api.call("sendAnswer", { sessionId: id, answer, options: question ? { expectedQuestion: question } : {} });
+      // Bound strictly: if the question changed before the orchestration read this answer, it runs
+      // no turn and records session.answer_rejected, rather than executing as a prompt. Sessions
+      // on an older orchestration ignore the flag and stay lenient.
+      const expectedQuestion = question ? { question: question.question, ...(question.iteration !== undefined ? { iteration: question.iteration } : {}) } : null;
+      await api.call("sendAnswer", { sessionId: id, answer, options: expectedQuestion ? { expectedQuestion, requireQuestionMatch: true } : {} });
     },
     async stopTurn(id) {
       const r = await api.call("stopSessionTurn", { sessionId: id, options: { reason: "Stopped from Flight Deck", requestId: requestId() } });

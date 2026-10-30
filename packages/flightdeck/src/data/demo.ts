@@ -266,8 +266,13 @@ export function createDemoSource(): DataSource {
       push(id, "user.message", { content: prompt, ...(opts?.enqueueOnly ? { enqueued: true } : {}) });
       reply(id, "This is demo data, so no agent is running. In a live deployment the agent would pick this up now and stream its reply here.");
     },
-    async sendAnswer(id, answer) {
+    async sendAnswer(id, answer, question) {
       const s = byId.get(id);
+      // Mimic a strictly bound answer: a question that is no longer the open one is refused, as live does.
+      if (question && (s?.pendingQuestion?.question !== question.question || (question.iteration !== undefined && s?.pendingQuestion?.iteration !== undefined && s.pendingQuestion.iteration !== question.iteration))) {
+        push(id, "session.answer_rejected", { reason: "stale-question", expectedQuestion: { question: question.question, iteration: question.iteration }, currentQuestion: s?.pendingQuestion ? { question: s.pendingQuestion.question, iteration: s.pendingQuestion.iteration } : null });
+        return;
+      }
       if (s) { s.pendingQuestion = null; s.status = "running"; s.step = "Acting on your answer"; }
       push(id, "user.message", { content: answer });
       reply(id, `Understood: “${answer}”. (Demo data: in a live deployment the agent would carry this out now.)`, 1400);

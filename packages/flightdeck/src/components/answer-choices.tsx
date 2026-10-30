@@ -2,6 +2,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useRefresh, useSource } from "@/data/source";
+import { announceAnswerRejected } from "@/lib/answer-rejection";
 import { isDestructiveChoice, questionKey, recommendedChoice } from "@/data/state";
 import type { PendingQuestion } from "@/data/types";
 
@@ -69,6 +70,7 @@ function Inner({ sessionId, question, onAnswer: send_, size, busy, extra, classN
   const onAnswer = useGuardedAnswer(sessionId, send_);
   const [confirming, setConfirming] = React.useState<string | null>(null);
   const [sent, setSent] = React.useState<string | null>(null);
+  useAnswerRejection(sessionId, sent !== null, () => setSent(null));
   const choices = Array.isArray(question.choices) ? question.choices : [];
   const recommended = recommendedChoice(question, choices);
   const send = async (choice: string) => {
@@ -104,4 +106,25 @@ function Inner({ sessionId, question, onAnswer: send_, size, busy, extra, classN
       {extra}
     </div>
   );
+}
+
+/**
+ * While an answer is on its way, listen for the orchestration refusing it because the question
+ * changed. Subscribes only for that window, so a long list of questions holds no idle streams.
+ * `onRejected` lets the control go back to showing the choices.
+ */
+export function useAnswerRejection(sessionId: string, waiting: boolean, onRejected: () => void) {
+  const { source } = useSource();
+  const refresh = useRefresh();
+  const latest = React.useRef(onRejected);
+  latest.current = onRejected;
+  React.useEffect(() => {
+    if (!waiting) return;
+    return source.subscribe(sessionId, (event) => {
+      if (event.eventType !== "session.answer_rejected") return;
+      announceAnswerRejected(sessionId, event);
+      refresh(sessionId);
+      latest.current();
+    });
+  }, [waiting, source, sessionId, refresh]);
 }

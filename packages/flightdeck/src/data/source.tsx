@@ -1,4 +1,5 @@
 import * as React from "react";
+import { announceAnswerRejected } from "@/lib/answer-rejection";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { appendEventToHistory, buildHistoryModel, type HistoryModel } from "@ps/history";
 import { createLiveSource } from "./live";
@@ -109,6 +110,7 @@ export function useTranscript(id: string | undefined) {
     const unsubscribe = source.subscribe(id, (event) => {
       if (!active) return;
       if (!model) { pending.push(event); return; }
+      announceAnswerRejected(id, event);
       if (event.seq && model.lastSeq && event.seq <= model.lastSeq) return;
       model = appendEventToHistory(model, event);
       setHistory(model);
