@@ -222,6 +222,7 @@ const flags: FeatureFlag[] = [
   { key: "facts.enhanced", description: "Embedding-backed fact search.", type: "boolean", default: false, value: false, scope: "cluster" },
 ];
 
+import { callDemoOp } from "./ops";
 export function createDemoSource(): DataSource {
   const byId = new Map(sessions.map((s) => [s.sessionId, { ...s }]));
   const events = new Map<string, SessionEvent[]>();
@@ -335,6 +336,7 @@ export function createDemoSource(): DataSource {
       const t = window.setInterval(() => onEntry({ at: new Date().toISOString(), level: i % 7 === 6 ? "warn" : "info", workerNodeId: `chk-w${(i % 4) + 1}`, message: lines[i++ % lines.length] }), 1600);
       return () => window.clearInterval(t);
     },
+    call: ((op: string, params?: Record<string, unknown>) => callDemoOp(op, params)) as DataSource["call"],
     connection(onChange: (s: ConnectionState) => void) {
       onChange("connected");
       return () => {};

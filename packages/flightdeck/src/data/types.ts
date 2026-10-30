@@ -204,6 +204,8 @@ export interface DataSource {
   executionHistory(id: string): Promise<any[]>;
   subscribeLogs(onEntry: (e: LogEntry) => void): () => void;
   connection(onChange: (state: ConnectionState) => void): () => void;
+  /** Any Web API operation by name. Areas wrap it in hooks (data/ops/use-op.ts); demo mode answers from data/ops/*.demo.ts. */
+  call<T = any>(op: string, params?: Record<string, unknown>): Promise<T>;
 }
 
 export type ConnectionState = "connected" | "reconnecting" | "offline";

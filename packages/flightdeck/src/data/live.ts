@@ -272,6 +272,7 @@ export function createLiveSource(): DataSource {
       ensureStarted();
       return api.subscribeLogs((entry: unknown) => onEntry(entry as LogEntry));
     },
+    call: (op, params) => api.call(op, params) as Promise<any>,
     connection(onChange) {
       connectionListeners.add(onChange);
       onChange(connection);
