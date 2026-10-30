@@ -16,6 +16,7 @@ import { Checkbox, Chip, Skeleton } from "@/components/ui/misc";
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { cn, plural } from "@/lib/utils";
+import { failedMutationIds, matchesSessionOwner } from "@/lib/session-access";
 import { STATE_FILTERS } from "@/router";
 
 const route = getRouteApi("/sessions");
@@ -37,7 +38,7 @@ function matchesState(s: Session, f: string | undefined) {
 export function SessionsPage() {
   const search = route.useSearch();
   const navigate = route.useNavigate();
-  const { data: sessions, isLoading } = useSessions();
+  const { data: sessions, isLoading, isError, error, refetch, isFetching } = useSessions();
   const { data: profile } = useProfile();
   const { openNewSession } = useUi();
   const [sort, setSort] = React.useState<Sort>("activity");
@@ -50,14 +51,14 @@ export function SessionsPage() {
   const agentIds = React.useMemo(() => [...new Set((sessions || []).filter((s) => !s.isSystem).map((s) => s.agentId || "generic"))].sort(), [sessions]);
   const q = (search.q || "").trim().toLowerCase();
   const who = search.who || "all";
+  const unknownOwners = (sessions || []).filter((s) => !s.isSystem && !s.owner).length;
 
   const tree = React.useMemo(() => {
     const all = sessions || [];
     const filtered = all.filter((s) => {
-      if (who === "mine" && s.visibility && s.visibility !== "private") return false;
-      if (who === "shared" && (!s.visibility || s.visibility === "private")) return false;
+      if (!matchesSessionOwner(s, who)) return false;
       if (!matchesState(s, search.state)) return false;
-      if (agentFilter && s.agentId !== agentFilter) return false;
+      if (agentFilter && (s.agentId || "generic") !== agentFilter) return false;
       if (q && !`${s.title} ${s.agentId} ${s.sessionId}`.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -87,9 +88,8 @@ export function SessionsPage() {
     const counts: Partial<Record<StateKey, number>> = {};
     for (const s of sessions || []) {
       if (s.isSystem) continue;
-      if (who === "mine" && s.visibility && s.visibility !== "private") continue;
-      if (who === "shared" && (!s.visibility || s.visibility === "private")) continue;
-      if (agentFilter && s.agentId !== agentFilter) continue;
+      if (!matchesSessionOwner(s, who)) continue;
+      if (agentFilter && (s.agentId || "generic") !== agentFilter) continue;
       if (q && !`${s.title} ${s.agentId} ${s.sessionId}`.toLowerCase().includes(q)) continue;
       const k = sessionState(s).key;
       counts[k] = (counts[k] || 0) + 1;
@@ -125,9 +125,9 @@ export function SessionsPage() {
           depth={depth}
           childCount={depth === 0 ? kids.length : 0}
           leading={selecting ? (
-            <span onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(s.sessionId); }}>
-              <Checkbox checked={selected.has(s.sessionId)} aria-label={`Select ${s.title}`} />
-            </span>
+            <label className="flex min-h-11 min-w-11 cursor-default items-center justify-center">
+              <Checkbox checked={selected.has(s.sessionId)} onCheckedChange={() => toggle(s.sessionId)} aria-label={`Select ${s.title || "Untitled session"}`} />
+            </label>
           ) : undefined}
         />
         {kids.map((k) => renderRow(k, depth + 1))}
@@ -144,7 +144,7 @@ export function SessionsPage() {
           <Input value={search.q || ""} onChange={(e) => setSearch({ q: e.target.value || undefined })} placeholder="Find a session" className="pl-8" aria-label="Find a session" />
         </div>
         <div className="flex items-center gap-1" role="group" aria-label="Whose sessions">
-          {([["mine", "Mine"], ["shared", "Shared with me"], ["all", "All"]] as const).map(([v, label]) => (
+          {([["mine", "Mine"], ["shared", "Others"], ["all", "All"]] as const).map(([v, label]) => (
             <Chip key={v} active={who === v} onClick={() => setSearch({ who: v === "all" ? undefined : v })}>{label}</Chip>
           ))}
         </div>
@@ -178,6 +178,7 @@ export function SessionsPage() {
         </div>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-2 md:px-5">
+        {who !== "all" && unknownOwners ? <p className="w-full text-xs text-muted">Ownership is unavailable for {plural(unknownOwners, "session")}. <Button variant="link" size="sm" className="px-0 text-xs" onClick={() => void setSearch({ who: undefined })}>Show all sessions</Button> to include them.</p> : null}
         <StateFacets counts={facetCounts} value={facet} onChange={(k) => setSearch({ state: k === null ? undefined : k === "completed" ? "closed" : k })} />
         {extraState ? <Chip active onClick={() => setSearch({ state: undefined })} aria-label={`Clear ${STATE_LABEL[extraState]} filter`}>{STATE_LABEL[extraState]} <X className="size-3" aria-hidden /></Chip> : null}
       </div>
@@ -186,12 +187,23 @@ export function SessionsPage() {
           <div className="sticky top-0 z-(--z-sticky) bg-bg"><div className="mx-auto max-w-295 px-4 md:px-5"><SessionColumnsHeader /></div></div>
         )}
         <div className="mx-auto max-w-295 px-4 py-4 md:px-5">
+          {isError ? (
+            <Panel className="mb-4">
+              <div role="alert" className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{sessions ? "Couldn't refresh sessions" : "Couldn't load sessions"}</p>
+                  <p className="mt-1 text-sm text-muted">{sessions ? "Showing the last available sessions. " : ""}{error instanceof Error ? error.message : "Check your connection and try again."}</p>
+                </div>
+                <Button size="sm" disabled={isFetching} onClick={() => void refetch()}>{isFetching ? "Retrying…" : "Try again"}</Button>
+              </div>
+            </Panel>
+          ) : null}
           {isLoading ? (
             <div className="flex flex-col gap-2">{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-[46px]" />)}</div>
-          ) : tree.count === 0 && !tree.system.length ? (
+          ) : isError && !sessions ? null : tree.count === 0 && !tree.system.length ? (
             <Panel>
-              <EmptyState icon={<Search />} title={q || search.state || who !== "all" ? "No sessions match" : "No sessions yet"} action={q || search.state || who !== "all" ? <Button onClick={() => navigate({ search: {} as any })}>Clear filters</Button> : <Button variant="primary" onClick={() => openNewSession()}><Plus /> New session</Button>}>
-                {q || search.state || who !== "all" ? "Try another word or clear the filters." : "Start one and it shows up here, with what it is doing and what it waits on."}
+              <EmptyState icon={<Search />} title={q || search.state || who !== "all" || agentFilter ? "No sessions match" : "No sessions yet"} action={q || search.state || who !== "all" || agentFilter ? <Button onClick={() => { setAgentFilter(null); void navigate({ search: {} as any }); }}>Clear filters</Button> : <Button variant="primary" onClick={() => openNewSession()}><Plus /> New session</Button>}>
+                {q || search.state || who !== "all" || agentFilter ? "Try another word or clear the filters." : "Start one and it shows up here, with what it is doing and what it waits on."}
               </EmptyState>
             </Panel>
           ) : (
@@ -215,7 +227,7 @@ export function SessionsPage() {
           )}
         </div>
       </div>
-      {selecting && selected.size ? <BulkBar ids={[...selected]} onDone={() => { setSelected(new Set()); setSelecting(false); }} /> : null}
+      {selecting && selected.size ? <BulkBar ids={[...selected]} onDone={(remaining = []) => { setSelected(new Set(remaining)); if (!remaining.length) setSelecting(false); }} /> : null}
     </>
   );
 }
@@ -237,32 +249,39 @@ function Group({ title, count, children, open = true, onToggle }: { title?: stri
   );
 }
 
-function BulkBar({ ids, onDone }: { ids: string[]; onDone: () => void }) {
+function BulkBar({ ids, onDone }: { ids: string[]; onDone: (remaining?: string[]) => void }) {
   const { source } = useSource();
   const refresh = useRefresh();
   const [confirm, setConfirm] = React.useState<null | "complete" | "cancel" | "delete">(null);
+  const [busy, setBusy] = React.useState(false);
+  const inFlight = React.useRef(false);
   const act = async (kind: "complete" | "cancel" | "delete") => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
     const fn = kind === "complete" ? source.completeSession : kind === "cancel" ? source.cancelSession : source.deleteSession;
-    const results = await Promise.allSettled(ids.map((id) => fn.call(source, id)));
+    const results = await Promise.allSettled(ids.map((id) => Promise.resolve().then(() => fn.call(source, id))));
     const failed = results.filter((r) => r.status === "rejected").length;
     refresh();
     setConfirm(null);
-    onDone();
+    onDone(failedMutationIds(ids, results));
+    inFlight.current = false;
+    setBusy(false);
     const verb = kind === "complete" ? "Completed" : kind === "cancel" ? "Cancelled" : "Deleted";
-    failed ? toast.error(`${verb} ${ids.length - failed} of ${ids.length}`, { description: "Some sessions refused the change." }) : toast.success(`${verb} ${plural(ids.length, "session")}`);
+    failed ? toast.error(`${verb} ${ids.length - failed} of ${ids.length}`, { description: "Unchanged sessions remain selected. Review their access and try again." }) : toast.success(`${verb} ${plural(ids.length, "session")}`);
   };
   return (
     <>
       <div role="toolbar" aria-label="Selected sessions" className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-line bg-overlay px-4 py-2.5 shadow-pop md:px-5">
         <span className="text-sm font-medium">{plural(ids.length, "session")} selected</span>
         <div className="ml-auto flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => setConfirm("complete")}>Complete</Button>
-          <Button size="sm" onClick={() => setConfirm("cancel")}>Cancel sessions</Button>
-          <Button size="sm" variant="danger" onClick={() => setConfirm("delete")}>Delete</Button>
-          <Button size="icon-sm" variant="quiet" aria-label="Clear selection" onClick={onDone}><X /></Button>
+          <Button size="sm" disabled={busy} onClick={() => setConfirm("complete")}>Complete</Button>
+          <Button size="sm" disabled={busy} onClick={() => setConfirm("cancel")}>Cancel sessions</Button>
+          <Button size="sm" variant="danger" disabled={busy} onClick={() => setConfirm("delete")}>Delete</Button>
+          <Button size="icon-sm" variant="quiet" aria-label="Clear selection" disabled={busy} onClick={() => onDone()}><X /></Button>
         </div>
       </div>
-      <Dialog open={Boolean(confirm)} onOpenChange={(o) => !o && setConfirm(null)}>
+      <Dialog open={Boolean(confirm)} onOpenChange={(o) => !o && !busy && setConfirm(null)}>
         {confirm ? (
           <DialogContent title={`${confirm === "complete" ? "Complete" : confirm === "cancel" ? "Cancel" : "Delete"} ${plural(ids.length, "session")}?`}>
             <DialogBody>
@@ -273,9 +292,9 @@ function BulkBar({ ids, onDone }: { ids: string[]; onDone: () => void }) {
               </p>
             </DialogBody>
             <DialogFooter>
-              <Button onClick={() => setConfirm(null)}>Keep them</Button>
-              <Button variant={confirm === "delete" ? "danger" : "primary"} onClick={() => act(confirm)}>
-                {confirm === "complete" ? "Complete" : confirm === "cancel" ? "Cancel sessions" : "Delete"}
+              <Button disabled={busy} onClick={() => setConfirm(null)}>Keep them</Button>
+              <Button disabled={busy} variant={confirm === "delete" ? "danger" : "primary"} onClick={() => act(confirm)}>
+                {busy ? "Updating sessions…" : confirm === "complete" ? "Complete" : confirm === "cancel" ? "Cancel sessions" : "Delete"}
               </Button>
             </DialogFooter>
           </DialogContent>

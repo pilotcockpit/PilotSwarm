@@ -1,0 +1,26 @@
+[
+  {
+    "antipattern": "design-system-radius",
+    "name": "Radius outside DESIGN.md",
+    "description": "A border-radius value is outside the DESIGN.md rounded scale. Use a documented radius token or update the design system if the new shape is intentional.",
+    "severity": "advisory",
+    "category": "quality",
+    "file": "/Volumes/SSD/code/work/PilotSwarm/packages/flightdeck/src/canvas/demo-canvases.ts",
+    "line": 12,
+    "snippet": "border-radius: 3px is outside the DESIGN.md rounded scale",
+    "advisory": true,
+    "ignoreValue": "3px"
+  },
+  {
+    "antipattern": "design-system-radius",
+    "name": "Radius outside DESIGN.md",
+    "description": "A border-radius value is outside the DESIGN.md rounded scale. Use a documented radius token or update the design system if the new shape is intentional.",
+    "severity": "advisory",
+    "category": "quality",
+    "file": "/Volumes/SSD/code/work/PilotSwarm/packages/flightdeck/src/canvas/demo-canvases.ts",
+    "line": 23,
+    "snippet": "border-radius: 999px is outside the DESIGN.md rounded scale",
+    "advisory": true,
+    "ignoreValue": "999px"
+  }
+]

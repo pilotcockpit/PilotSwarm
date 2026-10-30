@@ -191,12 +191,20 @@
     font-family: var(--font-mono);
     font-variation-settings: "MONO" 1, "CASL" 0;
   }
-  ::selection { background: var(--accent-tint); }
+  ::selection { background: color-mix(in oklab, var(--accent) 24%, var(--surface)); color: var(--fg); }
   /* Every interactive element shows a 2px accent ring; rows, tabs and rail links draw it inside (focus-inset). */
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  /* Native browser affordances belong to the same quiet palette as the shell. */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 8px; background: var(--line-strong); background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background-color: var(--muted); }
+  ::-webkit-scrollbar-corner { background: transparent; }
+  input, textarea, [contenteditable="true"] { caret-color: var(--accent); }
+  input, textarea, select { accent-color: var(--accent); }
   button, [role="button"] { cursor: default; }
-  a { color: inherit; }
+  a { color: inherit; text-underline-offset: 0.2em; }
   :root { --fd-rise: 6px; --fd-rise-sm: 4px; --fd-scale: 0.985; --fd-slide: 24px; }
   /* Reduced motion keeps what carries meaning (fades, colour and state changes) and drops
      travel, scale and every ambient loop. Spinners stay: they say "working". */

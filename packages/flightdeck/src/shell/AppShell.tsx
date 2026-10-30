@@ -39,7 +39,7 @@ function useNav(): { top: NavItem[]; bottom: NavItem[] } {
   const counts = useNavCounts();
   const { data: profile } = useProfile();
   const top: NavItem[] = [
-    { to: "/", label: "Home", icon: House, badge: counts.needs || undefined, badgeTone: "accent", match: (p) => p === "/" },
+    { to: "/", label: "Overview", icon: House, badge: counts.needs || undefined, badgeTone: "accent", match: (p) => p === "/" },
     { to: "/sessions", label: "Sessions", icon: MessagesSquare, badge: counts.open || undefined, badgeTone: "neutral", match: (p) => p.startsWith("/sessions") || p.startsWith("/s/") },
     { to: "/boards", label: "Boards", icon: LayoutGrid, match: (p) => p.startsWith("/boards") },
     { to: "/outputs", label: "Outputs", icon: FolderOutput, badge: counts.unseen || undefined, badgeTone: "neutral", match: (p) => p.startsWith("/outputs") },
@@ -61,13 +61,12 @@ function RailLink({ item, collapsed, path }: { item: NavItem; collapsed: boolean
       to={item.to}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "focus-inset group relative flex h-[34px] items-center gap-2.5 rounded-control text-sm font-medium transition-colors duration-(--duration-fast)",
+        "focus-inset group relative flex min-h-9 items-center gap-2.5 rounded-control text-sm font-medium transition-colors duration-(--duration-fast) pointer-coarse:min-h-11",
         collapsed ? "w-10 justify-center" : "px-2.5",
-        active ? "bg-raised text-fg" : "text-muted hover:bg-raised/60 hover:text-fg",
+        active ? "bg-accent-tint text-accent" : "text-muted hover:bg-raised/60 hover:text-fg",
       )}
     >
-      {active ? <span className="absolute -left-2 top-2 h-[18px] w-[3px] rounded-r bg-accent" aria-hidden /> : null}
-      <Icon className={cn("size-4 shrink-0", active ? "text-fg" : "text-muted group-hover:text-fg")} />
+      <Icon className={cn("size-4 shrink-0", active ? "text-accent" : "text-muted group-hover:text-fg")} aria-hidden />
       {collapsed ? (
         item.badge ? <span className="absolute right-1 top-1 size-2 rounded-full bg-accent" aria-hidden /> : null
       ) : (
@@ -80,6 +79,15 @@ function RailLink({ item, collapsed, path }: { item: NavItem; collapsed: boolean
     </Link>
   );
   return collapsed ? <Tooltip content={item.label} side="right">{link}</Tooltip> : link;
+}
+
+function NavigationGroup({ label, items, collapsed, path, className }: { label: string; items: NavItem[]; collapsed: boolean; path: string; className?: string }) {
+  return (
+    <div role="group" aria-label={label} className={cn("flex w-full flex-col gap-0.5", className)}>
+      {collapsed ? <div className="mx-auto my-2 h-px w-6 bg-line" aria-hidden /> : <p className="mb-1 px-2.5 text-xs font-medium text-faint">{label}</p>}
+      {items.map((item) => <RailLink key={item.to} item={item} collapsed={collapsed} path={path} />)}
+    </div>
+  );
 }
 
 function ConnectionStatus({ collapsed }: { collapsed: boolean }) {
@@ -120,9 +128,9 @@ function Rail() {
   return (
     <nav
       aria-label="Primary"
-      className={cn("flex h-full shrink-0 flex-col border-r border-line bg-surface py-3 transition-[width] duration-(--duration-base) ease-out-fd", collapsed ? "w-16 items-center px-3" : "w-[232px] px-3")}
+      className={cn("flex h-full shrink-0 flex-col overflow-y-auto border-r border-line bg-surface py-4", collapsed ? "w-16 items-center px-3" : "w-[232px] px-3")}
     >
-      <div className={cn("mb-3 flex h-8 items-center gap-2", collapsed ? "justify-center" : "px-1.5")}>
+      <div className={cn("mb-4 flex h-8 shrink-0 items-center gap-2", collapsed ? "justify-center" : "px-1.5")}>
         <Logo />
         {collapsed ? null : (
           <>
@@ -141,12 +149,11 @@ function Rail() {
           <Plus /> <span className="flex-1 text-left">New session</span> <Kbd>N</Kbd>
         </Button>
       )}
-      <div className="flex w-full flex-col gap-0.5">
-        {top.map((item) => <RailLink key={item.to} item={item} collapsed={collapsed} path={path} />)}
-      </div>
-      <div className="mt-auto flex w-full flex-col gap-0.5 border-t border-line pt-3">
-        {bottom.map((item) => <RailLink key={item.to} item={item} collapsed={collapsed} path={path} />)}
-        <div className={cn("mt-2 flex items-center gap-2.5", collapsed ? "justify-center" : "px-2.5")}>
+      <NavigationGroup label="Work" items={top.slice(0, 4)} collapsed={collapsed} path={path} />
+      <NavigationGroup label="Build" items={top.slice(4)} collapsed={collapsed} path={path} className="mt-5" />
+      <div className="mt-auto flex w-full shrink-0 flex-col gap-0.5 pt-6">
+        <NavigationGroup label="Manage" items={bottom} collapsed={collapsed} path={path} />
+        <div className={cn("mt-4 flex items-center gap-2.5 border-t border-line pt-3", collapsed ? "justify-center" : "px-2.5")}>
           <span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent-tint text-xs font-semibold text-accent" aria-hidden>{initials(profile?.displayName)}</span>
           {collapsed ? null : (
             <div className="min-w-0 flex-1 leading-tight">
@@ -184,47 +191,59 @@ export function Logo({ className }: { className?: string }) {
   );
 }
 
-/** Phone: the same product through a bottom tab bar (Home, Sessions, Boards, Outputs, More). */
+/** Phone: the same product through a bottom tab bar (Overview, Sessions, Boards, Outputs, More). */
 function BottomTabs() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { top, bottom } = useNav();
   const [more, setMore] = React.useState(false);
   const { openNewSession } = useUi();
+  const { data: profile } = useProfile();
   const tabs = top.slice(0, 4);
   const moreActive = !tabs.some((t) => t.match(path));
   return (
     <>
-      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-(--z-sticky) grid grid-cols-5 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-(--z-sticky) grid grid-cols-5 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]">
         {tabs.map((t) => {
           const active = t.match(path);
           const Icon = t.icon;
           return (
             <Link key={t.to} to={t.to} aria-current={active ? "page" : undefined} className={cn("relative flex h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium", active ? "text-fg" : "text-muted")}>
               <span className="relative">
-                <Icon className="size-5" />
+                <Icon className="size-5" aria-hidden />
                 {t.badge && t.badgeTone === "accent" ? <span className="absolute -right-1.5 -top-1 size-2 rounded-full bg-accent" aria-hidden /> : null}
               </span>
               {t.label}
+              {t.badge ? <span className="sr-only">, {t.badge}{t.badgeTone === "accent" ? " need attention" : ""}</span> : null}
               {active ? <span className="absolute top-0 h-0.5 w-8 rounded-b bg-accent" aria-hidden /> : null}
             </Link>
           );
         })}
-        <button type="button" onClick={() => setMore(true)} className={cn("flex h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium", moreActive ? "text-fg" : "text-muted")}>
-          <MenuIcon className="size-5" /> More
-        </button>
+        <Button variant="quiet" onClick={() => setMore(true)} aria-expanded={more} className={cn("h-14 flex-col gap-0.5 rounded-none text-xs [&_svg]:size-5", moreActive ? "text-fg" : "text-muted")}>
+          <MenuIcon aria-hidden /> More
+        </Button>
       </nav>
       <Dialog open={more} onOpenChange={setMore}>
         <DialogContent title="More" side="right" className="max-w-[360px]">
           <DialogBody className="flex flex-col gap-1">
             <Button className="mb-2" onClick={() => { setMore(false); openNewSession(); }}><Plus /> New session</Button>
-            {[top[4], ...bottom].filter(Boolean).map((item) => {
-              const Icon = item!.icon;
-              return (
-                <Link key={item!.to} to={item!.to} onClick={() => setMore(false)} className="flex h-11 items-center gap-3 rounded-control px-3 text-base hover:bg-raised">
-                  <Icon className="size-5 text-muted" /> {item!.label}
-                </Link>
-              );
-            })}
+            {[{ label: "Build", items: top.slice(4) }, { label: "Manage", items: bottom }].map((group) => (
+              <div key={group.label} role="group" aria-label={group.label} className="mt-3">
+                <p className="mb-1 px-3 text-xs font-medium text-faint">{group.label}</p>
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = item.match(path);
+                  return (
+                    <Link key={item.to} to={item.to} aria-current={active ? "page" : undefined} onClick={() => setMore(false)} className={cn("flex min-h-11 items-center gap-3 rounded-control px-3 text-base", active ? "bg-accent-tint text-accent" : "hover:bg-raised")}>
+                      <Icon className="size-5" aria-hidden /> {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
+            <div className="mt-4 flex items-center gap-3 border-t border-line px-3 pt-4">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-raised text-xs font-semibold" aria-hidden>{initials(profile?.displayName)}</span>
+              <div className="min-w-0"><p className="truncate text-sm font-medium">{profile?.displayName || "Signed-in person"}</p><p className="text-xs text-muted">{profile?.isAdmin ? "Admin" : "Member"}</p></div>
+            </div>
             <div className="mt-3 border-t border-line pt-3"><ConnectionStatus collapsed={false} /></div>
           </DialogBody>
         </DialogContent>
@@ -241,10 +260,11 @@ export function TopBar({ crumbs, actions, titleIsHeading = true }: { crumbs: Arr
   const { setPaletteOpen } = useUi();
   const [theme, setTheme] = useTheme();
   const phone = useMediaQuery("(max-width: 767px)");
-  const isDark = document.documentElement.classList.contains("dark");
+  const systemDark = useMediaQuery("(prefers-color-scheme: dark)");
+  const isDark = theme === "dark" || (theme === "system" && systemDark);
   return (
-    <header className="flex h-[52px] shrink-0 items-center gap-3 border-b border-line bg-bg px-4 md:px-5">
-      {phone ? <Logo /> : null}
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-surface px-4 md:gap-3 md:px-6">
+      {phone ? <Link to="/" aria-label="PilotSwarm overview" className="grid size-8 shrink-0 place-items-center rounded-control pointer-coarse:size-11"><Logo /></Link> : null}
       <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
         <ol className="flex min-w-0 items-center gap-1.5 text-sm">
           {crumbs.map((c, i) => (
@@ -265,22 +285,19 @@ export function TopBar({ crumbs, actions, titleIsHeading = true }: { crumbs: Arr
         </ol>
       </nav>
       {actions}
-      <button
-        type="button"
+      <Button
+        variant="quiet"
         onClick={() => setPaletteOpen(true)}
-        className={cn("flex h-8 items-center gap-2 rounded-control border border-line bg-surface text-sm text-faint transition-colors hover:border-line-strong hover:text-muted pointer-coarse:h-11", phone ? "w-8 justify-center pointer-coarse:w-11" : "w-[300px] px-2.5")}
+        className={cn("h-8 shrink-0 gap-2 border border-line bg-bg text-sm text-muted hover:border-line-strong hover:bg-raised pointer-coarse:h-11", phone ? "w-8 px-0 pointer-coarse:w-11" : "w-8 px-0 xl:w-64 xl:px-2.5")}
         aria-label="Search sessions, agents and commands"
       >
-        <Search className="size-4 shrink-0" />
+        <Search className="size-4 shrink-0" aria-hidden />
         {phone ? null : (
-          <>
-            <span className="flex-1 truncate text-left">Search sessions, agents, commands…</span>
-            <Kbd>⌘K</Kbd>
-          </>
+          <span className="hidden min-w-0 flex-1 items-center gap-3 xl:flex"><span className="flex-1 truncate text-left">Search or jump to…</span><Kbd>⌘K</Kbd></span>
         )}
-      </button>
+      </Button>
       <Tooltip content={isDark ? "Switch to light" : "Switch to dark"}>
-        <Button variant="quiet" size="icon" aria-label="Toggle light and dark theme" onClick={() => setTheme(isDark ? "light" : theme === "light" ? "dark" : "dark")}>
+        <Button variant="quiet" size="icon" aria-label="Toggle light and dark theme" onClick={() => setTheme(isDark ? "light" : "dark")}>
           {isDark ? <Sun /> : <Moon />}
         </Button>
       </Tooltip>

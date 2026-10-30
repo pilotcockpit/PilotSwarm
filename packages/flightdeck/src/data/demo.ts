@@ -28,7 +28,7 @@ const WIF_ERROR =
 
 const sessions: Session[] = [
   {
-    sessionId: P95, title: "Investigate p95 spike on chk", agentId: "sre-investigator", status: "input_required", groupId: "g-ops",
+    sessionId: P95, owner: "me", canWrite: true, title: "Investigate p95 spike on chk", agentId: "sre-investigator", status: "input_required", groupId: "g-ops",
     createdAt: m(52), updatedAt: m(4), model: "anthropic-wif:claude-sonnet-5", visibility: "private", iterations: 6,
     pendingQuestion: {
       question: "Roll back the chk worker image from v0.8.6 to v0.8.5? p95 latency doubled after the rollout at 13:20.",
@@ -37,58 +37,58 @@ const sessions: Session[] = [
     spine: ["run", "run", "sleep", "run", "run", "run", "wait"], unseenCanvas: true,
   },
   {
-    sessionId: DEPS, title: "Weekly dependency bumps", agentId: "deps-bot", status: "error", groupId: "g-ops", createdAt: m(300), updatedAt: m(31),
+    sessionId: DEPS, owner: "me", canWrite: true, title: "Weekly dependency bumps", agentId: "deps-bot", status: "error", groupId: "g-ops", createdAt: m(300), updatedAt: m(31),
     model: "anthropic-wif:claude-sonnet-5", error: WIF_ERROR, visibility: "private", iterations: 3, spine: ["run", "done", "sleep", "run", "fail"],
   },
   {
-    sessionId: RESEARCH, title: "Customer research digest", agentId: "researcher", status: "waiting", createdAt: m(240), updatedAt: m(60),
+    sessionId: RESEARCH, owner: "Riya Kapoor", canWrite: false, title: "Customer research digest", agentId: "researcher", status: "waiting", createdAt: m(240), updatedAt: m(60),
     model: "anthropic-wif:claude-opus-5", visibility: "shared_read", iterations: 11,
     pauseState: { kind: "allowance", provider: "anthropic-wif", period: "month", yourUsedTokens: 9_700_000, ceilingTokens: 10_000_000, resetsAtUtc: null },
     spine: ["run", "run", "sleep", "run", "run", "wait"],
   },
   {
-    sessionId: RELEASE, title: "Release readiness 0.8.8", agentId: "release-captain", status: "waiting", createdAt: m(110), updatedAt: m(2),
+    sessionId: RELEASE, owner: "me", canWrite: true, title: "Release readiness 0.8.8", agentId: "release-captain", status: "waiting", createdAt: m(110), updatedAt: m(2),
     model: "anthropic-wif:claude-sonnet-5", activeChildCount: 2, waitReason: "waiting for 2 agent(s)", visibility: "shared_write", iterations: 9, pinned: true,
     workspace: { repo: "pilotswarm", branch: "dev", root: "main" }, unseenCanvas: true,
     spine: ["run", "run", "sleep", "run", "done", "run", "wait", "wait"],
   },
   {
-    sessionId: TESTS, title: "Run test campaign", agentId: "test-runner", status: "running", parentSessionId: RELEASE, rootSessionId: RELEASE,
+    sessionId: TESTS, owner: "me", canWrite: true, title: "Run test campaign", agentId: "test-runner", status: "running", parentSessionId: RELEASE, rootSessionId: RELEASE,
     createdAt: m(96), updatedAt: m(0), model: "anthropic-wif:claude-sonnet-5", step: "Running suite 6 of 9", iterations: 14,
     spine: ["run", "run", "run", "run", "run", "run", "run", "run", "run"],
   },
   {
-    sessionId: IMAGE, title: "Verify Azure Linux 3 image", agentId: "image-verifier", status: "running", parentSessionId: RELEASE, rootSessionId: RELEASE,
+    sessionId: IMAGE, owner: "me", canWrite: true, title: "Verify Azure Linux 3 image", agentId: "image-verifier", status: "running", parentSessionId: RELEASE, rootSessionId: RELEASE,
     createdAt: m(96), updatedAt: m(0), model: "anthropic-wif:claude-sonnet-5", step: "Booting test VM", iterations: 5,
     spine: ["run", "sleep", "sleep", "run", "run", "run"],
   },
   {
-    sessionId: CHANGELOG, title: "Check changelog", agentId: "doc-checker", status: "completed", parentSessionId: RELEASE, rootSessionId: RELEASE,
+    sessionId: CHANGELOG, owner: "me", canWrite: true, title: "Check changelog", agentId: "doc-checker", status: "completed", parentSessionId: RELEASE, rootSessionId: RELEASE,
     createdAt: m(96), updatedAt: m(43), model: "anthropic-wif:claude-sonnet-5", iterations: 3, spine: ["run", "run", "done"],
   },
   {
-    sessionId: CANVAS_PORT, title: "Port canvas host to TSX", agentId: "coder", status: "running", groupId: "g-release", createdAt: m(70), updatedAt: m(0),
+    sessionId: CANVAS_PORT, owner: "Mo Said", canWrite: true, title: "Port canvas host to TSX", agentId: "coder", status: "running", groupId: "g-release", createdAt: m(70), updatedAt: m(0),
     model: "anthropic-wif:claude-opus-5", step: "Editing CanvasFrame.tsx", iterations: 22, workspace: { repo: "pilotswarm", branch: "canvas-host", root: "main" },
     spine: ["run", "run", "run", "sleep", "run", "run", "run", "run"],
   },
   {
-    sessionId: COST, title: "Nightly cost report", agentId: "finops", status: "waiting", groupId: "g-ops", cronActive: true, cronInterval: 86400, cronNextFireAt: ahead(11 * 60 + 45),
+    sessionId: COST, owner: "me", canWrite: true, title: "Nightly cost report", agentId: "finops", status: "waiting", groupId: "g-ops", cronActive: true, cronInterval: 86400, cronNextFireAt: ahead(11 * 60 + 45),
     createdAt: m(60 * 24 * 9), updatedAt: m(60 * 14), model: "azure-foundry-wif:gpt-5.6", iterations: 9, spine: ["run", "sleep", "run", "sleep", "run", "sleep"],
   },
   {
-    sessionId: ONBOARD, title: "Onboarding guide rewrite", agentId: "pilotswarm", status: "idle", createdAt: m(60 * 27), updatedAt: m(60 * 20),
+    sessionId: ONBOARD, owner: "me", canWrite: true, title: "Onboarding guide rewrite", agentId: "pilotswarm", status: "idle", createdAt: m(60 * 27), updatedAt: m(60 * 20),
     model: "anthropic-wif:claude-sonnet-5", iterations: 4, spine: ["run", "run", "done"],
   },
   {
-    sessionId: WIKI, title: "How does duroxide replay work?", agentId: "deepwiki", status: "completed", createdAt: m(60 * 50), updatedAt: m(60 * 49),
+    sessionId: WIKI, owner: "me", canWrite: true, title: "How does duroxide replay work?", agentId: "deepwiki", status: "completed", createdAt: m(60 * 50), updatedAt: m(60 * 49),
     model: "anthropic-wif:claude-sonnet-5", iterations: 2, spine: ["run", "done"],
   },
   {
-    sessionId: SWEEPER, title: "Sweeper Agent", agentId: "sweeper", status: "waiting", isSystem: true, cronActive: true, cronInterval: 900, cronNextFireAt: ahead(15),
+    sessionId: SWEEPER, owner: "me", canWrite: true, title: "Sweeper Agent", agentId: "sweeper", status: "waiting", isSystem: true, cronActive: true, cronInterval: 900, cronNextFireAt: ahead(15),
     createdAt: m(60 * 24 * 30), updatedAt: m(1), model: "anthropic-wif:claude-sonnet-5", spine: ["run", "sleep", "run", "sleep", "run", "sleep"],
   },
   {
-    sessionId: RESMGR, title: "Resource Manager Agent", agentId: "resourcemgr", status: "running", isSystem: true, step: "Rebalancing 2 sessions",
+    sessionId: RESMGR, owner: "me", canWrite: true, title: "Resource Manager Agent", agentId: "resourcemgr", status: "running", isSystem: true, step: "Rebalancing 2 sessions",
     createdAt: m(60 * 24 * 30), updatedAt: m(0), model: "anthropic-wif:claude-sonnet-5", spine: ["run", "run", "sleep", "run", "run"],
   },
 ];
@@ -291,7 +291,7 @@ export function createDemoSource(): DataSource {
       const id = (crypto.randomUUID?.() || `demo-${Date.now()}`) as string;
       const agent = input.agentName || "pilotswarm";
       byId.set(id, {
-        sessionId: id, title: input.prompt.trim() ? input.prompt.trim().split(/\s+/).slice(0, 6).join(" ") : "New session", agentId: agent,
+        sessionId: id, owner: "me", canWrite: true, title: input.prompt.trim() ? input.prompt.trim().split(/\s+/).slice(0, 6).join(" ") : "New session", agentId: agent,
         status: input.prompt.trim() ? "running" : "idle", createdAt: Date.now(), updatedAt: Date.now(),
         model: input.model || "anthropic-wif:claude-sonnet-5", visibility: "private", iterations: 0, step: "Reading your request", spine: ["run"],
       });

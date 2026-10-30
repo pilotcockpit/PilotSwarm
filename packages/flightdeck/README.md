@@ -1,5 +1,13 @@
 # Flight Deck (portal redesign preview)
 
+The [30 October UX audit](../../docs/ux-audit/2026-10-30/README.md) records the
+current attention-first workspace, frontend interaction fixes, accepted desktop
+and phone captures, and remaining API/SDK integration work. Run `npm run test:ux`
+in this package for the credential-free ownership, access, bulk-result and
+session-draft regression tests. `npm run build` checks TypeScript, tokens and
+the production bundle. Earlier measurements and signoff below describe the
+initial implementation; use the dated audit for this refresh's evidence.
+
 A separate, side-by-side build of the proposed PilotSwarm portal redesign
 ([docs/proposals/ux-redesign](../../docs/proposals/ux-redesign/README.md)),
 so it can be compared with the current portal without touching it. Nothing in

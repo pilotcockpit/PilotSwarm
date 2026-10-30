@@ -34,9 +34,9 @@ function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent:
   const { source } = useSource();
   const navigate = useNavigate();
   const refresh = useRefresh();
-  const { data: agents, isLoading: agentsLoading } = useAgents();
-  const { data: models } = useModels();
-  const { data: providers } = useProviders();
+  const { data: agents, isLoading: agentsLoading, isError: agentsFailed, refetch: retryAgents } = useAgents();
+  const { data: models, isLoading: modelsLoading, isError: modelsFailed, refetch: retryModels } = useModels();
+  const { data: providers, isLoading: providersLoading, isError: providersFailed, refetch: retryProviders } = useProviders();
   const { data: groups } = useGroups();
   const [prompt, setPrompt] = React.useState(initialPrompt);
   const [agent, setAgent] = React.useState<string | null>(initialAgent);
@@ -46,8 +46,11 @@ function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent:
   const [repo, setRepo] = React.useState("");
   const [group, setGroup] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const inFlight = React.useRef(false);
   const [allAgents, setAllAgents] = React.useState(false);
 
+  const setupLoading = agentsLoading || modelsLoading || providersLoading;
+  const setupFailed = agentsFailed || modelsFailed || providersFailed;
   const usable = (models || []).filter((m) => m.credentialAvailable !== false);
   const unavailable = (models || []).filter((m) => m.credentialAvailable === false);
   const chosenModel = usable.find((m) => m.qualifiedName === model);
@@ -65,6 +68,8 @@ function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent:
   const hiddenCount = sortedAgents.length - shownAgents.length;
 
   const submit = async () => {
+    if (inFlight.current || setupLoading || setupFailed) return;
+    inFlight.current = true;
     setBusy(true);
     try {
       const id = await source.createSession({
@@ -82,11 +87,12 @@ function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent:
     } catch (e: any) {
       toast.error("Couldn't start the session", { description: e?.message });
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
 
-  if (noProvider) {
+  if (noProvider && !setupLoading && !setupFailed) {
     return (
       <DialogBody>
         <div className={cn(cardVariants({ enter: true }), "p-4")}>
@@ -105,6 +111,7 @@ function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent:
   return (
     <form className="flex min-h-0 flex-1 flex-col" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
       <DialogBody className="flex flex-col gap-5">
+        {setupFailed ? <div role="alert" className={cn(cardVariants(), "p-3")}><p className="text-sm font-semibold">Couldn't load session options</p><p className="mt-1 text-sm text-muted">Agents, models or providers could not be read. Your task is saved in this form.</p><Button className="mt-2" size="sm" onClick={() => void Promise.allSettled([retryAgents(), retryModels(), retryProviders()])}>Try again</Button></div> : null}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ns-prompt">What should the agent do?</Label>
           <Textarea
@@ -189,8 +196,8 @@ function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent:
       </DialogBody>
       <DialogFooter>
         <span className="mr-auto hidden items-center gap-1 text-xs text-faint sm:flex"><Kbd>⌘</Kbd><Kbd>Enter</Kbd> to start</span>
-        <Button onClick={onDone}>Cancel</Button>
-        <Button type="submit" variant="primary" disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : null} Start session</Button>
+        <Button disabled={busy} onClick={onDone}>Cancel</Button>
+        <Button type="submit" variant="primary" disabled={busy || setupLoading || setupFailed}>{busy ? <Loader2 className="animate-spin" /> : null} {setupLoading ? "Loading options…" : busy ? "Starting session…" : "Start session"}</Button>
       </DialogFooter>
     </form>
   );

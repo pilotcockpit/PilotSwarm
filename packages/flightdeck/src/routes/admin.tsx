@@ -48,6 +48,7 @@ export function AdminPage() {
         </SideNav>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="max-w-[880px] px-4 py-5 md:px-6">
+            <p className="mb-5 text-sm text-muted">{tab === "overview" ? "Check worker availability and system sessions before investigating a specific issue." : tab === "workers" ? "Runtime capacity and versions reported by registered workers." : tab === "usage" ? "Review the fleet statistics this deployment reports, with each measure shown in its own units." : tab === "audit" ? "Review returned access decisions. A missing record is not proof that no access occurred." : tab === "system" ? "Monitor the agents responsible for platform housekeeping." : "Deployment administration and configuration."}</p>
             {tab === "overview" ? <Overview /> : null}
             {tab === "flags" ? <Flags /> : null}
             {tab === "workers" ? <Workers /> : null}
@@ -119,8 +120,8 @@ function SystemSessions() {
     <>
       {err ? (
         <div role="alert" className={cn(cardVariants({ tone: "failed", enter: true }), "mb-4 p-3 text-sm")}>
-          <p className="font-semibold">{failed.length} of {system.length} system sessions failed with the same cause.</p>
-          <p className="mt-0.5 text-fg/85">{err.detail || err.headline}</p>
+          <p className="font-semibold">{failed.length} of {system.length} system sessions reported a failure.</p>
+          <p className="mt-0.5 text-fg/85">First reported error: {err.detail || err.headline}</p>
         </div>
       ) : null}
       <Panel>{system.length ? system.map((s) => <SessionRow key={s.sessionId} session={s} />) : <EmptyState title="No system sessions" />}</Panel>
@@ -136,15 +137,16 @@ function Audit() {
   return (
     <>
       <Panel className="mb-4 p-4">
-        <div className="text-sm font-semibold">Access posture</div>
-        <p className="mt-1 text-sm text-muted">{source.kind === "live" ? "Authentication is off for this local deployment: everyone who can reach it has full access, and ownership is not enforced." : "Ownership is enforced. New sessions are private by default. Admins see every session, and their access is logged."}</p>
+        <div className="text-sm font-semibold">{source.kind === "live" ? "Access policy is not reported here" : "Example access policy"}</div>
+        <p className="mt-1 text-sm text-muted">{source.kind === "live" ? <>This dashboard has not verified authentication, ownership enforcement, or the deployment's admin scope. Review the configured policy in <ClassicLink>the classic portal</ClassicLink> before relying on a session's privacy label.</> : "In this demo, ownership is enforced and new sessions are private by default. These are example settings, not a statement about your deployment."}</p>
       </Panel>
-      {!data?.length ? <Panel><EmptyState title="No access records yet">Who opened which session shows here, with admin access highlighted.</EmptyState></Panel> : (
+      {!data?.length ? <Panel><EmptyState title="No access records returned">The current request returned no records. This does not establish whether audit history is empty, unavailable, or outside your access.</EmptyState></Panel> : (
         <Panel>
           {data.map((r: any, i: number) => (
             <div key={i} className={cn("flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-line-subtle px-4 py-2.5 text-sm first:border-t-0", r.admin && "bg-waiting-tint/40")}>
               <span className="font-medium">{r.actor || r.principal?.displayName || r.subject || "Someone"}</span>
               <span className="font-mono text-xs text-muted">{r.action || r.operation}</span>
+              {typeof r.decision === "string" ? <span className="text-xs font-medium">{r.decision}</span> : null}
               {r.admin ? <span className="text-xs font-medium text-waiting">admin access</span> : null}
               <span className="ml-auto text-xs text-faint">{clock(r.at || r.createdAt)} · {ago(r.at || r.createdAt)}</span>
             </div>
@@ -160,18 +162,29 @@ function ClusterUsage() {
   const { data, isLoading } = useQuery({ queryKey: ["fleet"], queryFn: () => source.fleetStats() });
   if (isLoading) return <Skeleton className="h-48" />;
   if (!data) return <Panel><EmptyState title="No fleet stats">This deployment did not return fleet statistics.</EmptyState></Panel>;
-  const entries = Object.entries(data).filter(([, v]) => typeof v !== "object");
+  const metrics: Array<{ label: string; value: unknown; unit?: string }> = [
+    { label: "Sessions", value: data.sessionCount ?? data.sessions },
+    { label: "Input tokens", value: data.tokensIn },
+    { label: "Output tokens", value: data.tokensOut },
+    { label: "Cached input tokens", value: data.tokensCacheRead },
+    { label: "Cache hit rate", value: data.cacheHitPct, unit: "%" },
+    { label: "Agents", value: data.agents },
+    { label: "Running sessions", value: data.running },
+    { label: "Waiting sessions", value: data.waiting },
+    { label: "Failed sessions", value: data.failed },
+    { label: "Tokens today", value: data.tokensToday },
+  ].filter((m) => typeof m.value === "number" && Number.isFinite(m.value));
   return (
     <>
-      <Card as="div" enter clip className="mb-4">
-        {/* Cells sit on a 1px line gap; fillers keep the last row solid at both column counts. */}
+      {data.window?.since ? <p className="mb-3 text-xs text-muted">Reporting window begins {new Date(data.window.since).toLocaleString()}.</p> : null}
+      {metrics.length ? <Card as="div" enter clip className="mb-4">
         <dl className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3">
-          {entries.slice(0, 6).map(([k, v]) => (
-            <Stat key={k} className="bg-surface" label={k.replace(/([A-Z])/g, " $1").toLowerCase()} value={typeof v === "number" && v > 9999 ? tokens(v) : String(v)} />
+          {metrics.map((m) => (
+            <Stat key={m.label} className="bg-surface" label={m.label} value={`${m.unit ? m.value : tokens(m.value as number)}${m.unit || ""}`} />
           ))}
-          {Array.from({ length: Math.max(0, 6 - entries.slice(0, 6).length) }, (_, i) => <div key={`fill-${i}`} className="bg-surface" aria-hidden />)}
         </dl>
-      </Card>
+      </Card> : <Panel><EmptyState title="No recognized fleet measures">The response did not include the session or token measures this dashboard supports.</EmptyState></Panel>}
+      <p className="mb-4 text-xs text-muted">Only reported measures are shown. Missing values are not counted as zero.</p>
       {Array.isArray((data as any).noisiest) ? (
         <Panel>
           <div className="border-b border-line px-4 py-2 text-sm font-semibold">Noisiest sessions</div>
@@ -192,10 +205,11 @@ function Overview() {
   if (isLoading) return <Skeleton className="h-48" />;
   const list = workers || [];
   const ready = list.filter((w) => w.phase === "ready");
-  const draining = list.filter((w) => w.phase && w.phase !== "ready");
+  const unavailable = list.filter((w) => w.phase !== "ready");
   const slots = ready.reduce((n, w) => n + (w.health?.workerSlots?.total || 0), 0);
   const active = list.reduce((n, w) => n + (w.health?.activeSessions || 0), 0);
   const versions = [...new Set(list.map((w) => w.info?.sdkVersion).filter(Boolean))] as string[];
+  const missingVersions = list.filter((w) => !w.info?.sdkVersion).length;
   const system = (sessions || []).filter((s) => s.isSystem);
   const failed = system.filter((s) => sessionState(s).key === "failed");
   const err = failed[0] ? describeError(failed[0].error) : null;
@@ -203,30 +217,30 @@ function Overview() {
   const rows: Array<{ key: string; state: "running" | "waiting" | "failed" | "completed"; title: string; detail: React.ReactNode; to: (typeof ADMIN_TABS)[number] }> = [
     {
       key: "workers",
-      state: !list.length ? "failed" : draining.length ? "waiting" : "running",
+      state: !list.length ? "failed" : unavailable.length ? "waiting" : "running",
       title: !list.length ? "No workers registered" : `${ready.length} of ${list.length} workers ready`,
-      detail: !list.length ? "Sessions cannot run until a worker starts." : draining.length ? `${draining.map((w) => w.workerNodeId).join(", ")} ${draining.length === 1 ? "is" : "are"} ${draining[0].phase}; its sessions move to ready workers.` : "Every worker is taking new sessions.",
+      detail: !list.length ? "No worker data was returned. Check registration and connectivity before starting work." : unavailable.length ? `${unavailable.length} ${unavailable.length === 1 ? "worker is" : "workers are"} not reporting ready. Open Workers to inspect each state.` : "Every registered worker reports ready.",
       to: "workers",
     },
     {
       key: "capacity",
-      state: slots && active / slots > 0.85 ? "waiting" : "running",
+      state: !slots || active / slots > 0.85 ? "waiting" : "running",
       title: slots ? `${active} of ${slots} session slots in use` : `${active} active ${active === 1 ? "session" : "sessions"}`,
-      detail: slots && active / slots > 0.85 ? "Close to full: new sessions will queue until one finishes." : "Room for new sessions.",
+      detail: !slots ? "Available slot capacity was not reported. Check worker readiness." : active / slots > 0.85 ? "Reported slot use is above 85%. Review capacity before adding work." : "Reported active sessions are below the available slot count.",
       to: "workers",
     },
     {
       key: "versions",
-      state: versions.length > 1 ? "waiting" : "running",
-      title: versions.length > 1 ? `${versions.length} SDK versions are running` : versions.length ? `All workers on v${versions[0]}` : "Worker versions unknown",
-      detail: versions.length > 1 ? `v${versions.join(", v")}. Mixed versions can behave differently mid-rollout; finish the rollout or pin the pool.` : "No version skew.",
+      state: versions.length !== 1 || missingVersions ? "waiting" : "running",
+      title: versions.length > 1 ? `${versions.length} SDK versions are running` : versions.length ? `Reported SDK version v${versions[0]}` : "Worker versions unknown",
+      detail: versions.length > 1 ? `v${versions.join(", v")}. Review compatibility during the rollout.` : missingVersions ? `${missingVersions} ${missingVersions === 1 ? "worker did" : "workers did"} not report an SDK version.` : versions.length ? "Every registered worker reports the same SDK version." : "No SDK version was returned by the workers.",
       to: "workers",
     },
     {
       key: "system",
-      state: failed.length ? "failed" : "running",
-      title: failed.length ? `${failed.length} of ${system.length} system sessions failed` : `${system.length} system sessions healthy`,
-      detail: failed.length && err ? err.detail || err.headline : "Housekeeping agents are running as expected.",
+      state: failed.length ? "failed" : system.length ? "running" : "waiting",
+      title: failed.length ? `${failed.length} of ${system.length} system sessions failed` : system.length ? `${system.length} system sessions, no failures reported` : "No system sessions returned",
+      detail: failed.length && err ? err.detail || err.headline : system.length ? "Open System sessions to inspect their current work and waiting states." : "Check which housekeeping agents are configured for this deployment.",
       to: "system",
     },
     {

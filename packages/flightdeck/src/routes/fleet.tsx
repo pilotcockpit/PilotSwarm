@@ -3,10 +3,11 @@ import { Link } from "@tanstack/react-router";
 import { useSessions } from "@/data/source";
 import { sessionState, type StateKey } from "@/data/state";
 import type { Session } from "@/data/types";
-import { DurableSpine, StateGlyph } from "@/components/state";
+import { DurableSpine, StatePill } from "@/components/state";
 import { StateFacets } from "@/components/state-facets";
 import { EmptyState } from "@/components/empty";
-import { Chip } from "@/components/ui/misc";
+import { Chip, Skeleton } from "@/components/ui/misc";
+import { Button } from "@/components/ui/button";
 import { cardVariants } from "@/components/ui/card";
 import { ago, cn, plural } from "@/lib/utils";
 
@@ -19,7 +20,7 @@ import { ago, cn, plural } from "@/lib/utils";
 const RANK: Record<StateKey, number> = { needs: 0, failed: 1, running: 2, waiting: 3, idle: 4, completed: 5, cancelled: 6 };
 
 export function FleetWall() {
-  const { data: sessions, isLoading } = useSessions();
+  const { data: sessions, isLoading, isError, refetch } = useSessions();
   const [facet, setFacet] = React.useState<StateKey | null>(null);
   const [system, setSystem] = React.useState(false);
   const [active, setActive] = React.useState(0);
@@ -62,8 +63,13 @@ export function FleetWall() {
         <Chip active={system} onClick={() => setSystem((v) => !v)} className="shrink-0 md:ml-auto">System sessions</Chip>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-4">
-        {isLoading ? null : !cells.length ? (
-          <EmptyState title={facet ? "No sessions in this state" : "No sessions yet"}>{facet ? "Clear the filter to see the rest of the fleet." : "Start a session and it appears here."}</EmptyState>
+        <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h2 className="text-prose font-semibold">Fleet overview</h2>
+          <p className="text-sm text-muted">{plural(cells.length, "session")} · Requests and failures first, then work in progress.</p>
+        </div>
+        {isError ? <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm text-failed"><span>Couldn't refresh the fleet. {sessions ? "Showing the last loaded sessions." : "Try again to load your sessions."}</span><Button size="sm" onClick={() => void refetch()}>Try again</Button></div> : null}
+        {isLoading ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-32" />)}</div> : !cells.length && !isError ? (
+          <EmptyState title={facet ? "No sessions in this state" : "No sessions yet"} action={facet ? <Button onClick={() => setFacet(null)}>Clear state filter</Button> : undefined}>{facet ? "The rest of the fleet is one click away." : "Start a session and it appears here."}</EmptyState>
         ) : (
           <ul ref={listRef} onKeyDown={onKeyDown} aria-label={`Fleet, ${plural(cells.length, "session")}`} className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-2">
             {cells.map((s, i) => <FleetCell key={s.sessionId} session={s} state={states.get(s.sessionId)!} index={i} tabbable={i === active} onFocus={() => setActive(i)} />)}
@@ -91,12 +97,10 @@ function FleetCell({ session: s, state: st, index, tabbable, onFocus }: { sessio
           st.key === "needs" && "border-needs/45 bg-needs-tint hover:border-needs",
         )}
       >
-        <span className="flex min-w-0 items-center gap-2">
-          <StateGlyph state={st.key} />
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{s.title || "Untitled session"}</span>
-          <span className="sr-only">{st.word}</span>
-        </span>
-        <span className="line-clamp-2 min-h-8 text-xs text-muted">{what || (st.word === "Running" ? "Working" : st.word)}</span>
+        <span className="min-w-0 truncate text-sm font-semibold">{s.title || "Untitled session"}</span>
+        <StatePill state={st} size="sm" showReason={false} className="self-start" />
+        <span className="line-clamp-2 min-h-8 text-sm text-muted">{what || (st.word === "Running" ? "Working on the current task" : st.word)}</span>
+        {st.next ? <span className="text-xs text-muted">{st.next}</span> : null}
         <span className="mt-auto flex items-center gap-2 text-xs text-faint">
           <DurableSpine marks={s.spine} />
           <span className="min-w-0 flex-1 truncate font-mono">{s.agentId}</span>

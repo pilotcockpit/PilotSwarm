@@ -6,7 +6,7 @@ import { useRefresh, useSession, useSource } from "@/data/source";
 import { describeError, pauseSentence, sessionState } from "@/data/state";
 import type { PendingQuestion, Session } from "@/data/types";
 import { AnswerChoices } from "@/components/answer-choices";
-import { StateGlyph } from "@/components/state";
+import { StateGlyph, StatePill } from "@/components/state";
 import { Button } from "@/components/ui/button";
 import { useRetry } from "@/lib/retry";
 import { ago, cn, plural } from "@/lib/utils";
@@ -80,9 +80,12 @@ export function NeedsRow({ session: s }: { session: Session }) {
   return (
     <div className="flex flex-wrap items-start gap-x-3 gap-y-2 border-t border-line-subtle px-4 py-3 first:border-t-0">
       <StateGlyph state={st.key} className="mt-1.25" />
-      <div className="min-w-0 flex-1 basis-[240px]">
-        <Link to="/s/$sessionId" params={{ sessionId: s.sessionId }} className="text-sm font-semibold underline-offset-2 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">{s.title}</Link>
-        <p className="mt-0.5 text-sm text-fg/85">{body}</p>
+      <div className="min-w-0 flex-1 basis-48">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Link to="/s/$sessionId" params={{ sessionId: s.sessionId }} className="break-words text-sm font-semibold underline-offset-2 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">{s.title}</Link>
+          <StatePill state={st} size="sm" showReason={false} />
+        </div>
+        <p className="mt-1.5 max-w-prose break-words text-sm leading-relaxed text-fg/85">{body}</p>
         {below}
         <p className="mt-1 text-xs text-faint">{s.agentId} · {ago(s.updatedAt)}</p>
       </div>
@@ -104,7 +107,7 @@ export function FailureGroup({ sessions }: { sessions: Session[] }) {
     <div className="border-t border-line-subtle first:border-t-0">
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3">
         <StateGlyph state="failed" className="mt-1.25" />
-        <div className="min-w-0 flex-1 basis-[240px]">
+        <div className="min-w-0 flex-1 basis-48">
           <p className="text-sm font-semibold">{plural(sessions.length, "session")} failed with the same error</p>
           <p className="mt-0.5 text-sm text-fg/85">{err.headline}{err.detail ? `: ${lowerFirst(err.detail)}` : "."}</p>
           <Button variant="quiet" size="sm" className="-ml-2 mt-1 text-muted" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)}>

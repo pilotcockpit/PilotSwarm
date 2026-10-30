@@ -42,6 +42,9 @@ export function BoardsPage() {
   const search = route.useSearch();
   const navigate = route.useNavigate();
   const [boards, setBoards] = React.useState<Board[]>(load);
+  const [initialized, setInitialized] = React.useState(() => {
+    try { return localStorage.getItem(KEY) !== null; } catch { return false; }
+  });
   const [picker, setPicker] = React.useState(false);
   const [focus, setFocus] = React.useState<string | null>(null);
   const stripRef = React.useRef<HTMLDivElement>(null);
@@ -60,7 +63,10 @@ export function BoardsPage() {
 
   // Seed a first board from what is live, so the page is useful on first visit.
   React.useEffect(() => {
-    if (!sessions?.length || boards.some((b) => b.tiles.length)) return;
+    if (!sessions || initialized) return;
+    // Only a first visit gets starter tiles. An intentionally cleared board stays empty.
+    setInitialized(true);
+    if (boards.some((b) => b.tiles.length)) return;
     // A useful first board: a live canvas next to the chats that need you or are working.
     const live = sessions.filter((s) => !s.isSystem && ["running", "waiting", "needs"].includes(sessionState(s).key));
     const rank = (s: Session) => ({ needs: 0, running: 1, waiting: 2 } as Record<string, number>)[sessionState(s).key] ?? 3;
@@ -72,7 +78,7 @@ export function BoardsPage() {
       ...chats.map((s, j) => ({ id: `t${j}`, sessionId: s.sessionId, kind: "chat" as const })),
     ];
     setBoards((bs) => bs.map((b, i) => (i === 0 ? { ...b, tiles } : b)));
-  }, [sessions]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sessions, initialized, boards]);
 
   const update = (fn: (b: Board) => Board) => setBoards((bs) => bs.map((b) => (b.id === board.id ? fn(b) : b)));
   const byId = new Map((sessions || []).map((s) => [s.sessionId, s]));
@@ -101,10 +107,11 @@ export function BoardsPage() {
       </div>
       {fleet ? <FleetWall /> : (
       <div className="min-h-0 flex-1 overflow-auto p-3 md:p-4">
+        <p className="mb-3 text-sm text-muted">Your selected chats and canvases, side by side. <span className="text-xs text-faint">Boards are saved in this browser.</span></p>
         {board.tiles.length === 0 ? (
           <Panel className="mx-auto max-w-[720px]">
             <EmptyState icon={<LayoutGrid />} title="An empty board" action={<Button variant="primary" onClick={() => setPicker(true)}><Plus /> Add tile</Button>}>
-              Put chats and canvases side by side to watch several sessions at once. Each tile keeps the session's state, Open and menu.
+              Add the sessions you want to follow. Removing a tile only changes this board; the session keeps working.
             </EmptyState>
           </Panel>
         ) : focused ? (
@@ -216,7 +223,7 @@ function ChatTile({ session }: { session: Session }) {
 function CanvasTile({ session, slot }: { session: Session; slot?: number }) {
   const { canvases, loading } = useCanvases(session.sessionId);
   const c = canvases.find((x) => x.slot === slot) || canvases[0];
-  if (loading) return null;
+  if (loading) return <p role="status" className="p-4 text-sm text-muted">Loading canvas…</p>;
   if (!c) return <EmptyState title="No canvas" className="h-full">This session has not drawn a canvas yet.</EmptyState>;
   return <CanvasFrame html={c.html} title={c.name} zoom={0.85} />;
 }

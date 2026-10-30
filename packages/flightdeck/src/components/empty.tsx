@@ -1,5 +1,21 @@
 import { cn } from "@/lib/utils";
 import { Card, type CardProps } from "@/components/ui/card";
+import { AlertTriangle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+/** A failed read is never an empty result or a clean bill of health. */
+export function DataReadNotice({ title, children, onRetry, busy = false, partial = false }: { title: string; children: React.ReactNode; onRetry: () => void; busy?: boolean; partial?: boolean }) {
+  return (
+    <Card tone={partial ? "waiting" : "failed"} role="alert" className="flex flex-wrap items-start gap-3 px-4 py-3">
+      <AlertTriangle className={cn("mt-0.5 size-4 shrink-0", partial ? "text-waiting" : "text-failed")} aria-hidden />
+      <div className="min-w-0 flex-1 basis-48">
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="mt-1 text-sm text-muted">{children}</p>
+      </div>
+      <Button size="sm" disabled={busy} onClick={onRetry}><RefreshCw className={cn(busy && "animate-spin")} />{busy ? "Retrying…" : "Try again"}</Button>
+    </Card>
+  );
+}
 
 /** What will appear here, and the one action that makes it appear. */
 export function EmptyState({ icon, title, children, action, className }: { icon?: React.ReactNode; title: string; children?: React.ReactNode; action?: React.ReactNode; className?: string }) {

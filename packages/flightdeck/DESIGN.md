@@ -64,6 +64,21 @@ motion:
 
 The source of truth for tokens is [`src/styles.css`](src/styles.css). This file says what they mean and how to use them. The original rationale and research are in [`docs/proposals/ux-redesign/design-system.md`](../../docs/proposals/ux-redesign/design-system.md).
 
+## Workspace hierarchy
+
+The dashboard is an Operate surface. Navigation groups are Work (Overview,
+Sessions, Boards, Outputs), Build (Agent library), and Manage (Providers, Admin,
+Settings). Overview starts with the attention queue, followed by progress and
+upcoming work, then recent outputs. It keeps a stable no-attention state instead
+of silently removing the section. At phone widths, the same reading order stacks
+in one column; secondary section descriptions yield before headings do.
+
+Output cards show type, title, source session, freshness, and the next navigation
+affordance. Type icons are not content previews. A generated illustration belongs
+only to first-session onboarding. Charts elsewhere must use reported values with
+visible period, scope, and an accessible value list. Failed or stale reads must
+never receive a current healthy-state verdict.
+
 ## 1. Overview
 
 **Creative North Star: "The instrument panel."** Flight Deck is a place to supervise agents that keep working while nobody is watching. The chrome is quiet and neutral so that the one thing that changes, an agent's state, is the loudest thing on screen. Density is high but calm: rows, not tiles; tone steps, not shadows; one accent.

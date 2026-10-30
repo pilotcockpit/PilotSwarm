@@ -93,12 +93,22 @@ export function useSession(id: string | undefined) {
     if (row?.error && (d as Session).status === "idle" && row.status === "error") next.status = "error";
     return next;
   }, [row, detail.data]);
-  return { session: merged, loading: detail.isLoading && !row, missing: !detail.isLoading && !row && !detail.data };
+  return {
+    session: merged,
+    loading: detail.isLoading && !row,
+    missing: !detail.isLoading && !detail.isError && !row && !detail.data,
+    error: detail.error,
+    isError: detail.isError,
+    retry: detail.refetch,
+    refreshing: detail.isFetching,
+  };
 }
 
 export function useTranscript(id: string | undefined) {
   const { source } = useSource();
   const [history, setHistory] = React.useState<HistoryModel | null>(null);
+  const [retryAttempt, setRetryAttempt] = React.useState(0);
+  const retry = React.useCallback(() => setRetryAttempt((n) => n + 1), []);
   const [error, setError] = React.useState<string | null>(null);
   React.useEffect(() => {
     if (!id) return;
@@ -130,8 +140,8 @@ export function useTranscript(id: string | undefined) {
       active = false;
       unsubscribe();
     };
-  }, [id, source]);
-  return { history, error, loading: !history && !error };
+  }, [id, source, retryAttempt]);
+  return { history, error, loading: !history && !error, retry };
 }
 
 export function useArtifacts(id: string | undefined) {

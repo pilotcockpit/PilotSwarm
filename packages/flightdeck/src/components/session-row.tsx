@@ -27,43 +27,43 @@ export function SessionRow({ session, childCount = 0, depth = 0, active = false,
     </>
   );
   return (
-    <Link
-      to="/s/$sessionId"
-      params={{ sessionId: session.sessionId }}
-      aria-current={active ? "page" : undefined}
-      data-session-row
-      className={cn(
-        "focus-inset group flex min-h-row items-center gap-3 border-t border-line-subtle px-3 py-2 first:border-t-0 hover:bg-raised/70",
-        active && "bg-raised",
-        st.key === "failed" && !active && "bg-failed-tint/40",
-      )}
-      style={depth ? { paddingLeft: 12 + depth * 20 } : undefined}
-    >
-      {leading}
-      {depth ? <span className="-ml-2 h-px w-2 shrink-0 bg-line-strong" aria-hidden /> : null}
-      <StateGlyph state={st.key} />
-      <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 truncate text-sm font-medium text-fg max-sm:whitespace-normal max-sm:line-clamp-2">{session.title || "Untitled session"}</span>
-          <span className="hidden items-center gap-2 sm:inline-flex">{chips}</span>
+    <div className={cn("group flex items-stretch border-t border-line-subtle first:border-t-0", active && "bg-raised", st.key === "failed" && !active && "bg-failed-tint/40")}>
+      {leading ? <div className="flex shrink-0 items-center pl-3">{leading}</div> : null}
+      <Link
+        to="/s/$sessionId"
+        params={{ sessionId: session.sessionId }}
+        aria-current={active ? "page" : undefined}
+        data-session-row
+        className={cn(
+          "focus-inset flex min-h-row min-w-0 flex-1 items-center gap-3 px-3 py-2 hover:bg-raised/70",
+        )}
+        style={depth ? { paddingLeft: 12 + depth * 20 } : undefined}
+      >
+        {depth ? <span className="-ml-2 h-px w-2 shrink-0 bg-line-strong" aria-hidden /> : null}
+        <StateGlyph state={st.key} />
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate text-sm font-medium text-fg max-sm:whitespace-normal max-sm:line-clamp-2">{session.title || "Untitled session"}</span>
+            <span className="hidden items-center gap-2 sm:inline-flex">{chips}</span>
+          </span>
+          <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
+            <span className={cn("shrink-0 font-medium", STATE_TONE[st.key])}>{st.word}</span>
+            {st.reason || session.shortSummary ? <span className="min-w-0 truncate">· {st.reason || session.shortSummary}</span> : null}
+            {st.next ? <span className="hidden shrink-0 text-faint sm:inline">· {st.next}</span> : null}
+            {columns ? (session.workspace?.repo ? <span className="hidden min-w-0 shrink-0 truncate text-faint xl:inline">· {session.workspace.repo}{session.workspace.branch ? ` @ ${session.workspace.branch}` : ""}</span> : null) : <><span className="shrink-0 text-faint">·</span><span className="shrink-0 truncate text-faint">{session.agentId || "generic"}</span></>}
+            <span className="inline-flex items-center gap-1.5 sm:hidden">{chips}</span>
+          </span>
         </span>
-        <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
-          <span className={cn("shrink-0 font-medium", STATE_TONE[st.key])}>{st.word}</span>
-          {st.reason || session.shortSummary ? <span className="min-w-0 truncate">· {st.reason || session.shortSummary}</span> : null}
-          {st.next ? <span className="hidden shrink-0 text-faint sm:inline">· {st.next}</span> : null}
-          {columns ? (session.workspace?.repo ? <span className="hidden min-w-0 shrink-0 truncate text-faint xl:inline">· {session.workspace.repo}{session.workspace.branch ? ` @ ${session.workspace.branch}` : ""}</span> : null) : <><span className="shrink-0 text-faint">·</span><span className="shrink-0 truncate text-faint">{session.agentId || "generic"}</span></>}
-          <span className="inline-flex items-center gap-1.5 sm:hidden">{chips}</span>
-        </span>
-      </span>
-      {columns ? (
-        <>
-          <span className="hidden w-37.5 shrink-0 truncate text-xs text-muted lg:block">{session.agentId || "generic"}</span>
-          <span className="hidden w-40 shrink-0 truncate font-mono text-xs text-muted xl:block">{modelShort(session.model)}</span>
-        </>
-      ) : null}
-      <DurableSpine marks={session.spine} className="hidden md:inline-flex" />
-      <span className="w-14 shrink-0 text-right text-xs tabular-nums text-faint">{ago(session.updatedAt)}</span>
-    </Link>
+        {columns ? (
+          <>
+            <span className="hidden w-37.5 shrink-0 truncate text-xs text-muted lg:block">{session.agentId || "generic"}</span>
+            <span className="hidden w-40 shrink-0 truncate font-mono text-xs text-muted xl:block">{modelShort(session.model)}</span>
+          </>
+        ) : null}
+        <DurableSpine marks={session.spine} className="hidden md:inline-flex" />
+        <span className="w-14 shrink-0 text-right text-xs tabular-nums text-faint">{ago(session.updatedAt)}</span>
+      </Link>
+    </div>
   );
 }
 

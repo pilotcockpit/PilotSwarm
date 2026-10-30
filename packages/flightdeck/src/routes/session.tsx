@@ -7,7 +7,7 @@ import {
 import { toast } from "sonner";
 import { TopBar, ClassicLink } from "@/shell/AppShell";
 import { useMediaQuery } from "@/shell/prefs";
-import { useArtifacts, useProfile, useRefresh, useSession, useSessions, useSource, useTranscript } from "@/data/source";
+import { useArtifacts, useRefresh, useSession, useSessions, useSource, useTranscript } from "@/data/source";
 import { describeError, modelShort, questionKey, sessionState, STATE_TINT, type SessionState } from "@/data/state";
 import type { PendingQuestion, Session } from "@/data/types";
 import { StateGlyph, StatePill } from "@/components/state";
@@ -16,6 +16,7 @@ import { useRetry } from "@/lib/retry";
 import { StructuredErrorCard } from "@/components/structured-error";
 import { EmptyState } from "@/components/empty";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { Skeleton, Popover, PopoverContent, PopoverTrigger, Tag } from "@/components/ui/misc";
 import { ChangeModelDialog } from "@/components/model-switch";
@@ -27,6 +28,8 @@ import { ago, cn, plural, shortId } from "@/lib/utils";
 import type { SessionView } from "@/router";
 import { isCanvasFile } from "./home";
 import { rovingKeyDown } from "@/lib/roving";
+import { sessionIsViewOnly } from "@/lib/session-access";
+import { createSessionComposerMemory } from "@/lib/session-composer";
 import { fillComposer } from "@/lib/composer";
 
 const route = getRouteApi("/s/$sessionId");
@@ -55,10 +58,15 @@ function useWidth(ref: React.RefObject<HTMLElement | null>) {
 
 export function SessionPage() {
   const { sessionId } = route.useParams();
+  return <SessionPageContent key={sessionId} />;
+}
+
+function SessionPageContent() {
+  const { sessionId } = route.useParams();
   const search = route.useSearch();
   const navigate = route.useNavigate();
-  const { session, missing } = useSession(sessionId);
-  const { history } = useTranscript(sessionId);
+  const { session, missing, error: detailError, isError: detailFailed, retry: retryDetail, refreshing: refreshingDetail } = useSession(sessionId);
+  const { history, error: transcriptError, retry: retryTranscript } = useTranscript(sessionId);
   const { data: all } = useSessions();
   const { canvases } = useCanvases(sessionId);
   const { data: artifacts } = useArtifacts(sessionId);
@@ -85,6 +93,21 @@ export function SessionPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [search.focus, setSearch]);
 
+  if (detailFailed && !session) {
+    return (
+      <>
+        <TopBar crumbs={[{ label: "Sessions", to: "/sessions" }, { label: "Connection problem" }]} />
+        <EmptyState
+          title="Couldn't load this session"
+          className="flex-1"
+          action={<Button disabled={refreshingDetail} onClick={() => void retryDetail()}>{refreshingDetail ? "Retrying…" : "Try again"}</Button>}
+        >
+          Your session may still be running. {detailError instanceof Error ? detailError.message : "Check your connection and try again."}
+        </EmptyState>
+      </>
+    );
+  }
+
   if (missing) {
     return (
       <>
@@ -104,7 +127,7 @@ export function SessionPage() {
     { label: session ? <TitleEditor session={session} /> : <Skeleton className="h-6 w-48" /> },
   ];
 
-  const chat = <ChatPane session={session} sessionId={sessionId} history={history} onOpenCanvas={(slot) => setSearch({ view: "canvas", slot })} />;
+  const chat = <ChatPane key={sessionId} session={session} sessionId={sessionId} history={history} transcriptError={transcriptError} onRetryTranscript={retryTranscript} onOpenCanvas={(slot) => setSearch({ view: "canvas", slot })} />;
   const companionNode = companion ? (
     <CompanionPane
       view={companion}
@@ -120,6 +143,7 @@ export function SessionPage() {
   return (
     <>
       <TopBar crumbs={crumbs} actions={session ? <SessionBarActions session={session} childCount={children.length} /> : null} />
+      {detailFailed && session ? <div role="status" className="flex flex-wrap items-center gap-2 border-b border-line bg-raised px-4 py-2 text-sm"><span className="min-w-0 flex-1 text-muted">Session details could not refresh. Showing the last available state.</span><Button size="sm" disabled={refreshingDetail} onClick={() => void retryDetail()}>Try again</Button></div> : null}
       <div ref={bodyRef} className="flex min-h-0 flex-1 flex-col">
         {tabsMode ? (
           <>
@@ -223,35 +247,42 @@ const STALL_MS = 10 * 60_000;
 const isStalled = (session: Session) => sessionState(session).key === "running" && Boolean(session.updatedAt) && Date.now() - Number(session.updatedAt) > STALL_MS;
 
 function TitleEditor({ session }: { session: Session }) {
+  const readOnly = sessionIsViewOnly(session) || session.canManage === false;
   const { source } = useSource();
   const refresh = useRefresh();
   const [editing, setEditing] = React.useState(false);
   const [title, setTitle] = React.useState(session.title || "");
+  const saving = React.useRef(false);
+  const cancelled = React.useRef(false);
   React.useEffect(() => setTitle(session.title || ""), [session.title]);
   React.useEffect(() => {
-    const open = () => setEditing(true);
+    const open = () => { if (!readOnly) { cancelled.current = false; setEditing(true); } };
     window.addEventListener("fd:rename-session", open);
     return () => window.removeEventListener("fd:rename-session", open);
-  }, []);
+  }, [readOnly]);
   const save = async () => {
+    if (cancelled.current) { cancelled.current = false; return; }
+    if (saving.current || readOnly) return;
     setEditing(false);
     const next = title.trim();
     if (!next || next === session.title) return setTitle(session.title || "");
+    saving.current = true;
     try { await source.renameSession(session.sessionId, next); refresh(session.sessionId); toast.success("Renamed"); }
     catch (e: any) { setTitle(session.title || ""); toast.error("Couldn't rename", { description: e?.message }); }
+    finally { saving.current = false; }
   };
-  return editing ? (
+  return readOnly ? <span className="max-w-full truncate">{session.title || "Untitled session"}</span> : editing ? (
     <Input
       autoFocus
       value={title}
       onChange={(e) => setTitle(e.target.value)}
       onBlur={save}
-      onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") { setTitle(session.title || ""); setEditing(false); } }}
+      onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") { cancelled.current = true; setTitle(session.title || ""); setEditing(false); } }}
       className="h-8 max-w-[520px] text-lg font-semibold"
       aria-label="Session title"
     />
   ) : (
-    <button type="button" className="max-w-full truncate rounded-chip text-left tracking-tight hover:bg-raised pointer-coarse:min-h-11" onClick={() => setEditing(true)} title="Rename">{session.title || "Untitled session"}</button>
+    <button type="button" className="max-w-full truncate rounded-chip text-left tracking-tight hover:bg-raised pointer-coarse:min-h-11" onClick={() => { cancelled.current = false; setEditing(true); }} title="Rename">{session.title || "Untitled session"}</button>
   );
 }
 
@@ -317,7 +348,7 @@ function SessionDetails({ session, onChangeModel }: { session: Session; onChange
     ["Model", (
       <span className="flex items-center gap-2">
         <span className="min-w-0 truncate">{modelShort(session.model)}{session.reasoningEffort ? <span className="text-muted"> · {String(session.reasoningEffort)} effort</span> : null}</span>
-        <Button variant="link" size="sm" className="ml-auto shrink-0" onClick={onChangeModel}>Change</Button>
+        <Button variant="link" size="sm" disabled={sessionIsViewOnly(session) || session.canManage === false} className="ml-auto shrink-0" onClick={onChangeModel}>Change</Button>
       </span>
     )],
     ...(session.workspace?.repo ? [["Repository", <span className="inline-flex min-w-0 items-center gap-1"><FolderGit2 className="size-3.5 shrink-0" aria-hidden /><span className="truncate font-mono">{session.workspace.repo}{session.workspace.branch ? ` @ ${session.workspace.branch}` : ""}</span></span>] as [string, React.ReactNode]] : session.workspace?.folder ? [["Folder", <span className="truncate font-mono">{session.workspace.folder}</span>] as [string, React.ReactNode]] : []),
@@ -406,8 +437,14 @@ function SessionMenu({ session, childCount, onChangeModel, onDetails, onShare, p
   const refresh = useRefresh();
   const navigate = useNavigate();
   const [confirm, setConfirm] = React.useState<null | "complete" | "cancel" | "delete">(null);
+  const [busy, setBusy] = React.useState(false);
+  const inFlight = React.useRef(false);
+  const readOnly = sessionIsViewOnly(session) || session.canManage === false;
   const cascade = childCount ? `Also ${confirm === "delete" ? "deletes" : "cancels"} ${plural(childCount, "sub-agent")}.` : "";
   const run = async (kind: "complete" | "cancel" | "delete") => {
+    if (inFlight.current || readOnly) return;
+    inFlight.current = true;
+    setBusy(true);
     try {
       if (kind === "complete") await source.completeSession(session.sessionId);
       if (kind === "cancel") await source.cancelSession(session.sessionId);
@@ -418,7 +455,7 @@ function SessionMenu({ session, childCount, onChangeModel, onDetails, onShare, p
       if (kind === "delete") void navigate({ to: "/sessions" });
     } catch (e: any) {
       toast.error("That didn't work", { description: e?.message });
-    }
+    } finally { inFlight.current = false; setBusy(false); }
   };
   const closed = ["completed", "cancelled"].includes(sessionState(session).key);
   return (
@@ -428,18 +465,18 @@ function SessionMenu({ session, childCount, onChangeModel, onDetails, onShare, p
         <MenuContent className="w-[260px]">
           {phone ? <MenuItem icon={<Info />} onSelect={onDetails}>Details</MenuItem> : null}
           {phone ? <MenuItem icon={<Share2 />} onSelect={onShare}>Share</MenuItem> : null}
-          <MenuItem icon={<Pencil />} onSelect={() => window.dispatchEvent(new Event("fd:rename-session"))}>Rename</MenuItem>
+          <MenuItem disabled={readOnly} icon={<Pencil />} onSelect={() => window.dispatchEvent(new Event("fd:rename-session"))}>Rename</MenuItem>
           <MenuItem icon={<Copy />} onSelect={() => { void navigator.clipboard?.writeText(window.location.href); toast.success("Link copied"); }}>Copy link</MenuItem>
-          <MenuItem icon={<Shuffle />} onSelect={onChangeModel} hint={modelShort(session.model)}>Change model</MenuItem>
+          <MenuItem disabled={readOnly} icon={<Shuffle />} onSelect={onChangeModel} hint={modelShort(session.model)}>Change model</MenuItem>
           <MenuItem icon={<ExternalLink />} onSelect={() => window.open(import.meta.env.VITE_CLASSIC_URL || "http://localhost:3001", "_blank", "noopener")} hint="Group, working folder, export history">More in classic portal</MenuItem>
           <MenuSeparator />
-          <MenuLabel>Close the session</MenuLabel>
-          <MenuItem icon={<CheckCircle2 />} disabled={closed} onSelect={() => setConfirm("complete")} hint="Close as done">Complete</MenuItem>
-          <MenuItem icon={<Ban />} danger disabled={closed} onSelect={() => setConfirm("cancel")} hint={childCount ? `Also cancels ${plural(childCount, "sub-agent")}` : "Close as abandoned"}>Cancel</MenuItem>
-          <MenuItem icon={<Trash2 />} danger onSelect={() => setConfirm("delete")} hint={childCount ? `Also deletes ${plural(childCount, "sub-agent")}` : "Remove from every list"}>Delete</MenuItem>
+          <MenuLabel>{readOnly ? "Management requires owner access" : "Close the session"}</MenuLabel>
+          <MenuItem icon={<CheckCircle2 />} disabled={closed || readOnly} onSelect={() => setConfirm("complete")} hint="Close as done">Complete</MenuItem>
+          <MenuItem icon={<Ban />} danger disabled={closed || readOnly} onSelect={() => setConfirm("cancel")} hint={childCount ? `Also cancels ${plural(childCount, "sub-agent")}` : "Close as abandoned"}>Cancel</MenuItem>
+          <MenuItem disabled={readOnly} icon={<Trash2 />} danger onSelect={() => setConfirm("delete")} hint={childCount ? `Also deletes ${plural(childCount, "sub-agent")}` : "Remove from every list"}>Delete</MenuItem>
         </MenuContent>
       </Menu>
-      <Dialog open={Boolean(confirm)} onOpenChange={(o) => !o && setConfirm(null)}>
+      <Dialog open={Boolean(confirm)} onOpenChange={(o) => !o && !busy && setConfirm(null)}>
         {confirm ? (
           <DialogContent title={confirm === "complete" ? "Complete this session?" : confirm === "cancel" ? "Cancel this session?" : "Delete this session?"}>
             <DialogBody>
@@ -451,9 +488,9 @@ function SessionMenu({ session, childCount, onChangeModel, onDetails, onShare, p
               </p>
             </DialogBody>
             <DialogFooter>
-              <Button onClick={() => setConfirm(null)}>Keep it</Button>
-              <Button variant={confirm === "complete" ? "primary" : "danger"} onClick={() => run(confirm)}>
-                {confirm === "complete" ? "Complete" : confirm === "cancel" ? "Cancel session" : "Delete"}
+              <Button disabled={busy} onClick={() => setConfirm(null)}>Keep it</Button>
+              <Button disabled={busy} variant={confirm === "complete" ? "primary" : "danger"} onClick={() => run(confirm)}>
+                {busy ? "Updating session…" : confirm === "complete" ? "Complete" : confirm === "cancel" ? "Cancel session" : "Delete"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -465,7 +502,7 @@ function SessionMenu({ session, childCount, onChangeModel, onDetails, onShare, p
 
 // ── Chat ─────────────────────────────────────────────────────────────────
 
-function ChatPane({ session, sessionId, history, onOpenCanvas }: { session?: Session; sessionId: string; history: ReturnType<typeof useTranscript>["history"]; onOpenCanvas: (slot?: number) => void }) {
+function ChatPane({ session, sessionId, history, transcriptError, onRetryTranscript, onOpenCanvas }: { session?: Session; sessionId: string; history: ReturnType<typeof useTranscript>["history"]; transcriptError: string | null; onRetryTranscript: () => void; onOpenCanvas: (slot?: number) => void }) {
   const { source } = useSource();
   const refresh = useRefresh();
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -536,17 +573,31 @@ function ChatPane({ session, sessionId, history, onOpenCanvas }: { session?: Ses
         className="min-h-0 flex-1 overflow-y-auto"
       >
         <div className="mx-auto max-w-[760px] px-4 py-5 md:px-5">
-          {!history ? (
+          {transcriptError ? (
+            <Card role="alert" className="p-4">
+              <h2 className="text-sm font-semibold">Couldn't load the conversation</h2>
+              <p className="mt-1 text-sm text-muted">{transcriptError}</p>
+              <p className="mt-1 text-xs text-muted">The session may still be working. Try loading the conversation again; your draft stays here.</p>
+              <Button className="mt-3" size="sm" onClick={onRetryTranscript}>Try again</Button>
+            </Card>
+          ) : !history ? (
             <div className="flex flex-col gap-4"><Skeleton className="ml-auto h-16 w-3/4" /><Skeleton className="h-20 w-5/6" /><Skeleton className="h-9 w-2/3" /></div>
           ) : items.length === 0 && !session?.error ? (
             <EmptyState title="Nothing here yet" className="py-16">Send the first message below. The agent replies here; anything it draws or writes shows up in Canvas and Files.</EmptyState>
           ) : (
-            <Transcript items={items} sessionId={sessionId} agentName={agent} onOpenCanvas={onOpenCanvas} errorActions={st.key === "failed" ? { onRetry: retry, onSwitchModel: () => setModelOpen(true) } : undefined} lastSeenAt={lastSeenAt} />
+            <Transcript items={items} sessionId={sessionId} agentName={agent} onOpenCanvas={onOpenCanvas} errorActions={st.key === "failed" && session && !sessionIsViewOnly(session) ? { onRetry: retry, onSwitchModel: () => setModelOpen(true) } : undefined} lastSeenAt={lastSeenAt} />
           )}
           {st.key === "failed" && session?.error && !hasWarning ? (
-            <div className="mt-4"><StructuredErrorCard raw={session.error} onRetry={retry} onSwitchModel={() => setModelOpen(true)} /></div>
+            <div className="mt-4"><StructuredErrorCard raw={session.error} onRetry={sessionIsViewOnly(session) ? undefined : retry} onSwitchModel={sessionIsViewOnly(session) || session.canManage === false ? undefined : () => setModelOpen(true)} /></div>
           ) : null}
-          {st.key === "needs" && session?.pendingQuestion && answered !== questionKey(sessionId, session.pendingQuestion) ? (
+          {st.key === "needs" && session?.pendingQuestion && sessionIsViewOnly(session) ? (
+            <Card className="mt-4 p-4">
+              <h2 className="text-sm font-semibold">The agent is waiting for an answer</h2>
+              <p className="mt-2 text-sm">{session.pendingQuestion.question}</p>
+              <p className="mt-2 text-sm text-muted">You have view-only access. A writer needs to answer this question.</p>
+            </Card>
+          ) : null}
+          {st.key === "needs" && session?.pendingQuestion && !sessionIsViewOnly(session) && answered !== questionKey(sessionId, session.pendingQuestion) ? (
             <div className="mt-4"><QuestionCard sessionId={sessionId} question={session.pendingQuestion} agentName={agent} onAnswer={answer} busy={answering} /></div>
           ) : null}
           {st.key === "running" ? (
@@ -554,7 +605,7 @@ function ChatPane({ session, sessionId, history, onOpenCanvas }: { session?: Ses
           ) : null}
         </div>
       </div>
-      {session ? <Composer session={session} /> : null}
+      {session ? <Composer key={session.sessionId} session={session} /> : null}
       {session ? <ChangeModelDialog open={modelOpen} onOpenChange={setModelOpen} session={session} /> : null}
     </div>
   );
@@ -568,19 +619,23 @@ function writeLastSeen(id: string) {
   try { localStorage.setItem(SEEN_KEY(id), String(Date.now())); } catch { /* storage can be blocked; the divider just won't show */ }
 }
 
+// A data-source identity separates demo/live data and never persists message drafts to disk.
+const composerMemories = new WeakMap<object, ReturnType<typeof createSessionComposerMemory>>();
+function sessionComposer(source: object, sessionId: string) {
+  let memory = composerMemories.get(source);
+  if (!memory) { memory = createSessionComposerMemory(); composerMemories.set(source, memory); }
+  return memory.session(sessionId);
+}
+
 function Composer({ session }: { session: Session }) {
   const { source } = useSource();
   const refresh = useRefresh();
-  const [text, setText] = React.useState("");
-  const [queued, setQueued] = React.useState<string[]>([]);
-  const [busy, setBusy] = React.useState(false);
+  const composer = React.useMemo(() => sessionComposer(source, session.sessionId), [source, session.sessionId]);
+  const { text, queued, sending: busy, stopping } = React.useSyncExternalStore(composer.subscribe, composer.getSnapshot, composer.getSnapshot);
   const st = sessionState(session);
   const running = st.key === "running";
   const closed = st.key === "completed" || st.key === "cancelled";
-  const { data: profile } = useProfile();
-  const owner = ownerName(session.owner);
-  const mine = !owner || owner === "me" || owner === profile?.displayName || (typeof session.owner === "object" && (session.owner as any)?.email === profile?.email);
-  const readOnly = session.visibility === "shared_read" && !mine;
+  const readOnly = sessionIsViewOnly(session);
   const ref = React.useRef<HTMLTextAreaElement>(null);
 
   React.useEffect(() => {
@@ -591,9 +646,11 @@ function Composer({ session }: { session: Session }) {
   }, [text]);
 
   const send = async (mode: "send" | "queue" | "steer") => {
-    const prompt = text.trim();
-    if (!prompt) return;
-    setBusy(true);
+    if (readOnly) return;
+    const request = composer.beginSend();
+    if (!request) return;
+    const prompt = request.text;
+    let result: "sent" | "queued" | "failed" = "failed";
     try {
       if (mode === "steer") {
         const outcome = await source.steerTurn(session.sessionId, prompt);
@@ -601,25 +658,29 @@ function Composer({ session }: { session: Session }) {
         toast.success("Guidance added to the running turn");
       } else if (mode === "queue") {
         await source.sendMessage(session.sessionId, prompt, { enqueueOnly: true });
-        setQueued((q) => [...q, prompt]);
       } else {
         await source.sendMessage(session.sessionId, prompt);
       }
-      setText("");
+      result = mode === "queue" ? "queued" : "sent";
       refresh(session.sessionId);
     } catch (e: any) {
-      toast.error(mode === "steer" ? "Couldn't steer" : "Couldn't send", { description: e?.message });
+      toast.error(mode === "steer" ? "Couldn't steer" : "Couldn't send", { description: `${session.title || "Session"}: ${e?.message || "Please try again."}` });
     } finally {
-      setBusy(false);
+      composer.finishSend(request, result);
     }
   };
 
   const stop = async () => {
+    if (readOnly || !composer.beginStop()) return;
     try {
       const outcome = await source.stopTurn(session.sessionId);
-      toast.success(outcome === "no_active_turn" ? "Nothing was running" : "Stopped this turn", { description: "Its unfinished work was discarded." });
+      if (outcome === "stopped" || outcome === "stop_forced") toast.success("Stopped this turn", { description: "Its unfinished work was discarded." });
+      else if (outcome === "no_active_turn") toast.info("Nothing was running");
+      else if (outcome === "too_late") toast.info("The turn finished before it could be stopped");
+      else toast.warning("Stop has not been confirmed", { description: "Check the session's state before trying again." });
       refresh(session.sessionId);
     } catch (e: any) { toast.error("Couldn't stop", { description: e?.message }); }
+    finally { composer.finishStop(); }
   };
 
   if (closed) {
@@ -633,12 +694,13 @@ function Composer({ session }: { session: Session }) {
   return (
     <div className="fd-composer shrink-0 border-t border-line bg-bg px-3 pb-3 pt-2 md:px-5">
       <div className="mx-auto max-w-[760px]">
+        {queued.length ? <p className="mb-2 text-xs text-muted">Messages below are already queued. Dismissing a notice does not cancel delivery.</p> : null}
         {queued.map((q, i) => (
           <div key={i} className="mb-2 flex items-center gap-2 rounded-control border border-dashed border-line-strong px-3 py-1.5 text-sm">
             <ListPlus className="size-4 shrink-0 text-muted" aria-hidden />
             <span className="shrink-0 text-xs text-muted">Queued</span>
             <span className="min-w-0 flex-1 truncate">{q}</span>
-            <Button size="sm" variant="quiet" onClick={() => setQueued((list) => list.filter((_, j) => j !== i))}>Remove</Button>
+            <Button size="sm" variant="quiet" onClick={() => composer.dismissNotice(i)} title="Dismisses this notice. The queued message will still run.">Dismiss notice</Button>
           </div>
         ))}
         {readOnly ? <p className="mb-2 flex items-center gap-1.5 text-sm text-muted"><Lock className="size-3.5" aria-hidden /> View-only access: you can read this session but not reply.</p> : null}
@@ -648,7 +710,7 @@ function Composer({ session }: { session: Session }) {
             rows={2}
             value={text}
             disabled={Boolean(readOnly)}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => composer.setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
@@ -667,12 +729,12 @@ function Composer({ session }: { session: Session }) {
             {running ? (
               <>
                 <Tooltip content="Ends this turn now and discards its unfinished work">
-                  <Button size="sm" variant="danger" onClick={stop}><Square className="!size-3 fill-current" /> Stop</Button>
+                  <Button size="sm" variant="danger" disabled={readOnly || stopping} onClick={stop}><Square className="!size-3 fill-current" /> {stopping ? "Stopping…" : "Stop"}</Button>
                 </Tooltip>
                 <Tooltip content={session.acceptsTurnControl === false ? "This turn can't be steered (older runtime)" : "Adds your message as guidance to the running turn"}>
-                  <span><Button size="sm" disabled={!text.trim() || busy || session.acceptsTurnControl === false} onClick={() => send("steer")}><Navigation /> Steer</Button></span>
+                  <span><Button size="sm" disabled={!text.trim() || busy || readOnly || session.acceptsTurnControl === false} onClick={() => send("steer")}><Navigation /> Steer</Button></span>
                 </Tooltip>
-                <Button size="sm" variant="primary" disabled={!text.trim() || busy} onClick={() => send("queue")}><ListPlus /> Queue</Button>
+                <Button size="sm" variant="primary" disabled={!text.trim() || busy || readOnly} onClick={() => send("queue")}><ListPlus /> Queue</Button>
               </>
             ) : (
               <Button size="sm" variant="primary" disabled={!text.trim() || busy || Boolean(readOnly)} onClick={() => send("send")}><ArrowUp /> Send</Button>
