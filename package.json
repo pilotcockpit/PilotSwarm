@@ -73,5 +73,9 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0-alpha-2026-07-20"
+  },
+  "overrides": {
+    "rolldown": "1.2.14",
+    "postcss": "8.5.30"
   }
 }

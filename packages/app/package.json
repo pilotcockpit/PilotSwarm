@@ -52,13 +52,13 @@
     ],
     "scripts": {
         "build": "npm run build:web && npm run build:mcp",
-        "build:web": "cd web && node ../node_modules/vite/bin/vite.js build",
+        "build:web": "cd web && vite build",
         "build:mcp": "cd mcp && tsc",
         "prepack": "npm run build",
         "start": "node ./tui/bin/tui.js local --env ../../.env.remote",
         "start:remote": "node ./tui/bin/tui.js remote --env ../../.env.remote",
         "web:start": "node web/server.js",
-        "web:dev": "cd web && node ../node_modules/vite/bin/vite.js --host 0.0.0.0",
+        "web:dev": "cd web && vite --host 0.0.0.0",
         "test": "npm run test:tui && npm run test:web && npm run test:ui && npm run test:mcp",
         "test:tui": "node --test tui/test/*.test.mjs",
         "test:web": "node --test web/test/*.test.mjs",
@@ -102,6 +102,6 @@
     "devDependencies": {
         "@vitejs/plugin-react": "^5.1.0",
         "rollup-plugin-license": "^3.7.1",
-        "vite": "7.3.5"
+        "vite": "8.3.4"
     }
 }
