@@ -7,10 +7,10 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { rovingKeyDown } from "@/lib/roving";
 import { sessionState } from "@/data/state";
-import type { Session } from "@/data/types";
+import type { PendingQuestion, Session } from "@/data/types";
 import { DurableSpine, StatePill, StateGlyph } from "@/components/state";
 import { EmptyState, Panel } from "@/components/empty";
-import { Markdown, QuestionCard } from "@/components/chat";
+import { Markdown } from "@/components/chat";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog";
 import { Segmented } from "@/components/ui/tabs";
@@ -18,6 +18,7 @@ import { useCanvases } from "./session-views";
 import { CanvasFrame } from "@/canvas/CanvasFrame";
 import { cn } from "@/lib/utils";
 import { cardVariants } from "@/components/ui/card";
+import { FleetWall } from "./fleet";
 
 // Boards (was Master of Agents): saved tiled views of chats and canvases.
 // Up to five boards of sixteen tiles, as today. Stored in this browser so the
@@ -45,6 +46,8 @@ export function BoardsPage() {
   const stripRef = React.useRef<HTMLDivElement>(null);
   const [visible, setVisible] = React.useState(0);
   const { data: sessions } = useSessions();
+  // Fleet is a view of the same page: ?board=fleet. Boards stay as they were.
+  const fleet = search.board === "fleet";
   const board = boards.find((b) => b.id === search.board) || boards[0];
   React.useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(boards)); } catch { /* ignore */ } }, [boards]);
   React.useEffect(() => {
@@ -77,20 +80,25 @@ export function BoardsPage() {
   return (
     <>
       <TopBar
-        crumbs={[{ label: "Boards", to: "/boards" }, { label: board.name }]}
-        actions={<Button onClick={() => setPicker(true)} disabled={board.tiles.length >= MAX_TILES}><Plus /> Add tile</Button>}
+        crumbs={fleet ? [{ label: "Boards", to: "/boards" }, { label: "Fleet" }] : [{ label: "Boards", to: "/boards" }, { label: board.name }]}
+        actions={fleet ? null : <Button onClick={() => setPicker(true)} disabled={board.tiles.length >= MAX_TILES}><Plus /> Add tile</Button>}
       />
-      <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line px-4 py-2 md:px-5" role="tablist" aria-label="Boards" onKeyDown={rovingKeyDown("tab")}>
+      <div className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-2 md:px-5">
+        <Segmented label="Boards view" value={fleet ? "fleet" : "boards"} onChange={(v) => navigate({ search: v === "fleet" ? { board: "fleet" } : {} })} options={[{ value: "boards", label: "Boards" }, { value: "fleet", label: "Fleet" }]} />
+        {fleet ? <span className="hidden text-xs text-faint md:inline">Every session, most urgent first. Arrow keys move between sessions.</span> : null}
+        {fleet ? null : <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist" aria-label="Boards" onKeyDown={rovingKeyDown("tab")}>
         {boards.map((b) => (
           <button key={b.id} role="tab" aria-selected={b.id === board.id} tabIndex={b.id === board.id ? 0 : -1} onClick={() => navigate({ search: { board: b.id } })} className={cn("focus-inset h-[28px] pointer-coarse:h-11 shrink-0 rounded-control px-2.5 text-sm font-medium", b.id === board.id ? "bg-raised text-fg shadow-[inset_0_0_0_1px_var(--line-strong)]" : "text-muted hover:text-fg")}>
-            {b.name} <span className="font-mono text-xs text-faint">{b.tiles.length}</span>
+            {b.name} <span className="text-xs tabular-nums text-faint">{b.tiles.length}</span>
           </button>
         ))}
         {boards.length < MAX_BOARDS ? (
           <Button variant="quiet" size="sm" onClick={() => { const id = `b${Date.now()}`; setBoards((bs) => [...bs, { id, name: `Board ${bs.length + 1}`, tiles: [] }]); void navigate({ search: { board: id } }); }}><Plus /> New board</Button>
         ) : null}
         <span className="ml-auto hidden shrink-0 text-xs text-faint md:inline">{board.tiles.length} of {MAX_TILES} tiles · F focuses a tile, Esc returns</span>
+        </div>}
       </div>
+      {fleet ? <FleetWall /> : (
       <div className="min-h-0 flex-1 overflow-auto p-3 md:p-4">
         {board.tiles.length === 0 ? (
           <Panel className="mx-auto max-w-[720px]">
@@ -122,6 +130,7 @@ export function BoardsPage() {
           </div>
         )}
       </div>
+      )}
       <TilePicker open={picker} onOpenChange={setPicker} sessions={(sessions || []).filter((s) => !s.isSystem)} onPick={(tile) => { update((b) => ({ ...b, tiles: [...b.tiles, { ...tile, id: `t${Date.now()}` }] })); setPicker(false); }} />
     </>
   );
@@ -183,7 +192,7 @@ function ChatTile({ session }: { session: Session }) {
             </li>
           ))}
         </ol>
-        {question ? <div className="mt-3"><QuestionCard question={question} agentName={session.agentId || "agent"} onAnswer={(a) => send(a, true)} /></div> : null}
+        {question ? <TileQuestion question={question} onAnswer={(a) => send(a, true)} /> : null}
         {st.key === "running" ? <p className="mt-2 flex items-center gap-1.5 text-xs text-muted"><StateGlyph state="running" /> {session.step || "Working"}…</p> : null}
       </div>
       {closed ? null : (
@@ -221,5 +230,23 @@ function TilePicker({ open, onOpenChange, sessions, onPick }: { open: boolean; o
         </DialogBody>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * A question inside a tile: the text and its choices, set on a tinted strip rather than a card
+ * (a tile is already a card). No choice is pre-styled as the answer; the agent's words decide.
+ */
+function TileQuestion({ question, onAnswer }: { question: PendingQuestion; onAnswer: (answer: string) => void }) {
+  const choices = Array.isArray(question.choices) ? question.choices : [];
+  return (
+    <section aria-label="Question from the agent" className="mt-3 rounded-control bg-needs-tint px-3 py-2.5">
+      <p className="text-sm font-medium text-fg">{question.question}</p>
+      {choices.length ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {choices.map((c) => <Button key={c} size="sm" onClick={() => onAnswer(c)}>{c}</Button>)}
+        </div>
+      ) : null}
+    </section>
   );
 }

@@ -35,11 +35,15 @@ export interface Session {
   activeChildCount?: number;
   pauseState?: Record<string, unknown> | null;
   workspace?: { root?: string; folder?: string; repo?: string; branch?: string } | null;
+  /** The agent's own one-line status and a structured summary, when the server has written one. */
+  shortSummary?: string | null;
+  summaryState?: { intent?: string; summary?: string; blockers?: string[]; nextActions?: string[]; openQuestions?: string[] } | null;
   /** Demo-only enrichments the API does not carry yet (see capability-map B-items). */
   step?: string;
   spine?: SpineMark[];
   pinned?: boolean;
   unseenCanvas?: boolean;
+  /** "me" when the viewer owns it, otherwise the owner's display name (normalised from the API's owner object). */
   owner?: string;
   [key: string]: unknown;
 }

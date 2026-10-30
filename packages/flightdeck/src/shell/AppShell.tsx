@@ -16,6 +16,7 @@ import { useUi, UiStateProvider } from "./ui-state";
 import { CLASSIC_PORTAL_URL, useDensity, useMediaQuery, useTheme } from "./prefs";
 import { CommandPalette } from "./CommandPalette";
 import { ShortcutsDialog, useGlobalShortcuts } from "./shortcuts";
+import { useAttentionNotifications } from "./notifications";
 import { NewSessionSheet } from "@/routes/new-session";
 
 type NavItem = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number; badgeTone?: "accent" | "neutral"; match: (path: string) => boolean };
@@ -72,7 +73,7 @@ function RailLink({ item, collapsed, path }: { item: NavItem; collapsed: boolean
       ) : (
         <>
           <span className="flex-1 truncate">{item.label}</span>
-          {item.badge ? <Badge tone={item.badgeTone === "accent" ? "accent" : "neutral"}>{item.badge}</Badge> : null}
+          {item.badge ? (item.badgeTone === "accent" ? <Badge tone="accent">{item.badge}</Badge> : <span className="text-xs tabular-nums text-faint">{item.badge}</span>) : null}
         </>
       )}
       {collapsed && item.badge ? <span className="sr-only">, {item.badge}</span> : null}
@@ -99,9 +100,9 @@ function ConnectionStatus({ collapsed }: { collapsed: boolean }) {
     <div className="flex items-center gap-2 px-2.5 text-xs text-muted" role="status" aria-live="polite">
       {dot}
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      <button type="button" className="shrink-0 rounded-chip px-1 text-accent hover:underline" onClick={() => setMode(mode === "demo" ? "live" : "demo")}>
-        {mode === "demo" ? "Use live" : "Use demo"}
-      </button>
+      {/* Production carries no dev toggles: the way back to live data only shows while demo data is on.
+          Switching in the other direction lives in Settings and the command palette. */}
+      {mode === "demo" ? <Button variant="quiet" size="sm" className="shrink-0 text-accent" onClick={() => setMode("live")}>Use live</Button> : null}
     </div>
   );
 }
@@ -126,7 +127,6 @@ function Rail() {
         {collapsed ? null : (
           <>
             <span className="text-prose font-semibold tracking-tight">PilotSwarm</span>
-            <span className="ml-auto rounded-chip border border-line px-1.5 font-mono text-xs text-faint" title="Flight Deck preview build">next</span>
           </>
         )}
       </div>
@@ -251,7 +251,7 @@ export function TopBar({ crumbs, actions, titleIsHeading = true }: { crumbs: Arr
             <li key={i} className={cn("flex min-w-0 items-center gap-1.5", i < crumbs.length - 1 && "hidden sm:flex")}>
               {i > 0 ? <span className="hidden text-faint sm:inline" aria-hidden>›</span> : null}
               {c.to && i < crumbs.length - 1 ? (
-                <Link to={c.to} params={c.params} search={c.search} className="truncate text-muted hover:text-fg">{c.label}</Link>
+                <Link to={c.to} params={c.params} search={c.search} className="inline-flex min-h-6 items-center truncate text-muted hover:text-fg pointer-coarse:min-h-11">{c.label}</Link>
               ) : (
                 // The current area's name is the page heading; a session page has its own h1 below.
                 titleIsHeading && i === crumbs.length - 1 ? (
@@ -301,6 +301,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   useTheme();
   useDensity();
   useGlobalShortcuts();
+  useAttentionNotifications();
   const phone = useMediaQuery("(max-width: 767px)");
   return (
     <div className="flex h-dvh overflow-hidden">

@@ -11,6 +11,27 @@ function list<T>(value: unknown, key?: string): T[] {
   return [];
 }
 
+/** The API's owner is an object; the screens compare against "me" and show a name. */
+function ownerLabel(owner: any, me: { subject?: string; email?: string } | null): string | undefined {
+  if (!owner) return undefined;
+  if (typeof owner === "string") return owner;
+  if (me && ((owner.subject && owner.subject === me.subject) || (owner.email && owner.email === me.email))) return "me";
+  return owner.displayName || owner.email || owner.subject || undefined;
+}
+
+const isoOrNumber = (v: unknown) => (v instanceof Date ? v.getTime() : v);
+
+/** Counts of live children per parent, so a row can say "2 sub-agents" without a per-session read. */
+function withChildCounts(rows: Session[]): Session[] {
+  const live = new Map<string, number>();
+  for (const s of rows) {
+    if (s.parentSessionId && !["completed", "cancelled", "terminated", "failed", "error"].includes(String(s.status))) {
+      live.set(s.parentSessionId, (live.get(s.parentSessionId) || 0) + 1);
+    }
+  }
+  return rows.map((s) => (s.activeChildCount == null && live.has(s.sessionId) ? { ...s, activeChildCount: live.get(s.sessionId) } : s));
+}
+
 function requestId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 }
@@ -38,6 +59,14 @@ export function createLiveSource(): DataSource {
   window.setInterval(probe, 10_000);
   window.addEventListener("offline", () => setConnection("offline"));
   window.addEventListener("online", () => void probe());
+  // Who "me" is, once: owner objects are compared against it.
+  let mePromise: Promise<{ subject?: string; email?: string } | null> | null = null;
+  const getMe = () =>
+    (mePromise ||= api
+      .getAuthContext()
+      .then((auth: any) => ({ subject: auth?.principal?.subject, email: auth?.principal?.email }))
+      .catch(() => null));
+  const normalizeSession = (s: any, me: { subject?: string; email?: string } | null): Session => ({ ...s, owner: ownerLabel(s?.owner, me) });
   let started = false;
   const ensureStarted = () => {
     if (started) return;
@@ -49,10 +78,12 @@ export function createLiveSource(): DataSource {
     kind: "live",
     label: window.location.host,
     async listSessions() {
-      return list<Session>(await api.call("listSessions"));
+      const [rows, me] = await Promise.all([api.call("listSessions"), getMe()]);
+      return withChildCounts(list<any>(rows).map((s) => normalizeSession(s, me)));
     },
     async getSession(id) {
-      return (await api.call("getSession", { sessionId: id })) as Session | null;
+      const [s, me] = await Promise.all([api.call("getSession", { sessionId: id }), getMe()]);
+      return s ? normalizeSession(s, me) : null;
     },
     async getEvents(id) {
       // The newest 400 events, oldest first: enough for the transcript and
@@ -111,8 +142,9 @@ export function createLiveSource(): DataSource {
       await api.call("deleteSession", { sessionId: id });
     },
     async listArtifacts(id) {
+      // The API reports sizeBytes and uploadedAt; the screens read size and updatedAt.
       return list<Artifact>(await api.call("listArtifacts", { sessionId: id }), "artifacts").map((a: any) =>
-        typeof a === "string" ? { filename: a } : a,
+        typeof a === "string" ? { filename: a } : { ...a, size: a.size ?? a.sizeBytes, updatedAt: a.updatedAt ?? isoOrNumber(a.uploadedAt) },
       );
     },
     async readArtifact(id, filename) {
@@ -168,10 +200,29 @@ export function createLiveSource(): DataSource {
       };
     },
     async authzAudit() {
-      return list(await api.call("listAuthzAudit", { limit: 100 }).catch(() => []), "records");
+      // API: occurredAt, actorDisplay, action, decision, reason. Admin access is the break-glass kind.
+      return list<any>(await api.call("listAuthzAudit", { limit: 100 }).catch(() => []), "records").map((r) => ({
+        ...r,
+        actor: r.actor ?? r.actorDisplay ?? r.actorSubject,
+        at: r.at ?? isoOrNumber(r.occurredAt),
+        admin: r.admin ?? /admin|break.?glass/i.test(`${r.action} ${r.decision} ${r.reason ?? ""}`),
+      }));
     },
     async fleetStats() {
-      return api.call("getFleetStats").catch(() => null);
+      // Flatten totals into figures the cluster panel can show; keep byAgent and the window as objects.
+      const f = await api.call("getFleetStats").catch(() => null);
+      if (!f) return null;
+      const t = f.totals || {};
+      return {
+        sessionCount: t.sessionCount,
+        tokensIn: t.totalTokensInput,
+        tokensOut: t.totalTokensOutput,
+        tokensCacheRead: t.totalTokensCacheRead,
+        cacheHitPct: t.cacheHitRatio == null ? undefined : Math.round(t.cacheHitRatio * 100),
+        agents: Array.isArray(f.byAgent) ? f.byAgent.length : undefined,
+        window: { since: f.windowStart, earliest: f.earliestSessionCreatedAt },
+        byAgent: f.byAgent,
+      };
     },
     async orchestrationStats(id) {
       return api.call("getOrchestrationStats", { sessionId: id }).catch(() => null);

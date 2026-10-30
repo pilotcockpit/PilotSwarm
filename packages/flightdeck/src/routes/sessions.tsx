@@ -5,9 +5,10 @@ import { toast } from "sonner";
 import { TopBar } from "@/shell/AppShell";
 import { useUi } from "@/shell/ui-state";
 import { useGroups, useProfile, useRefresh, useSessions, useSource } from "@/data/source";
-import { sessionState } from "@/data/state";
+import { sessionState, type StateKey } from "@/data/state";
 import type { Session } from "@/data/types";
 import { SessionColumnsHeader, SessionRow } from "@/components/session-row";
+import { StateFacets } from "@/components/state-facets";
 import { EmptyState, Panel } from "@/components/empty";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +82,36 @@ export function SessionsPage() {
     };
   }, [sessions, groups, who, search.state, agentFilter, q, sort]);
 
+  // Counts for the state row ignore the state filter itself, so each facet shows what choosing it would give.
+  const facetCounts = React.useMemo(() => {
+    const counts: Partial<Record<StateKey, number>> = {};
+    for (const s of sessions || []) {
+      if (s.isSystem) continue;
+      if (who === "mine" && s.visibility && s.visibility !== "private") continue;
+      if (who === "shared" && (!s.visibility || s.visibility === "private")) continue;
+      if (agentFilter && s.agentId !== agentFilter) continue;
+      if (q && !`${s.title} ${s.agentId} ${s.sessionId}`.toLowerCase().includes(q)) continue;
+      const k = sessionState(s).key;
+      counts[k] = (counts[k] || 0) + 1;
+    }
+    return counts;
+  }, [sessions, who, agentFilter, q]);
+  const facet: StateKey | null = search.state === "closed" ? "completed" : search.state && ["running", "needs", "waiting", "failed"].includes(search.state) ? (search.state as StateKey) : null;
+  // Scheduled and Idle are reachable by link; they show as one removable chip instead of a facet.
+  const extraState = search.state === "scheduled" || search.state === "idle" ? search.state : null;
+  const listRef = React.useRef<HTMLDivElement>(null);
+  const onListKey = (e: React.KeyboardEvent) => {
+    const t = e.target as HTMLElement;
+    if (!t.matches("a[data-session-row]") || e.metaKey || e.ctrlKey || e.altKey) return;
+    const move = e.key === "ArrowDown" || e.key === "j" ? 1 : e.key === "ArrowUp" || e.key === "k" ? -1 : 0;
+    const edge = e.key === "Home" ? 0 : e.key === "End" ? -1 : null;
+    if (!move && edge == null) return;
+    const rows = [...(listRef.current?.querySelectorAll<HTMLElement>("a[data-session-row]") || [])];
+    const i = rows.indexOf(t);
+    const next = edge != null ? (edge === 0 ? rows[0] : rows[rows.length - 1]) : rows[Math.min(rows.length - 1, Math.max(0, i + move))];
+    if (next) { e.preventDefault(); next.focus(); next.scrollIntoView({ block: "nearest" }); }
+  };
+
   const setSearch = (patch: Record<string, unknown>) => navigate({ search: (prev: any) => ({ ...prev, ...patch }), replace: true });
   const toggle = (id: string) => setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
@@ -119,26 +150,13 @@ export function SessionsPage() {
         </div>
         <Menu>
           <MenuTrigger asChild>
-            <Chip active={Boolean(search.state && search.state !== "any")}>{STATE_LABEL[search.state || "any"]} <ChevronRight className="size-3 rotate-90" /></Chip>
-          </MenuTrigger>
-          <MenuContent align="start">
-            <MenuLabel>State</MenuLabel>
-            {STATE_FILTERS.map((f) => (
-              <MenuItem key={f} icon={search.state === f || (!search.state && f === "any") ? <Check /> : <span className="size-4" />} onSelect={() => setSearch({ state: f === "any" ? undefined : f })}>
-                {STATE_LABEL[f]}
-              </MenuItem>
-            ))}
-          </MenuContent>
-        </Menu>
-        <Menu>
-          <MenuTrigger asChild>
-            <Chip active={Boolean(agentFilter)}>{agentFilter ? <span className="font-mono">{agentFilter}</span> : "Any agent"} <ChevronRight className="size-3 rotate-90" /></Chip>
+            <Chip active={Boolean(agentFilter)}>{agentFilter || "Any agent"} <ChevronRight className="size-3 rotate-90" /></Chip>
           </MenuTrigger>
           <MenuContent align="start">
             <MenuLabel>Agent</MenuLabel>
             <MenuItem icon={!agentFilter ? <Check /> : <span className="size-4" />} onSelect={() => setAgentFilter(null)}>Any agent</MenuItem>
             {agentIds.map((a) => (
-              <MenuItem key={a} icon={agentFilter === a ? <Check /> : <span className="size-4" />} onSelect={() => setAgentFilter(a)}><span className="font-mono">{a}</span></MenuItem>
+              <MenuItem key={a} icon={agentFilter === a ? <Check /> : <span className="size-4" />} onSelect={() => setAgentFilter(a)}>{a}</MenuItem>
             ))}
           </MenuContent>
         </Menu>
@@ -159,8 +177,15 @@ export function SessionsPage() {
           </Button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[1180px] px-4 py-4 md:px-5">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-2 md:px-5">
+        <StateFacets counts={facetCounts} value={facet} onChange={(k) => setSearch({ state: k === null ? undefined : k === "completed" ? "closed" : k })} />
+        {extraState ? <Chip active onClick={() => setSearch({ state: undefined })} aria-label={`Clear ${STATE_LABEL[extraState]} filter`}>{STATE_LABEL[extraState]} <X className="size-3" aria-hidden /></Chip> : null}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto" ref={listRef} onKeyDown={onListKey}>
+        {isLoading || (tree.count === 0 && !tree.system.length) ? null : (
+          <div className="sticky top-0 z-(--z-sticky) bg-bg"><div className="mx-auto max-w-295 px-4 md:px-5"><SessionColumnsHeader /></div></div>
+        )}
+        <div className="mx-auto max-w-295 px-4 py-4 md:px-5">
           {isLoading ? (
             <div className="flex flex-col gap-2">{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-[46px]" />)}</div>
           ) : tree.count === 0 && !tree.system.length ? (
@@ -180,8 +205,8 @@ export function SessionsPage() {
               {tree.rest.length ? <Group title={tree.pinned.length || tree.grouped.length ? "Ungrouped" : undefined} count={tree.rest.length}>{tree.rest.map((s) => renderRow(s))}</Group> : null}
               {profile?.isAdmin && tree.system.length ? (
                 <section>
-                  <button type="button" aria-expanded={systemOpen} onClick={() => setSystemOpen((v) => !v)} className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-fg pointer-coarse:min-h-11">
-                    <ChevronRight className={cn("size-4 transition-transform", systemOpen && "rotate-90")} /> System <span className="font-mono font-normal text-faint">{tree.system.length}</span>
+                  <button type="button" aria-expanded={systemOpen} onClick={() => setSystemOpen((v) => !v)} className="mb-2 flex min-h-6 items-center gap-1.5 text-sm font-semibold text-muted hover:text-fg pointer-coarse:min-h-11">
+                    <ChevronRight className={cn("size-4 transition-transform", systemOpen && "rotate-90")} /> System <span className="font-normal tabular-nums text-faint">{tree.system.length}</span>
                   </button>
                   {systemOpen ? <Panel>{tree.system.map((s) => renderRow(s))}</Panel> : null}
                 </section>
@@ -201,13 +226,13 @@ function Group({ title, count, children, open = true, onToggle }: { title?: stri
       {title ? (
         onToggle ? (
           <h2 className="mb-2">
-            <button type="button" aria-expanded={open} onClick={onToggle} className="flex items-center gap-1.5 rounded-chip text-sm font-semibold text-muted hover:text-fg pointer-coarse:min-h-11">
-              <ChevronRight className={cn("size-4 transition-transform", open && "rotate-90")} aria-hidden /> {title} <span className="font-mono font-normal text-faint">{count}</span>
+            <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-h-6 items-center gap-1.5 rounded-chip text-sm font-semibold text-muted hover:text-fg pointer-coarse:min-h-11">
+              <ChevronRight className={cn("size-4 transition-transform", open && "rotate-90")} aria-hidden /> {title} <span className="font-normal tabular-nums text-faint">{count}</span>
             </button>
           </h2>
-        ) : <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-muted">{title} {count != null ? <span className="font-mono font-normal text-faint">{count}</span> : null}</h2>
+        ) : <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-muted">{title} {count != null ? <span className="font-normal tabular-nums text-faint">{count}</span> : null}</h2>
       ) : null}
-      {open ? <Panel><SessionColumnsHeader />{children}</Panel> : null}
+      {open ? <Panel>{children}</Panel> : null}
     </section>
   );
 }

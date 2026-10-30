@@ -1,16 +1,20 @@
 import { getRouteApi } from "@tanstack/react-router";
-import { Bell, Database } from "lucide-react";
+import * as React from "react";
+import { Database } from "lucide-react";
 import { TopBar, ClassicLink } from "@/shell/AppShell";
 import { useDensity, useTheme } from "@/shell/prefs";
 import { ShortcutList } from "@/shell/shortcuts";
 import { useProfile, useSource } from "@/data/source";
 import { EmptyState, Panel } from "@/components/empty";
-import { Segmented } from "@/components/ui/tabs";
+import { Segmented, SideNav, SideNavItem } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/misc";
+import { notificationSupport, useNotifyPref } from "@/shell/notifications";
 import { SETTINGS_TABS } from "@/router";
-import { cn } from "@/lib/utils";
 
 const route = getRouteApi("/settings");
 const LABEL: Record<(typeof SETTINGS_TABS)[number], string> = { profile: "Profile", appearance: "Appearance", shortcuts: "Keyboard shortcuts", flags: "My feature flags", notifications: "Notifications", data: "Data source" };
+// "flags" is not built yet, so it is not in the list; a direct link still gets an honest page.
+const NAV: Array<(typeof SETTINGS_TABS)[number]> = ["appearance", "notifications", "shortcuts", "profile", "data"];
 
 export function SettingsPage() {
   const search = route.useSearch();
@@ -20,18 +24,18 @@ export function SettingsPage() {
     <>
       <TopBar crumbs={[{ label: "Settings", to: "/settings" }, { label: LABEL[tab] }]} />
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <nav aria-label="Settings sections" className="flex shrink-0 gap-1 overflow-x-auto border-b border-line px-3 py-2 md:w-[200px] md:flex-col md:border-b-0 md:border-r md:py-4">
-          {SETTINGS_TABS.map((t) => (
-            <button key={t} type="button" aria-current={t === tab ? "page" : undefined} onClick={() => navigate({ search: { tab: t } })} className={cn("h-8 shrink-0 rounded-control px-2.5 text-left text-sm font-medium pointer-coarse:h-11", t === tab ? "bg-raised text-fg" : "text-muted hover:text-fg")}>{LABEL[t]}</button>
+        <SideNav label="Settings sections">
+          {NAV.map((t) => (
+            <SideNavItem key={t} active={t === tab} onClick={() => navigate({ search: { tab: t } })}>{LABEL[t]}</SideNavItem>
           ))}
-        </nav>
+        </SideNav>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="max-w-[880px] px-4 py-5 md:px-6">
             {tab === "profile" ? <Profile /> : null}
             {tab === "appearance" ? <Appearance /> : null}
             {tab === "shortcuts" ? <Panel className="px-4"><ShortcutList /></Panel> : null}
-            {tab === "flags" ? <Panel><EmptyState title="My feature flags" action={<ClassicLink>Open in classic portal</ClassicLink>}>Per-person overrides of cluster flags. Not ported yet.</EmptyState></Panel> : null}
-            {tab === "notifications" ? <Panel><EmptyState icon={<Bell />} title="Browser notifications for “Needs you”">Get a notification when a session asks a question, fails, or hits a hold. Coming with the push-based session list.</EmptyState></Panel> : null}
+            {tab === "flags" ? <Panel><EmptyState title="My feature flags" action={<ClassicLink>Open in classic portal</ClassicLink>}>Per-person overrides of cluster flags live in the classic portal for now.</EmptyState></Panel> : null}
+            {tab === "notifications" ? <Notifications /> : null}
             {tab === "data" ? <DataSourceSettings /> : null}
           </div>
         </div>
@@ -60,9 +64,6 @@ function Appearance() {
       <Row title="Density" note="Compact fits more rows; Comfortable is easier to read for long chats.">
         <Segmented label="Density" value={density} onChange={setDensity} options={[{ value: "compact", label: "Compact" }, { value: "comfortable", label: "Comfortable" }]} />
       </Row>
-      <Row title="Classic terminal themes" note="The 18 classic themes map onto Flight Deck's tokens with a contrast check. Not in this preview.">
-        <span className="text-xs text-faint">Coming later</span>
-      </Row>
     </Panel>
   );
 }
@@ -86,6 +87,29 @@ function DataSourceSettings() {
         <Segmented label="Data source" value={mode} onChange={setMode} options={[{ value: "live", label: "Live" }, { value: "demo", label: "Demo" }]} />
       </Row>
       <div className="flex items-start gap-2 border-t border-line px-4 py-3 text-xs text-muted"><Database className="mt-0.5 size-3.5 shrink-0" aria-hidden /> Add <span className="font-mono">?data=demo</span> or <span className="font-mono">?data=live</span> to any Flight Deck link to switch.</div>
+    </Panel>
+  );
+}
+
+function Notifications() {
+  const [pref, setPref] = useNotifyPref();
+  const [support, setSupport] = React.useState(notificationSupport());
+  const on = pref === "on" && support === "granted";
+  const toggle = async (next: boolean) => {
+    if (!next) return setPref("off");
+    const result = support === "default" ? await Notification.requestPermission() : support;
+    setSupport(result);
+    if (result === "granted") setPref("on");
+  };
+  const note =
+    support === "unsupported" ? "This browser does not support notifications."
+    : support === "denied" ? "Blocked for this site. Allow notifications in your browser's site settings, then come back."
+    : "A notification when a session asks you a question or fails, only while this tab is in the background.";
+  return (
+    <Panel>
+      <Row title="Notify me when a session needs me" note={note}>
+        <Switch aria-label="Notify me when a session needs me" checked={on} disabled={support === "unsupported" || support === "denied"} onCheckedChange={toggle} />
+      </Row>
     </Panel>
   );
 }

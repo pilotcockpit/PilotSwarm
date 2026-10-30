@@ -115,7 +115,7 @@ function Item({ children, icon, onSelect, shortcut, meta, value, keywords }: { c
       value={value}
       keywords={keywords}
       onSelect={onSelect}
-      className="flex h-9 cursor-default items-center gap-2.5 rounded-control px-2.5 text-sm text-fg outline-none data-[selected=true]:bg-accent-tint data-[selected=true]:shadow-[inset_2px_0_0_var(--accent)] [&_svg:not([data-state-glyph])]:size-4 [&_svg:not([data-state-glyph])]:text-muted"
+      className="flex h-9 cursor-default items-center gap-2.5 rounded-control px-2.5 text-sm text-fg pointer-coarse:h-11 outline-none data-[selected=true]:bg-accent-tint data-[selected=true]:shadow-[inset_2px_0_0_var(--accent)] [&_svg:not([data-state-glyph])]:size-4 [&_svg:not([data-state-glyph])]:text-muted"
     >
       <span className="grid w-4 place-items-center">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{children}</span>

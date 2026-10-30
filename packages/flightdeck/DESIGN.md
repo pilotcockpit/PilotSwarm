@@ -12,8 +12,9 @@ colors:
     line-strong: "#858b94"
     fg: "#111214"
     muted: "#565a61"
-    faint: "#6a6e75"
+    faint: "#62666d"
     accent: "#1a5fcc"
+    needs: "#6b3fc2"
     live: "#09705f"
     waiting: "#855607"
     failed: "#b8293a"
@@ -27,9 +28,10 @@ colors:
     line-subtle: "#1d1e22"
     line-strong: "#64666f"
     fg: "#ececee"
-    muted: "#a1a3ab"
-    faint: "#8b8d95"
+    muted: "#b3b5bd"
+    faint: "#9a9ca5"
     accent: "#5c9dff"
+    needs: "#b497ff"
     live: "#3ec7b0"
     waiting: "#e2a93b"
     failed: "#f2666f"
@@ -77,6 +79,7 @@ Two tiers. Components read **only** the semantic tier.
 | Hues | `:root` and `.dark` in `styles.css` | The only place a hex value is written. |
 | Derived | `--*-tint`, `--scrim` | Computed from a hue with `color-mix`; never written by hand. `--tint` is the strength (9% light, 13% dark). |
 | Utilities | `@theme inline` | Exposes tokens to Tailwind: `bg-surface`, `text-muted`, `rounded-pane`, `shadow-lift`, `animate-enter`, `ease-emphasized`. |
+| Stacking | `--z-sticky` 40, `--z-overlay` 50, `--z-tooltip` 60, `--z-toast` 70 | Used as `z-(--z-overlay)`. Nothing else gets a z-index. |
 
 To change a colour, change the hue once. To add a role, add it in `:root`, `.dark` and `@theme inline` together, then document it here. Do not add a token for a single local value; if a value repeats three times with the same intent, promote it.
 
@@ -90,15 +93,18 @@ To change a colour, change the hue once. To add a role, add it in `:root`, `.dar
 |---|---|
 | `bg` → `surface` → `raised` → `overlay` | Layers, lowest to highest. Separate layers by a tone step first, a hairline second, a shadow last. |
 | `line-subtle` / `line` / `line-strong` | Row rules / pane and card borders / control borders (the one that must meet 3:1). |
-| `fg` / `muted` / `faint` | Text, secondary text, meta. `faint` is the floor for readable text. |
-| `accent` | Selection, focus ring, links, primary action. Never decoration. |
-| `live` / `waiting` / `failed` / `ok` / `needs` | Running / waiting / failed / passed / needs you. Always paired with a glyph and a word, never colour alone. |
+| `fg` / `muted` / `faint` | Text, secondary text, meta. `faint` is the floor for readable text; on a tinted surface (selected card, notice) use `muted`. |
+| `accent` | Selection, focus ring, links, primary action. Never decoration, and never a state. |
+| `needs` | Needs you, and only that. A violet of its own, because the one state that wants a person must not share a hue with links and selection. |
+| `live` / `waiting` / `failed` / `ok` | Running / waiting / failed / passed. Always paired with a glyph and a word, never colour alone. |
 
 Completed sessions are neutral grey: done is not news.
 
 ## 4. Typography
 
 One variable family. Sans voice for chrome and prose; Mono voice for IDs, agent and tool names, paths, payloads, logs and every number that must line up (`tabular-nums`). Weights 400, 550, 600/650. Sentence case everywhere. Steps are the six in the frontmatter; do not write arbitrary `text-[Npx]`.
+
+**Mono rule.** Mono is for strings a person pastes, compares or lines up: ids, agent and tool names, paths, payloads, logs, endpoints. It is not for counts, figures, headings, tags or "technical" decoration. Section counts, stat values and token totals are sans with `tabular-nums`.
 
 ## 5. Shape and elevation
 
@@ -128,9 +134,34 @@ Use `Panel` (`components/empty.tsx`) for a static container of rows. Use `Stat` 
 
 Rules: no nested cards; no icon-over-heading-over-text card grids as page structure; no coloured side stripes thicker than 1px; a row inside a card is a row, not another card.
 
+### Buttons
+
+Two heights: `sm` 26 and `md` 30 (44 on coarse pointers). Variants: `primary` (one per screen, and never "New session": creating something must not outshout triage), `default`, `quiet`, `danger`, `link`. A text button is at least 24px tall; hand-rolled `<button>` recipes are not allowed, use `Button`, `Chip`, `Tabs`, `SideNavItem` or `Segmented`.
+
+### The pill family
+
+| Component | Means | Shape |
+|---|---|---|
+| `StatePill` / `StateLine` | A session's state: glyph, word, reason. The only status pill. | Full radius, 20/24px |
+| `Tag` | Metadata that is not state: a count of sub-agents, "working", "Check". Never clickable. | 4px radius, 20px |
+| `Badge` | A count in navigation. Accent solid when it means "needs you". | Full radius, 18px |
+| `Chip` | A filter you can toggle (`aria-pressed`). | 6px radius, 26px |
+| `StateFacets` | The state filter with live counts, shared by Home, Sessions and the Fleet wall. | Chips with glyph and count |
+| `SessionChip` | A link from one session to another, with the target's state glyph. | 6px radius, 24px |
+
+If it looks like a button it must act; if it only informs it is a `Tag` or plain text. Counts beside a heading or a nav label are plain tabular text, not pills. A "next", "preview" or "demo" tag does not belong in production chrome.
+
+### Navigation inside an area
+
+`Segmented` switches a view in place (Boards | Fleet, Canvases | Files); `Tabs` are for panes with their own content; `SideNav` / `SideNavItem` is the vertical section list for Admin and Settings. One level of each per surface.
+
+### Chrome
+
+The production rail carries navigation, the current connection state and the signed-in person, and nothing a developer would toggle. Demo data is chosen in Settings or the command palette (or `?data=demo`); while it is on, the rail says so and offers the way back.
+
 ### Others
 
-Button (primary is one per screen), Segmented, Tabs, Menu, Dialog and sheet, Popover, Tooltip, Command palette, Toast, EmptyState, StatePill, StateGlyph, DurableSpine. See their files; each reads tokens only.
+Menu, Dialog and sheet, Popover, Tooltip, Command palette, Toast, EmptyState, StateGlyph, DurableSpine. See their files; each reads tokens only.
 
 ## 7. Motion
 

@@ -1,28 +1,33 @@
 
-import { getRouteApi } from "@tanstack/react-router";
+import * as React from "react";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Brain, Lock, ShieldCheck, Wrench } from "lucide-react";
+import { Brain, ShieldCheck, Wrench } from "lucide-react";
 import { TopBar, ClassicLink } from "@/shell/AppShell";
 import { useFlags, useProfile, useSessions, useSource, useWorkers } from "@/data/source";
 import { describeError, sessionState } from "@/data/state";
 import { SessionRow } from "@/components/session-row";
 import { EmptyState, Panel } from "@/components/empty";
-import { Skeleton } from "@/components/ui/misc";
-import { Tooltip } from "@/components/ui/tooltip";
+import { Skeleton, Tag } from "@/components/ui/misc";
+import { SideNav, SideNavItem } from "@/components/ui/tabs";
+import { StateGlyph } from "@/components/state";
 import { ADMIN_TABS } from "@/router";
 import { ago, bytes, clock, cn, tokens } from "@/lib/utils";
 import { Card, Stat, cardVariants } from "@/components/ui/card";
 
 const route = getRouteApi("/admin");
 
-const TAB_LABEL: Record<(typeof ADMIN_TABS)[number], string> = {
-  flags: "Feature flags", workers: "Workers", system: "System sessions", audit: "Access & audit", knowledge: "Knowledge", usage: "Cluster usage", maintenance: "Maintenance",
+type AdminTab = (typeof ADMIN_TABS)[number] | "overview";
+const TAB_LABEL: Record<AdminTab, string> = {
+  overview: "Overview", flags: "Feature flags", workers: "Workers", system: "System sessions", audit: "Access & audit", knowledge: "Knowledge", usage: "Cluster usage", maintenance: "Maintenance",
 };
+// Health first; the rarely changed, mostly read-only things last. Overview is the page with no tab chosen.
+const NAV_ORDER: AdminTab[] = ["overview", "workers", "system", "usage", "audit", "flags", "knowledge", "maintenance"];
 
 export function AdminPage() {
   const search = route.useSearch();
   const navigate = route.useNavigate();
-  const tab = search.tab || "flags";
+  const tab: AdminTab = search.tab || "overview";
   const { data: profile } = useProfile();
   if (profile && !profile.isAdmin) {
     return (
@@ -36,13 +41,14 @@ export function AdminPage() {
     <>
       <TopBar crumbs={[{ label: "Admin", to: "/admin" }, { label: TAB_LABEL[tab] }]} />
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <nav aria-label="Admin sections" className="flex shrink-0 gap-1 overflow-x-auto border-b border-line px-3 py-2 md:w-[200px] md:flex-col md:overflow-visible md:border-b-0 md:border-r md:py-4">
-          {ADMIN_TABS.map((t) => (
-            <button key={t} type="button" aria-current={t === tab ? "page" : undefined} onClick={() => navigate({ search: { tab: t } })} className={cn("h-8 shrink-0 rounded-control px-2.5 text-left text-sm font-medium pointer-coarse:h-11", t === tab ? "bg-raised text-fg" : "text-muted hover:text-fg")}>{TAB_LABEL[t]}</button>
+        <SideNav label="Admin sections">
+          {NAV_ORDER.map((t) => (
+            <SideNavItem key={t} active={t === tab} onClick={() => navigate({ search: t === "overview" ? {} : { tab: t } })}>{TAB_LABEL[t]}</SideNavItem>
           ))}
-        </nav>
+        </SideNav>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="max-w-[880px] px-4 py-5 md:px-6">
+            {tab === "overview" ? <Overview /> : null}
             {tab === "flags" ? <Flags /> : null}
             {tab === "workers" ? <Workers /> : null}
             {tab === "system" ? <SystemSessions /> : null}
@@ -62,7 +68,7 @@ function Flags() {
   if (isLoading) return <Skeleton className="h-48" />;
   return (
     <>
-      <p className="mb-3 text-sm text-muted">Cluster values. Each flag's history is its change audit. Changing values is not ported yet: <ClassicLink>use the classic portal</ClassicLink>.</p>
+      <p className="mb-3 text-sm text-muted">Read-only here. Change a flag in <ClassicLink>the classic portal</ClassicLink>; each flag's history is its change audit.</p>
       <Panel>
         {(flags || []).map((f) => (
           <div key={f.key} className="flex items-center gap-4 border-t border-line-subtle px-4 py-3 first:border-t-0">
@@ -71,11 +77,7 @@ function Flags() {
               {f.description ? <div className="text-xs text-muted">{String(f.description)}</div> : null}
             </div>
             {typeof (f.value ?? f.default) === "boolean" ? (
-              <Tooltip content="Read-only in this preview: change it in the classic portal">
-                <span className={cn("inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium", f.value ?? f.default ? "bg-accent-tint text-accent" : "bg-raised text-muted")} aria-label={`${f.key}: ${f.value ?? f.default ? "on" : "off"}, read-only`}>
-                  <Lock className="size-3" aria-hidden /> {f.value ?? f.default ? "On" : "Off"}
-                </span>
-              </Tooltip>
+              <span className={cn("text-sm font-medium", f.value ?? f.default ? "text-fg" : "text-faint")}><span className="sr-only">{f.key}: </span>{f.value ?? f.default ? "On" : "Off"}</span>
             ) : <span className="font-mono text-xs text-muted">{JSON.stringify(f.value ?? f.default)}</span>}
           </div>
         ))}
@@ -181,3 +183,72 @@ function ClusterUsage() {
 }
 
 
+
+/** The page an admin opens: is the cluster healthy, and if not, where to look. Rows, not tiles. */
+function Overview() {
+  const { data: workers, isLoading } = useWorkers();
+  const { data: sessions } = useSessions();
+  const { data: flags } = useFlags();
+  if (isLoading) return <Skeleton className="h-48" />;
+  const list = workers || [];
+  const ready = list.filter((w) => w.phase === "ready");
+  const draining = list.filter((w) => w.phase && w.phase !== "ready");
+  const slots = ready.reduce((n, w) => n + (w.health?.workerSlots?.total || 0), 0);
+  const active = list.reduce((n, w) => n + (w.health?.activeSessions || 0), 0);
+  const versions = [...new Set(list.map((w) => w.info?.sdkVersion).filter(Boolean))] as string[];
+  const system = (sessions || []).filter((s) => s.isSystem);
+  const failed = system.filter((s) => sessionState(s).key === "failed");
+  const err = failed[0] ? describeError(failed[0].error) : null;
+  const on = (flags || []).filter((f) => (f.value ?? f.default) === true).length;
+  const rows: Array<{ key: string; state: "running" | "waiting" | "failed" | "completed"; title: string; detail: React.ReactNode; to: (typeof ADMIN_TABS)[number] }> = [
+    {
+      key: "workers",
+      state: !list.length ? "failed" : draining.length ? "waiting" : "running",
+      title: !list.length ? "No workers registered" : `${ready.length} of ${list.length} workers ready`,
+      detail: !list.length ? "Sessions cannot run until a worker starts." : draining.length ? `${draining.map((w) => w.workerNodeId).join(", ")} ${draining.length === 1 ? "is" : "are"} ${draining[0].phase}; its sessions move to ready workers.` : "Every worker is taking new sessions.",
+      to: "workers",
+    },
+    {
+      key: "capacity",
+      state: slots && active / slots > 0.85 ? "waiting" : "running",
+      title: slots ? `${active} of ${slots} session slots in use` : `${active} active ${active === 1 ? "session" : "sessions"}`,
+      detail: slots && active / slots > 0.85 ? "Close to full: new sessions will queue until one finishes." : "Room for new sessions.",
+      to: "workers",
+    },
+    {
+      key: "versions",
+      state: versions.length > 1 ? "waiting" : "running",
+      title: versions.length > 1 ? `${versions.length} SDK versions are running` : versions.length ? `All workers on v${versions[0]}` : "Worker versions unknown",
+      detail: versions.length > 1 ? `v${versions.join(", v")}. Mixed versions can behave differently mid-rollout; finish the rollout or pin the pool.` : "No version skew.",
+      to: "workers",
+    },
+    {
+      key: "system",
+      state: failed.length ? "failed" : "running",
+      title: failed.length ? `${failed.length} of ${system.length} system sessions failed` : `${system.length} system sessions healthy`,
+      detail: failed.length && err ? err.detail || err.headline : "Housekeeping agents are running as expected.",
+      to: "system",
+    },
+    {
+      key: "flags",
+      state: "completed",
+      title: `${on} of ${(flags || []).length} feature flags on`,
+      detail: "Cluster-wide values, read-only here.",
+      to: "flags",
+    },
+  ];
+  return (
+    <Panel enter>
+      {rows.map((r) => (
+        <Link key={r.key} to="/admin" search={{ tab: r.to }} className="flex items-start gap-3 border-t border-line-subtle px-4 py-3 transition-colors duration-(--duration-fast) first:border-t-0 hover:bg-raised/70 pointer-coarse:min-h-11">
+          <span className="mt-1.5"><StateGlyph state={r.state} pulse={false} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">{r.title}</span>
+            <span className="block text-sm text-muted">{r.detail}</span>
+          </span>
+          {r.state === "failed" || r.state === "waiting" ? <Tag tone={r.state}>Check</Tag> : null}
+        </Link>
+      ))}
+    </Panel>
+  );
+}

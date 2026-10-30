@@ -1,7 +1,8 @@
 import * as React from "react";
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { AlertTriangle, Check, KeyRound, X } from "lucide-react";
+import { AlertTriangle, Check, Clock, ExternalLink, KeyRound, X } from "lucide-react";
 import { TopBar, ClassicLink } from "@/shell/AppShell";
+import { CLASSIC_PORTAL_URL } from "@/shell/prefs";
 import { useModels, useProfile, useProviders, useSessions, useUsage } from "@/data/source";
 import { describeError } from "@/data/state";
 import type { Provider, Session, UsageSummary } from "@/data/types";
@@ -9,7 +10,7 @@ import { StateGlyph } from "@/components/state";
 import { EmptyState, Panel, SectionTitle } from "@/components/empty";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/tabs";
-import { Badge, Skeleton } from "@/components/ui/misc";
+import { Skeleton, Tag } from "@/components/ui/misc";
 import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog";
 import { cn, tokens } from "@/lib/utils";
 import { cardVariants } from "@/components/ui/card";
@@ -37,7 +38,7 @@ export function ProvidersPage() {
 
   return (
     <>
-      <TopBar crumbs={[{ label: "Providers" }]} actions={<Button variant="default" onClick={() => window.open(`${import.meta.env.VITE_CLASSIC_URL || "http://localhost:3001"}`, "_blank", "noopener")}><KeyRound /> Add provider</Button>} />
+      <TopBar crumbs={[{ label: "Providers" }]} actions={<Button variant="default" aria-label="Add provider" onClick={() => window.open(CLASSIC_PORTAL_URL, "_blank", "noopener")}><KeyRound /><span className="max-sm:sr-only">Add provider</span></Button>} />
       <div className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-2.5 md:px-5">
         <Segmented label="Providers" value={tab} onChange={(t) => navigate({ search: { tab: t }, replace: true })} options={[{ value: "providers", label: "Providers" }, { value: "defaults", label: "Defaults" }, { value: "copilot", label: "GitHub Copilot" }]} />
       </div>
@@ -126,10 +127,28 @@ export function ProvidersPage() {
   );
 }
 
+/**
+ * One status per provider, from three facts: the credential exists, the workers can use it,
+ * and you are allowed to. The headline is the first one that fails, so a provider never reads
+ * "Set" in one place and "Not set up" in another. The drawer shows all three.
+ */
+type ProviderStatus = { key: "ready" | "no-key" | "workers" | "not-shared" | "limit"; word: string; why: string; tone: "ok" | "failed" | "waiting" | "muted" };
+function providerStatus(p: Provider, broken: boolean): ProviderStatus {
+  const month = p.usage?.month;
+  const atLimit = Boolean(month?.limit && month.used / month.limit >= 0.9);
+  if (!p.hasCredential) return { key: "no-key", word: "No key", why: "No credential is stored for this provider.", tone: "muted" };
+  if (broken) return { key: "workers", word: "Not ready on workers", why: "The key is stored, but the workers are missing this provider's workload identity settings, so sessions can't reach it.", tone: "failed" };
+  if (p.usableByMe === false) return { key: "not-shared", word: "Not shared with you", why: "The provider works, but you are not allowed to use it.", tone: "muted" };
+  if (atLimit) return { key: "limit", word: "Near its limit", why: "Usage is at or above 90% of the monthly limit; new turns pause when it is reached.", tone: "waiting" };
+  return { key: "ready", word: "Ready", why: "The key is stored, the workers can use it, and you can use it.", tone: "ok" };
+}
+const STATUS_ICON = { ok: Check, failed: AlertTriangle, waiting: Clock, muted: X } as const;
+const STATUS_TONE = { ok: "text-ok", failed: "text-failed", waiting: "text-waiting", muted: "text-muted" } as const;
+
 function KeyStatus({ provider: p, broken }: { provider: Provider; broken: boolean }) {
-  if (broken) return <span className="inline-flex items-center gap-1 text-failed"><AlertTriangle className="size-3.5" aria-hidden /> Not set up on workers</span>;
-  if (p.hasCredential) return <span className="inline-flex items-center gap-1 text-ok"><Check className="size-3.5" aria-hidden /> Set</span>;
-  return <span className="inline-flex items-center gap-1 text-muted"><X className="size-3.5" aria-hidden /> Missing</span>;
+  const st = providerStatus(p, broken);
+  const Icon = STATUS_ICON[st.tone];
+  return <span className={cn("inline-flex items-center gap-1 text-sm font-medium", STATUS_TONE[st.tone])}><Icon className="size-3.5" aria-hidden /> {st.word}</span>;
 }
 
 /** One divided strip, not three hero tiles: the totals are context, the table is the content. */
@@ -141,7 +160,7 @@ function UsageStrip({ usage }: { usage?: UsageSummary | null }) {
         <div key={k} className="px-4 py-2.5">
           <dt className="text-xs text-muted">{k === "day" ? "Today" : k === "week" ? "This week" : "This month"}</dt>
           <dd className="flex flex-wrap items-baseline gap-x-2">
-            <span className="font-mono text-base font-semibold tabular-nums">{tokens(w?.[k]?.total)}</span>
+            <span className="text-base font-semibold tabular-nums">{tokens(w?.[k]?.total)}</span>
             <span className="text-xs text-faint">tokens<span className="max-sm:hidden"> · {w?.[k]?.turns ?? 0} turns</span></span>
           </dd>
         </div>
@@ -153,13 +172,13 @@ function UsageStrip({ usage }: { usage?: UsageSummary | null }) {
 function UsageMeter({ provider: p }: { provider: Provider }) {
   const m = p.usage?.month;
   if (!m) return <span className="text-xs text-faint">Not reported</span>;
-  if (!m.limit) return <span className="text-xs text-muted"><span className="font-mono tabular-nums text-fg">{tokens(m.used)}</span> · no monthly limit</span>;
+  if (!m.limit) return <span className="text-xs text-muted"><span className="tabular-nums text-fg">{tokens(m.used)}</span> · no monthly limit</span>;
   const pct = Math.min(100, Math.round((m.used / m.limit) * 100));
   const tone = pct >= 80 ? "bg-waiting" : "bg-accent";
   return (
     <div className="min-w-[160px]">
       <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
-        <span className="font-mono tabular-nums text-fg">{tokens(m.used)} <span className="text-faint">/ {tokens(m.limit)}</span></span>
+        <span className="tabular-nums text-fg">{tokens(m.used)} <span className="text-faint">/ {tokens(m.limit)}</span></span>
         <span className={cn("tabular-nums", pct >= 80 ? "text-waiting" : "text-muted")}>{pct}%</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-raised" role="meter" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${p.name}: ${pct}% of the monthly limit used`}>
@@ -172,7 +191,7 @@ function UsageMeter({ provider: p }: { provider: Provider }) {
 function DefaultBadges({ provider: p }: { provider: Provider }) {
   const badges = [p.isClusterDefault && "Cluster default", p.isMyDefault && "My default", p.isSystemDefault && "System default"].filter(Boolean) as string[];
   if (!badges.length) return <span className="text-xs text-faint">—</span>;
-  return <span className="flex flex-wrap gap-1">{badges.map((b) => <Badge key={b}>{b}</Badge>)}</span>;
+  return <span className="flex flex-wrap gap-1">{badges.map((b) => <Tag key={b}>{b}</Tag>)}</span>;
 }
 
 /** The finding first: a limit that is pausing work, and what to do about it. */
@@ -184,14 +203,18 @@ function PausedNotice({ providers, paused, isAdmin, onOpen }: { providers: Provi
   return (
     <div role="status" className={cn(cardVariants({ tone: "waiting", enter: true }), "mb-4 flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center")}>
       <p className="flex min-w-0 flex-1 items-start gap-2.5 text-sm">
-        <StateGlyph state="waiting" className="mt-[5px]" />
+        <StateGlyph state="waiting" className="mt-1.5" />
         <span className="min-w-0">
         <span className="font-mono font-semibold">{name}</span>{pct != null ? ` is at ${pct}% of its monthly limit.` : " is limiting work."}{" "}
-        {paused.length ? <span className="text-fg/85">{paused.length === 1 ? "1 session is" : `${paused.length} sessions are`} paused until the limit resets or is raised.</span> : null}
+        {paused.length ? <span className="text-fg/85">{paused.length === 1 ? "1 session is" : `${paused.length} sessions are`} paused until the limit resets or is raised.</span> : null}{isAdmin ? null : <span className="text-fg/85"> Only an admin can raise it.</span>}
         </span>
       </p>
       <div className="flex flex-wrap gap-2 max-sm:pl-[18px]">
-        <Button size="sm" variant="primary" onClick={() => onOpen(name)}>{isAdmin ? "Raise limit" : "Open provider"}</Button>
+        {isAdmin ? (
+          <Button size="sm" asChild><a href={CLASSIC_PORTAL_URL} target="_blank" rel="noreferrer">Raise limit in classic portal <ExternalLink /></a></Button>
+        ) : (
+          <Button size="sm" onClick={() => onOpen(name)}>See the limit</Button>
+        )}
         {paused.length ? <Button size="sm" asChild><Link to="/sessions" search={{ state: "waiting" }}>See paused sessions</Link></Button> : null}
       </div>
     </div>
@@ -209,7 +232,7 @@ function LimitsSection({ providers }: { providers: Provider[] }) {
           <div key={i} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line-subtle px-4 py-2.5 text-sm first:border-t-0">
             <span className="w-44 shrink-0 font-mono text-sm">{p.name}</span>
             <span className="text-muted">{l.model ? <span className="font-mono">{l.model.split(":").pop()}</span> : "All models"}</span>
-            <span className="ml-auto font-mono tabular-nums">{tokens(l.tokens)} per {l.period}</span>
+            <span className="ml-auto tabular-nums">{tokens(l.tokens)} per {l.period}</span>
             <span className="w-32 text-right text-xs text-muted">{p.allowancePct ?? 100}% per person</span>
           </div>
         ))}
@@ -222,6 +245,7 @@ function ProviderDetail({ provider, broken, usage, onClose }: { provider?: Provi
   const { data: models } = useModels();
   const [tab, setTab] = React.useState<"overview" | "limits" | "usage">("overview");
   const list = (models || []).filter((m) => m.providerId === provider?.name);
+  const status = providerStatus(provider ?? ({ name: "", typeId: "" } as Provider), broken);
   const max = Math.max(1, ...(usage?.daily || []).map((d) => Number(d.total) || 0));
   return (
     <Dialog open={Boolean(provider)} onOpenChange={(o) => !o && onClose()}>
@@ -231,19 +255,18 @@ function ProviderDetail({ provider, broken, usage, onClose }: { provider?: Provi
           <DialogBody className="flex flex-col gap-4">
             {tab === "overview" ? (
               <>
-                {broken ? (
-                  <div role="alert" className={cn(cardVariants({ tone: "failed", enter: true }), "p-3 text-sm")}>
-                    <p className="font-semibold">Sessions can't reach this provider.</p>
-                    <p className="mt-0.5 text-fg/85">The key is set here, but the workers are missing its workload identity settings. A worker admin needs to add them to the worker environment, then retry the failed sessions.</p>
-                  </div>
-                ) : null}
-                <dl className="grid grid-cols-[110px_1fr] gap-y-2 text-sm">
-                  <dt className="text-muted">Key</dt><dd><KeyStatus provider={provider} broken={broken} /></dd>
+                <div role={status.tone === "failed" ? "alert" : "status"} className={cn(cardVariants({ tone: status.tone === "failed" ? "failed" : status.tone === "waiting" ? "waiting" : "neutral", enter: true }), "p-3 text-sm")}>
+                  <KeyStatus provider={provider} broken={broken} />
+                  <p className="mt-1 text-fg/85">{status.why}{status.key === "workers" ? " A worker admin needs to add them to the worker environment, then retry the failed sessions." : ""}</p>
+                </div>
+                <dl className="grid grid-cols-[130px_1fr] gap-y-2 text-sm">
+                  <dt className="text-muted">Credential</dt><dd>{provider.hasCredential ? "Stored" : "Missing"}</dd>
+                  <dt className="text-muted">On the workers</dt><dd>{broken ? "Not set up" : provider.hasCredential ? "Ready" : "Not applicable"}</dd>
+                  <dt className="text-muted">Usable by you</dt><dd>{provider.usableByMe === false ? "No" : "Yes"}</dd>
                   <dt className="text-muted">Endpoint</dt><dd className="break-all font-mono text-xs">{provider.baseUrl || "—"}</dd>
-                  <dt className="text-muted">Usable by you</dt><dd>{provider.usableByMe ? "Yes" : "No"}</dd>
                 </dl>
                 <div>
-                  <div className="mb-1.5 text-sm font-medium">Models <span className="font-mono text-faint">{list.length}</span></div>
+                  <div className="mb-1.5 text-sm font-medium">Models <span className="tabular-nums text-faint">{list.length}</span></div>
                   <ul className={cardVariants({ clip: true })}>
                     {list.map((m) => (
                       <li key={m.qualifiedName} className="border-t border-line-subtle px-3 py-2 first:border-t-0">

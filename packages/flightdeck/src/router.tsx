@@ -1,5 +1,6 @@
 import { createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
 import { AppShell } from "@/shell/AppShell";
+import { AttentionTitle } from "@/shell/attention";
 import { HomePage } from "@/routes/home";
 import { SessionsPage } from "@/routes/sessions";
 import { SessionPage } from "@/routes/session";
@@ -23,6 +24,7 @@ const optional = <T extends object>(read: (s: Record<string, unknown>) => T) => 
 const rootRoute = createRootRoute({
   component: () => (
     <AppShell>
+      <AttentionTitle />
       <Outlet />
     </AppShell>
   ),

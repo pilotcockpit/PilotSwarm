@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Download, ExternalLink, FileText, Folder, GitBranch, Lock, Maximize2, Minimize2, MoreHorizontal, Square, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronRight, Download, ExternalLink, FileText, Folder, GitBranch, Lock, Maximize2, Minimize2, MoreHorizontal, Square, ZoomIn, ZoomOut } from "lucide-react";
 import { toast } from "sonner";
 import type { HistoryModel } from "@ps/history";
 import { useArtifacts, useRefresh, useSessions, useSource, useWorkers } from "@/data/source";
@@ -18,6 +18,8 @@ import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/compo
 import { Tooltip } from "@/components/ui/tooltip";
 import { ClassicLink } from "@/shell/AppShell";
 import { ago, bytes, clock, cn, plural, shortId } from "@/lib/utils";
+import { describeEvent, eventTime, statLabel } from "@/lib/event-text";
+import { fillComposer } from "@/lib/composer";
 import { cardVariants } from "@/components/ui/card";
 import { canvasSlot, isCanvasFile } from "./home";
 import { rovingKeyDown } from "@/lib/roving";
@@ -43,7 +45,7 @@ export function useCanvases(sessionId: string) {
   };
 }
 
-export function CanvasView({ session, slot, focus, onSlot, onFocus, phone }: { session: Session; slot?: number; focus: boolean; onSlot: (slot: number) => void; onFocus: (v: boolean) => void; phone?: boolean }) {
+export function CanvasView({ session, slot, focus, onSlot, onFocus, phone, onUsePrompt }: { session: Session; slot?: number; focus: boolean; onSlot: (slot: number) => void; onFocus: (v: boolean) => void; phone?: boolean; onUsePrompt?: (prompt: string) => void }) {
   const { canvases, loading } = useCanvases(session.sessionId);
   const [zoom, setZoom] = React.useState(1);
   const current = canvases.find((c) => c.slot === slot) || canvases[0];
@@ -53,7 +55,9 @@ export function CanvasView({ session, slot, focus, onSlot, onFocus, phone }: { s
       <EmptyState icon={<Square />} title="No canvas yet" className="h-full">
         Agents draw live pages here: checklists, charts, dashboards. Ask for one in the chat, for example
         <span className="mt-2 flex flex-wrap justify-center gap-1.5">
-          {["Put a checklist of the remaining work on a canvas", "Chart the results on a canvas"].map((p) => <span key={p} className="rounded-control border border-line px-2 py-0.5 text-xs text-fg">“{p}”</span>)}
+          {["Put a checklist of the remaining work on a canvas", "Chart the results on a canvas"].map((p) => (
+            <Chip key={p} onClick={() => (onUsePrompt ? onUsePrompt(p) : fillComposer(p))} title="Put this in the message box">“{p}”</Chip>
+          ))}
         </span>
       </EmptyState>
     );
@@ -71,16 +75,16 @@ export function CanvasView({ session, slot, focus, onSlot, onFocus, phone }: { s
               aria-controls="canvas-panel"
               tabIndex={c.slot === current.slot ? 0 : -1}
               onClick={() => onSlot(c.slot)}
-              className={cn("focus-inset inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-control px-2.5 text-sm font-medium", c.slot === current.slot ? "bg-raised text-fg shadow-[inset_0_0_0_1px_var(--line-strong)]" : "text-muted hover:text-fg")}
+              className={cn("focus-inset inline-flex h-control shrink-0 items-center gap-1.5 rounded-control px-2.5 text-sm font-medium", c.slot === current.slot ? "bg-raised text-fg shadow-[inset_0_0_0_1px_var(--line-strong)]" : "text-muted hover:text-fg")}
             >
               {c.name}
-              {session.unseenCanvas && c.slot === 1 ? <span className="size-1.5 rounded-full bg-accent" aria-label="updated" /> : null}
+              {session.unseenCanvas && c.slot === 1 ? <span className="size-1.5 rounded-full bg-accent" role="img" aria-label="updated" /> : null}
             </button>
           ))}
         </div>
-        {phone ? null : <span className="hidden shrink-0 text-xs text-faint xl:inline">Updated {ago(current.updatedAt as any)}</span>}
+        {phone ? null : <span className="hidden shrink-0 text-xs text-muted xl:inline">Updated {ago(current.updatedAt as any)}</span>}
         <Tooltip content="Runs in a sandbox: no network, no popups, links ask first">
-          <span className="hidden shrink-0 items-center gap-1 px-1.5 text-xs text-faint sm:inline-flex"><Lock className="size-3.5" aria-hidden /> Sandboxed</span>
+          <span className="hidden shrink-0 items-center gap-1 px-1.5 text-xs text-muted sm:inline-flex"><Lock className="size-3.5" aria-hidden /> Sandboxed</span>
         </Tooltip>
         <Tooltip content={focus ? "Exit full width (Esc)" : "Full width"}>
           <Button variant="quiet" size="icon-sm" aria-label={focus ? "Exit full width" : "Full width"} onClick={() => onFocus(!focus)}>{focus ? <Minimize2 /> : <Maximize2 />}</Button>
@@ -113,7 +117,7 @@ export function FilesView({ session, tab, file, onTab, onFile }: { session: Sess
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-[44px] shrink-0 items-center gap-2 border-b border-line px-3">
         <Segmented label="Files" value={tab} onChange={onTab} options={[{ value: "outputs", label: `Outputs${outputs.length ? ` ${outputs.length}` : ""}` }, { value: "folders", label: "Folders" }]} />
-        <span className="ml-auto hidden text-xs text-faint sm:inline">Files shared with this session: your attachments and what the agent publishes</span>
+        <span className="ml-auto hidden text-xs text-muted sm:inline">Your attachments and what the agent publishes</span>
       </div>
       {tab === "folders" ? (
         <EmptyState icon={<Folder />} title="Working folders open in the classic portal for now" className="h-full" action={<ClassicLink>Open working folders</ClassicLink>}>
@@ -128,11 +132,11 @@ export function FilesView({ session, tab, file, onTab, onFile }: { session: Sess
           <ul className={cn("shrink-0 overflow-y-auto", selected ? "max-h-[40%] border-b border-line" : "flex-1")}>
             {outputs.map((a) => (
               <li key={a.filename}>
-                <button type="button" onClick={() => onFile(selected?.filename === a.filename ? undefined : a.filename)} aria-pressed={selected?.filename === a.filename} className={cn("flex h-[38px] w-full items-center gap-2.5 border-b border-line-subtle px-3 text-left hover:bg-raised/70", selected?.filename === a.filename && "bg-raised")}>
+                <button type="button" onClick={() => onFile(selected?.filename === a.filename ? undefined : a.filename)} aria-pressed={selected?.filename === a.filename} className={cn("flex min-h-9 w-full items-center gap-2.5 border-b border-line-subtle px-3 text-left hover:bg-raised/70 pointer-coarse:min-h-11", selected?.filename === a.filename && "bg-raised")}>
                   <FileText className="size-4 shrink-0 text-muted" aria-hidden />
                   <span className="min-w-0 flex-1 truncate font-mono text-sm">{a.filename}</span>
-                  <span className="shrink-0 text-xs tabular-nums text-faint">{a.size ? bytes(a.size) : ""}</span>
-                  <span className="w-14 shrink-0 text-right text-xs text-faint">{ago(a.updatedAt as any)}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-muted">{fileSize(a) ? bytes(fileSize(a)) : ""}</span>
+                  <span className="w-14 shrink-0 text-right text-xs text-muted">{ago(fileTime(a) as any)}</span>
                 </button>
               </li>
             ))}
@@ -143,6 +147,10 @@ export function FilesView({ session, tab, file, onTab, onFile }: { session: Sess
     </div>
   );
 }
+
+// The API names these sizeBytes and uploadedAt; fixtures use size and updatedAt.
+const fileSize = (a: Artifact) => Number((a as any).sizeBytes ?? a.size) || 0;
+const fileTime = (a: Artifact) => (a as any).uploadedAt ?? a.updatedAt;
 
 function FilePreview({ session, file }: { session: Session; file: Artifact }) {
   const { source } = useSource();
@@ -198,9 +206,8 @@ export function DelegationView({ session }: { session: Session }) {
   }
   return (
     <div className="h-full overflow-y-auto p-3">
-      <div className="mb-2 flex items-center gap-3 text-xs text-faint">
-        <span className="flex items-center gap-1"><GitBranch className="size-3.5" aria-hidden /> Sub-agent</span>
-        <span>{plural(tree.length, "item")}</span>
+      <div className="mb-2 flex items-center gap-1.5 text-xs text-muted">
+        <GitBranch className="size-3.5" aria-hidden /> {plural(tree.length, "sub-agent")}
       </div>
       <Panel>
         {tree.map(({ s, depth }) => {
@@ -229,68 +236,77 @@ export function DelegationView({ session }: { session: Session }) {
 }
 
 // ── Activity ─────────────────────────────────────────────────────────────
+// One tab level: Timeline (what happened), Logs (what the workers said) and Details
+// (numbers, where it runs, durable history). The route keeps five values for old links;
+// nodes, history and stats all open Details.
 
 type ActivityTab = "timeline" | "logs" | "nodes" | "history" | "stats";
+type Face = "timeline" | "logs" | "details";
+const faceOf = (t: ActivityTab): Face => (t === "timeline" ? "timeline" : t === "logs" ? "logs" : "details");
 
 export function ActivityView({ session, history, tab, onTab }: { session: Session; history: HistoryModel | null; tab: ActivityTab; onTab: (t: ActivityTab) => void }) {
   const st = sessionState(session);
-  const [filter, setFilter] = React.useState<string | null>(null);
-  const questions = [
-    st.key === "waiting" ? { id: "wait", label: "Why is it waiting?", go: () => { onTab("timeline"); setFilter("wait"); } } : null,
-    st.key === "failed" ? { id: "fail", label: "Why did it fail?", go: () => { onTab("timeline"); setFilter("error"); } } : null,
-    { id: "where", label: "Where is it running?", go: () => onTab("nodes") },
-  ].filter(Boolean) as Array<{ id: string; label: string; go: () => void }>;
+  const face = faceOf(tab);
+  const [filter, setFilter] = React.useState<"problems" | "waits" | null>(null);
+  const events = history?.events || [];
+  const hasProblems = st.key === "failed" || events.some((e) => /error|fail/i.test(e.eventType));
+  const hasWaits = st.key === "waiting" || events.some((e) => /wait|sleep|timer|cron|pause|affinity/i.test(e.eventType));
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-[44px] shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-1.5">
-        <Segmented label="Activity" value={tab} onChange={(t) => { setFilter(null); onTab(t); }} options={[
-          { value: "timeline", label: "Timeline" }, { value: "logs", label: "Logs" }, { value: "nodes", label: "Nodes" }, { value: "history", label: "History" }, { value: "stats", label: "Stats" },
+        <Segmented label="Activity" value={face} onChange={(f) => { setFilter(null); onTab(f === "details" ? "stats" : f); }} options={[
+          { value: "timeline", label: "Timeline" }, { value: "logs", label: "Logs" }, { value: "details", label: "Details" },
         ]} />
-      </div>
-      <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-line-subtle px-3 py-2">
-        {questions.map((q) => <Chip key={q.id} active={filter === q.id || (q.id === "fail" && filter === "error")} onClick={q.go}>{q.label}</Chip>)}
+        {face === "timeline" ? (
+          <span className="ml-auto flex flex-wrap gap-1.5">
+            {hasProblems ? <Chip active={filter === "problems"} onClick={() => setFilter(filter === "problems" ? null : "problems")}>Problems only</Chip> : null}
+            {hasWaits ? <Chip active={filter === "waits"} onClick={() => setFilter(filter === "waits" ? null : "waits")}>Waits and sleeps</Chip> : null}
+          </span>
+        ) : null}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {tab === "timeline" ? <Timeline history={history} filter={filter} session={session} /> : null}
-        {tab === "logs" ? <Logs /> : null}
-        {tab === "nodes" ? <Nodes /> : null}
-        {tab === "history" ? <ExecHistory session={session} /> : null}
-        {tab === "stats" ? <Stats session={session} history={history} /> : null}
+        {face === "timeline" ? <Timeline history={history} filter={filter} session={session} /> : null}
+        {face === "logs" ? <Logs /> : null}
+        {face === "details" ? <Details session={session} history={history} /> : null}
       </div>
     </div>
   );
 }
 
-function Timeline({ history, filter, session }: { history: HistoryModel | null; filter: string | null; session: Session }) {
+const TONE_DOT = { neutral: "bg-line-strong", ok: "bg-ok", failed: "bg-failed", wait: "bg-waiting" } as const;
+
+function Timeline({ history, filter, session }: { history: HistoryModel | null; filter: "problems" | "waits" | null; session: Session }) {
+  const st = sessionState(session);
   if (!history) return <div className="p-3"><Skeleton className="h-40" /></div>;
-  let events = history.events.slice().reverse();
-  if (filter === "error") events = events.filter((e) => /error|fail/i.test(`${e.eventType} ${JSON.stringify(e.data || {})}`));
-  if (filter === "wait") events = events.filter((e) => /wait|sleep|timer|cron|spawn|child|pause|affinity/i.test(e.eventType));
+  // A finished call already says what was called; its "Calling…" twin is noise once it has finished.
+  const key = (e: any) => String(e.data?.toolCallId ?? e.data?.callId ?? e.data?.toolName ?? e.data?.name ?? "");
+  const finished = new Set(history.events.filter((e) => e.eventType === "tool.execution_complete").map(key));
+  let events = history.events.filter((e) => !(e.eventType === "tool.execution_start" && finished.has(key(e)))).reverse();
+  if (filter === "problems") events = events.filter((e) => /error|fail/i.test(`${e.eventType} ${e.data?.success === false ? "fail" : ""}`));
+  if (filter === "waits") events = events.filter((e) => /wait|sleep|timer|cron|spawn|child|pause|affinity/i.test(e.eventType));
   return (
     <div className="p-3">
-      {filter === "wait" ? <p className={cn(cardVariants(), "mb-3 px-3 py-2 text-sm")}><StatePill state={sessionState(session)} size="sm" className="mr-2" />{sessionState(session).next || "It resumes when its wait ends."}</p> : null}
-      {filter === "error" && session.error ? <p className={cn(cardVariants({ tone: "failed" }), "mb-3 px-3 py-2 text-sm")}>{describeError(session.error).detail || describeError(session.error).headline}</p> : null}
-      {events.length === 0 ? <p className="text-sm text-muted">No events{filter ? " match this question" : ""}.</p> : (
-        <ol className="relative border-l border-line pl-4">
-          {events.slice(0, 200).map((e) => (
-            <li key={e.seq} className="mb-2.5">
-              <span className={cn("absolute -left-[4.5px] mt-1.5 size-2 rounded-full", /error|fail/.test(e.eventType) ? "bg-failed" : /complete|done/.test(e.eventType) ? "bg-ok" : "bg-line-strong")} aria-hidden />
-              <div className="flex items-baseline gap-2">
-                <span className="font-mono text-xs text-fg">{e.eventType}</span>
-                <span className="ml-auto shrink-0 font-mono text-xs tabular-nums text-faint">#{e.seq} · {clock(e.createdAt)}</span>
-              </div>
-              {e.data && Object.keys(e.data).length ? <p className="truncate font-mono text-xs text-muted">{summarize(e.data)}</p> : null}
-            </li>
-          ))}
+      {st.key === "waiting" ? <p className={cn(cardVariants(), "mb-3 px-3 py-2 text-sm")}><StatePill state={st} size="sm" className="mr-2" />{st.next || "It resumes when its wait ends."}</p> : null}
+      {st.key === "failed" && session.error ? <p className={cn(cardVariants({ tone: "failed" }), "mb-3 px-3 py-2 text-sm")}>{describeError(session.error).detail || describeError(session.error).headline}</p> : null}
+      {events.length === 0 ? <p className="text-sm text-muted">No events{filter ? " match this filter" : " yet"}.</p> : (
+        <ol className="flex flex-col">
+          {events.slice(0, 200).map((e) => {
+            const line = describeEvent(e.eventType, e.data);
+            return (
+              <li key={e.seq} title={`${e.eventType} · #${e.seq}`} className="grid grid-cols-[3rem_0.5rem_minmax(0,1fr)] items-baseline gap-x-2 py-1.5 text-sm">
+                <time className="text-right text-xs tabular-nums text-muted">{eventTime(e.createdAt)}</time>
+                <span className={cn("size-1.5 self-center rounded-full", TONE_DOT[line.tone])} aria-hidden />
+                <div className="min-w-0">
+                  <div className={cn("truncate", line.tone === "failed" && "font-medium text-failed")}>{line.text}</div>
+                  {line.detail ? <div className="truncate text-xs text-muted">{line.detail}</div> : null}
+                </div>
+              </li>
+            );
+          })}
         </ol>
       )}
     </div>
   );
-}
-
-function summarize(data: Record<string, unknown>) {
-  const text = JSON.stringify(data);
-  return text.length > 160 ? `${text.slice(0, 157)}…` : text;
 }
 
 function Logs() {
@@ -299,13 +315,14 @@ function Logs() {
   React.useEffect(() => source.subscribeLogs((e) => setLines((prev) => [...prev.slice(-299), e])), [source]);
   return (
     <div className="p-3">
+      <p className="mb-2 text-xs text-muted">Live logs from every worker in the cluster, not only this session's.</p>
       {lines.length === 0 ? (
         <p className="text-sm text-muted">Waiting for worker logs… If nothing arrives, log tailing is off for this deployment (it needs Kubernetes access).</p>
       ) : (
         <pre className="font-mono text-xs leading-5" aria-live="off">
           {lines.map((l, i) => (
             <div key={i} className={cn(l.level === "warn" && "text-waiting", l.level === "error" && "text-failed")}>
-              <span className="text-faint">{clock(l.at as any)} {l.workerNodeId || ""}</span> {String(l.message ?? JSON.stringify(l))}
+              <span className="text-muted">{clock(l.at as any)} {l.workerNodeId || ""}</span> {String(l.message ?? JSON.stringify(l))}
             </div>
           ))}
         </pre>
@@ -314,62 +331,91 @@ function Logs() {
   );
 }
 
-function Nodes() {
-  const { data: workers, isLoading } = useWorkers();
-  if (isLoading) return <div className="p-3"><Skeleton className="h-24" /></div>;
+/** A heading that opens and closes its section; the heading is the control. */
+function Section({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  const id = React.useId();
+  return (
+    <section className="mb-3">
+      <h3>
+        <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="flex min-h-8 items-center gap-1.5 rounded-control pr-2 text-sm font-semibold hover:text-accent pointer-coarse:min-h-11">
+          <ChevronRight className={cn("size-4 text-muted transition-transform duration-(--duration-fast)", open && "rotate-90")} aria-hidden /> {title}
+        </button>
+      </h3>
+      {open ? <div id={id} className="mt-1 animate-fade">{children}</div> : null}
+    </section>
+  );
+}
+
+function Details({ session, history }: { session: Session; history: HistoryModel | null }) {
   return (
     <div className="p-3">
+      <Section title="Numbers" defaultOpen><Stats session={session} history={history} /></Section>
+      <Section title="Where it runs"><Nodes /></Section>
+      <Section title="Durable history"><ExecHistory session={session} /></Section>
+    </div>
+  );
+}
+
+function Nodes() {
+  const { data: workers, isLoading } = useWorkers();
+  if (isLoading) return <Skeleton className="h-24" />;
+  return (
+    <>
       <Panel>
         {(workers || []).map((w) => (
-          <div key={w.workerNodeId} className="flex items-center gap-3 border-t border-line-subtle px-3 py-2 first:border-t-0 text-sm">
+          <div key={w.workerNodeId} className="flex items-center gap-3 border-t border-line-subtle px-3 py-2 text-sm first:border-t-0">
             <span className={cn("size-2 rounded-full", w.phase === "ready" ? "bg-live" : "bg-waiting")} aria-hidden />
             <span className="font-mono">{w.workerNodeId}</span>
             <span className="text-muted">{w.phase}</span>
-            <span className="ml-auto font-mono text-xs text-faint">v{w.info?.sdkVersion} · {w.health?.activeSessions ?? 0} active</span>
+            <span className="ml-auto text-xs tabular-nums text-muted">v{w.info?.sdkVersion} · {w.health?.activeSessions ?? 0} active</span>
           </div>
         ))}
       </Panel>
-      <p className="mt-2 text-xs text-faint">Which worker holds this session's turn is not exposed per session yet; the fleet is shown.</p>
-    </div>
+      <p className="mt-2 text-xs text-muted">This is the whole fleet. The API doesn't say which worker holds this session's turn yet.</p>
+    </>
   );
 }
 
 function ExecHistory({ session }: { session: Session }) {
   const { source } = useSource();
   const { data, isLoading } = useQuery({ queryKey: ["exec-history", session.sessionId], queryFn: () => source.executionHistory(session.sessionId) });
-  if (isLoading) return <div className="p-3"><Skeleton className="h-40" /></div>;
+  if (isLoading) return <Skeleton className="h-40" />;
   return (
-    <div className="p-3">
-      <div className="mb-2 flex items-center gap-2"><span className="text-sm text-muted">{plural((data || []).length, "durable history event")}</span><span className="ml-auto"><ClassicLink>Export history</ClassicLink></span></div>
+    <>
+      <div className="mb-2 flex items-center gap-2"><span className="text-sm text-muted">{plural((data || []).length, "durable history event")} · showing the last 80</span><span className="ml-auto"><ClassicLink>Export history</ClassicLink></span></div>
       <pre className="max-h-[60vh] overflow-auto rounded-pane border border-line bg-bg p-3 font-mono text-xs leading-5">{JSON.stringify((data || []).slice(-80), null, 2)}</pre>
-    </div>
+    </>
   );
 }
 
 function Stats({ session, history }: { session: Session; history: HistoryModel | null }) {
   const { source } = useSource();
   const { data } = useQuery({ queryKey: ["orch-stats", session.sessionId], queryFn: () => source.orchestrationStats(session.sessionId) });
+  const show = (k: string, v: unknown): React.ReactNode => {
+    if (v == null || v === "") return "—";
+    if (typeof v === "number" && /bytes$/i.test(k)) return bytes(v);
+    if (typeof v === "number") return v.toLocaleString();
+    return typeof v === "object" ? JSON.stringify(v) : String(v);
+  };
   const rows: Array<[string, React.ReactNode]> = [
     ["Session", <span className="font-mono">{shortId(session.sessionId)}</span>],
     ["Turns", session.iterations ?? "—"],
     ["Events loaded", history?.events.length ?? "—"],
     ["Model", <span className="font-mono">{session.model || "default"}</span>],
-    ...Object.entries(data && typeof data === "object" ? data : {}).slice(0, 12).map(([k, v]) => [k, <span className="font-mono">{typeof v === "object" ? JSON.stringify(v) : String(v)}</span>] as [string, React.ReactNode]),
+    ...Object.entries(data && typeof data === "object" ? data : {}).slice(0, 12).map(([k, v]) => [statLabel(k), show(k, v)] as [string, React.ReactNode]),
   ];
   return (
-    <div className="p-3">
-      <Panel>
-        <dl>
-          {rows.map(([k, v]) => (
-            <div key={k} className="flex items-center gap-3 border-t border-line-subtle px-3 py-2 text-sm first:border-t-0">
-              <dt className="w-40 shrink-0 text-muted">{k}</dt>
-              <dd className="min-w-0 flex-1 truncate tabular-nums">{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </Panel>
-      <p className="mt-2 text-xs text-faint">Memory (retrieval and graph use, session facts) shows here when the deployment's store supports it.</p>
-    </div>
+    <Panel>
+      <dl>
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex items-center gap-3 border-t border-line-subtle px-3 py-2 text-sm first:border-t-0">
+            <dt className="w-40 shrink-0 text-muted">{k}</dt>
+            <dd className="min-w-0 flex-1 truncate tabular-nums">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </Panel>
   );
 }
 

@@ -1,14 +1,13 @@
 import * as React from "react";
 import { cardVariants } from "@/components/ui/card";
-import { Link } from "@tanstack/react-router";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { Bot, Check, ChevronRight, CircleSlash, GitBranch, LayoutPanelLeft, Loader2, MessageSquareQuote, Wrench, X } from "lucide-react";
 import type { ChatItem } from "@ps/history";
 import type { PendingQuestion } from "@/data/types";
 import { useSessions } from "@/data/source";
-import { sessionState } from "@/data/state";
-import { StateGlyph } from "@/components/state";
+import { SessionChip } from "@/components/session-chip";
+import { Tag } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StructuredErrorCard } from "@/components/structured-error";
@@ -48,48 +47,65 @@ function groupCalls(items: ChatItem[]): Group[] {
   return out;
 }
 
-export function Transcript({ items, agentName, onOpenCanvas, errorActions }: { items: ChatItem[]; sessionId: string; agentName: string; onOpenCanvas: (slot?: number) => void; errorActions?: { onRetry: () => void; onSwitchModel: () => void } }) {
+const itemAt = (g: Group) => (g.kind === "item" ? Number(g.item.createdAt) || 0 : Number(g.items[0].createdAt) || 0);
+
+/**
+ * The conversation. Messages are the content; tool calls, sub-agent starts and canvas
+ * updates are quiet log rows between them, so twenty calls do not become twenty boxes.
+ * `lastSeenAt` (ms) puts a "New since you were here" divider before the first newer item.
+ */
+export function Transcript({ items, agentName, onOpenCanvas, errorActions, lastSeenAt }: { items: ChatItem[]; sessionId: string; agentName: string; onOpenCanvas: (slot?: number) => void; errorActions?: { onRetry: () => void; onSwitchModel: () => void }; lastSeenAt?: number }) {
   // Fixes belong to the latest failure only; older ones are history.
   const lastWarningId = [...items].reverse().find((i) => i.kind === "session-warning")?.id;
-  const groups = React.useMemo(() => groupCalls(items.filter((i) => i.role !== "canvas-update" || true)), [items]);
+  const groups = React.useMemo(() => groupCalls(items), [items]);
+  const newFrom = React.useMemo(() => {
+    if (!lastSeenAt) return -1;
+    const first = groups.findIndex((g) => itemAt(g) > lastSeenAt);
+    // Nothing before it means the whole session is new to this reader: no divider.
+    return first > 0 ? first : -1;
+  }, [groups, lastSeenAt]);
   let lastAt = 0;
   return (
-    <ol className="flex flex-col gap-4" aria-label="Conversation">
+    <ol className="flex flex-col gap-3" aria-label="Conversation">
       {groups.map((g, index) => {
-        const at = g.kind === "item" ? Number(g.item.createdAt) || 0 : Number(g.items[0].createdAt) || 0;
+        const at = itemAt(g);
         const showTime = at && (!lastAt || at - lastAt > 10 * 60_000);
         const sep = showTime ? (
-          <li key={`t-${index}`} className="text-center text-xs text-faint" aria-hidden>
-            {!lastAt || new Date(at).toDateString() !== new Date(lastAt).toDateString() ? `${dayLabel(at)} · ${clock(at)}` : clock(at)}
+          <li key={`t-${index}`} className="text-center text-xs text-faint">
+            <time dateTime={new Date(at).toISOString()}>
+              {!lastAt || new Date(at).toDateString() !== new Date(lastAt).toDateString() ? `${dayLabel(at)} · ${clock(at)}` : clock(at)}
+            </time>
           </li>
         ) : null;
         if (at) lastAt = at;
+        const divider = index === newFrom ? (
+          <li key={`n-${index}`} className="flex items-center gap-3 text-xs font-medium text-accent" role="separator" aria-label="New since you were here">
+            <span className="h-px flex-1 bg-accent/40" />New since you were here<span className="h-px flex-1 bg-accent/40" />
+          </li>
+        ) : null;
         const node = g.kind === "calls"
           ? <CallRun key={`run-${g.items[0].id}`} items={g.items} />
           : g.kind === "spawns"
-          ? <li key={`sp-${g.items[0].id}`}><SpawnBlock items={g.items} /></li>
+          ? <li key={`sp-${g.items[0].id}`}><SpawnRow items={g.items} /></li>
           : <TranscriptItem key={g.item.id || index} item={g.item} agentName={agentName} onOpenCanvas={onOpenCanvas} errorActions={g.item.id === lastWarningId ? errorActions : undefined} />;
-        return <React.Fragment key={`g-${index}`}>{sep}{node}</React.Fragment>;
+        return <React.Fragment key={`g-${index}`}>{divider}{sep}{node}</React.Fragment>;
       })}
     </ol>
   );
 }
 
 function TranscriptItem({ item, agentName, onOpenCanvas, errorActions }: { item: ChatItem; agentName: string; onOpenCanvas: (slot?: number) => void; errorActions?: { onRetry: () => void; onSwitchModel: () => void } }) {
-  if (item.kind === "chat-call") return <li><ToolCall item={item} /></li>;
+  if (item.kind === "chat-call") return <li><ToolRow item={item} /></li>;
   if (item.kind === "native-task-group") return <li><NativeTasks item={item} /></li>;
   if (item.kind === "session-warning") {
     return <li className="ml-9"><StructuredErrorCard raw={item.text} compact onRetry={errorActions?.onRetry} onSwitchModel={errorActions?.onSwitchModel} /></li>;
   }
   if (item.kind === "canvas-update" || item.role === "canvas-update") {
     return (
-      <li className={cn(cardVariants({ enter: true }), "ml-9 flex items-center gap-3 px-3 py-2.5")}>
-        <span className="grid size-8 shrink-0 place-items-center rounded-control bg-raised text-muted"><LayoutPanelLeft className="size-4" aria-hidden /></span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold">Drew {item.note ? `“${item.note}”` : "the canvas"}</span>
-          <span className="block text-xs text-muted">Canvas · revision {item.rev || 1}</span>
-        </span>
-        <Button size="sm" onClick={() => onOpenCanvas(1)}>Open</Button>
+      <li className="ml-9 flex min-h-8 items-center gap-2 text-sm">
+        <LayoutPanelLeft className="size-4 shrink-0 text-muted" aria-hidden />
+        <span className="min-w-0 flex-1 truncate">Drew <span className="font-medium">{item.note ? `“${item.note}”` : "the canvas"}</span> <span className="text-muted">· revision {item.rev || 1}</span></span>
+        <Button size="sm" variant="quiet" onClick={() => onOpenCanvas(1)}>Open</Button>
       </li>
     );
   }
@@ -101,15 +117,15 @@ function TranscriptItem({ item, agentName, onOpenCanvas, errorActions }: { item:
     );
   }
   if (item.role === "epoch-divider") {
-    return <li className="flex items-center gap-3 text-xs text-faint" role="separator"><span className="h-px flex-1 bg-line" />Context regenerated<span className="h-px flex-1 bg-line" /></li>;
+    return <li className="flex items-center gap-3 text-xs text-muted" role="separator"><span className="h-px flex-1 bg-line" />Context regenerated<span className="h-px flex-1 bg-line" /></li>;
   }
   if (item.kind === "canvas-action") {
-    return <li className="ml-auto max-w-[85%] rounded-pane border border-line bg-raised px-3 py-1.5 text-xs text-muted">Canvas action · <span className="font-mono">{item.action}</span></li>;
+    return <li className="ml-auto max-w-[85%] rounded-pane bg-raised px-3 py-1.5 text-xs text-muted">Canvas action · <span className="font-mono">{item.action}</span></li>;
   }
   if (item.role === "user") {
     return (
       <li className="ml-auto max-w-[85%] rounded-pane bg-raised px-3.5 py-2.5">
-        <div className="mb-0.5 text-xs text-faint">{item.sender?.displayName && item.sender?.relation !== "self" ? item.sender.displayName : "You"}</div>
+        <div className="mb-0.5 text-xs text-muted">{item.sender?.displayName && item.sender?.relation !== "self" ? item.sender.displayName : "You"}</div>
         <div className="whitespace-pre-wrap text-base text-fg">{item.text}</div>
       </li>
     );
@@ -120,7 +136,7 @@ function TranscriptItem({ item, agentName, onOpenCanvas, errorActions }: { item:
         <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-control border border-line bg-surface text-muted" title={agentName}><Bot className="size-3.5" aria-hidden /></span>
         <div className="min-w-0 flex-1">
           <span className="sr-only">{agentName}:</span>
-          <Markdown text={String(item.text || "")} className={cn(item.streaming && "after:ml-0.5 after:inline-block after:h-4 after:w-1.5 motion-safe:after:animate-pulse after:bg-live after:align-middle")} />
+          <Markdown text={String(item.text || "")} className={cn(item.streaming && "motion-safe:after:animate-pulse after:ml-0.5 after:inline-block after:h-4 after:w-1.5 after:bg-live after:align-middle")} />
         </div>
       </li>
     );
@@ -134,35 +150,36 @@ function callDuration(item: ChatItem) {
 }
 
 /**
- * Tool-call block: tool icon, tool name (mono), a one-line argument summary,
- * status glyph and duration; expands to the payload. Spawns end with
- * child-session chips.
+ * One tool call as a single log row: icon, name, argument summary, status, duration.
+ * The row expands to the payload. A failed call is promoted: its name and status turn
+ * the failed colour and its error shows without opening the row; the background stays
+ * neutral so text contrast does not drop.
  */
-export function ToolCall({ item }: { item: ChatItem }) {
+export function ToolRow({ item }: { item: ChatItem }) {
   const [open, setOpen] = React.useState(false);
   const id = React.useId();
   const failed = item.status === "Failed";
   const done = item.status === "Done" || item.status === "Started";
-  const spawn = item.category === "Agent" && item.result?.childSessionId;
+  const errorText = failed ? String(item.error?.message ?? item.error ?? "") : "";
   return (
-    <div className={cn(cardVariants({ clip: true, tone: failed ? "failed" : "neutral" }), "ml-9", failed && "bg-surface")}>
-      <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="flex h-[34px] w-full items-center gap-2 px-3 text-left transition-colors duration-(--duration-fast) hover:bg-raised/60 pointer-coarse:h-11">
-        {item.category === "Agent" ? <GitBranch className="size-3.5 shrink-0 text-muted" aria-hidden /> : <Wrench className="size-3.5 shrink-0 text-muted" aria-hidden />}
-        <span className="shrink-0 font-mono text-sm text-fg">{item.name}</span>
+    <div className="ml-9">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((v) => !v)}
+        className="flex min-h-8 w-full items-center gap-2 rounded-control px-2 text-left text-sm transition-colors duration-(--duration-fast) hover:bg-raised pointer-coarse:min-h-11"
+      >
+        <Wrench className={cn("size-3.5 shrink-0", failed ? "text-failed" : "text-muted")} aria-hidden />
+        <span className={cn("shrink-0 font-mono text-sm", failed ? "font-medium text-failed" : "text-fg")}>{item.name}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">{item.text}</span>
-        {failed ? <X className="size-3.5 shrink-0 text-failed" aria-label="Failed" /> : done ? <Check className="size-3.5 shrink-0 text-ok" aria-label="Done" /> : <Loader2 className="size-3.5 shrink-0 animate-spin text-live" aria-label="Running" />}
-        {callDuration(item) ? <span className="shrink-0 font-mono text-xs tabular-nums text-faint">{callDuration(item)}</span> : null}
-        <ChevronRight className={cn("size-3.5 shrink-0 text-faint transition-transform duration-(--duration-fast)", open && "rotate-90")} aria-hidden />
+        {failed ? <Tag tone="failed"><X aria-hidden />Failed</Tag> : done ? <Check className="size-3.5 shrink-0 text-ok" aria-label="Done" /> : <Loader2 className="size-3.5 shrink-0 animate-spin text-live" aria-label="Running" />}
+        {callDuration(item) ? <span className="w-11 shrink-0 text-right text-xs tabular-nums text-muted">{callDuration(item)}</span> : null}
+        <ChevronRight className={cn("size-3.5 shrink-0 text-muted transition-transform duration-(--duration-fast)", open && "rotate-90")} aria-hidden />
       </button>
-      {spawn ? (
-        <div className="flex flex-wrap gap-1.5 border-t border-line-subtle px-3 py-2">
-          <Link to="/s/$sessionId" params={{ sessionId: item.result.childSessionId }} className="inline-flex h-6 items-center gap-1.5 rounded-full border border-line px-2.5 text-xs text-accent hover:bg-raised pointer-coarse:h-11 pointer-coarse:px-3.5">
-            <GitBranch className="size-3" aria-hidden /> {item.result.task || item.result.agentId || "Sub-agent"}
-          </Link>
-        </div>
-      ) : null}
+      {failed && errorText && !open ? <p className="ml-7 mt-0.5 line-clamp-2 text-xs text-failed">{errorText}</p> : null}
       {open ? (
-        <div id={id} className="animate-fade border-t border-line-subtle bg-bg px-3 py-2.5 font-mono text-xs leading-5 text-muted">
+        <div id={id} className="ml-7 mt-1 animate-fade rounded-control bg-raised px-3 py-2.5 font-mono text-xs leading-5 text-muted">
           <Payload label="Arguments" value={item.arguments} />
           {item.progress ? <Payload label="Progress" value={item.progress} /> : null}
           {item.result !== undefined ? <Payload label="Result" value={item.result} /> : null}
@@ -173,30 +190,22 @@ export function ToolCall({ item }: { item: ChatItem }) {
   );
 }
 
-/** One block for sub-agents started together: the call line, then a chip per child that opens it. */
-function SpawnBlock({ items }: { items: ChatItem[] }) {
+/** Sub-agents started together: one log row, then a chip per child that opens it. */
+function SpawnRow({ items }: { items: ChatItem[] }) {
   const { data: sessions } = useSessions();
   const byId = new Map((sessions || []).map((x) => [x.sessionId, x]));
   return (
-    <div className={cn(cardVariants({ clip: true, enter: true }), "ml-9")}>
-      <div className="flex h-[34px] items-center gap-2 px-3">
+    <div className="ml-9">
+      <div className="flex min-h-8 items-center gap-2 px-2 text-sm">
         <GitBranch className="size-3.5 shrink-0 text-muted" aria-hidden />
         <span className="shrink-0 font-mono text-sm text-fg">spawn_agent{items.length > 1 ? ` ×${items.length}` : ""}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">{items.map((i) => i.result?.agentId).filter(Boolean).join(", ")}</span>
         <Check className="size-3.5 shrink-0 text-ok" aria-label="Started" />
       </div>
-      <div className="flex flex-wrap gap-1.5 border-t border-line-subtle px-3 py-2">
-        {items.map((i) => {
-          const child = byId.get(i.result.childSessionId);
-          const st = child ? sessionState(child) : null;
-          return (
-            <Link key={i.id} to="/s/$sessionId" params={{ sessionId: i.result.childSessionId }} className="inline-flex h-6 items-center gap-1.5 rounded-full border border-line px-2.5 text-xs text-accent hover:bg-raised pointer-coarse:h-11 pointer-coarse:px-3.5">
-              {st ? <StateGlyph state={st.key} className="size-2" /> : <GitBranch className="size-3" aria-hidden />}
-              {i.result.task || i.result.agentId || "Sub-agent"}
-              {st ? <span className="sr-only">, {st.word}</span> : null}
-            </Link>
-          );
-        })}
+      <div className="ml-7 flex flex-wrap gap-1.5 pb-1">
+        {items.map((i) => (
+          <SessionChip key={i.id} sessionId={i.result.childSessionId} label={i.result.task || i.result.agentId || "Sub-agent"} session={byId.get(i.result.childSessionId)} />
+        ))}
       </div>
     </div>
   );
@@ -207,25 +216,27 @@ function Payload({ label, value }: { label: string; value: unknown }) {
   const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
   return (
     <div className="mb-2 last:mb-0">
-      <div className="mb-0.5 font-sans text-xs font-semibold text-faint">{label}</div>
+      <div className="mb-0.5 font-sans text-xs font-semibold text-muted">{label}</div>
       <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-words">{text}</pre>
     </div>
   );
 }
 
+/** More than three calls in a row fold into one quiet line; failures stay visible beneath it. */
 function CallRun({ items }: { items: ChatItem[] }) {
   const [open, setOpen] = React.useState(false);
-  const failed = items.filter((i) => i.status === "Failed").length;
+  const failedItems = items.filter((i) => i.status === "Failed");
+  const total = items.reduce((n, i) => n + (Number(i.durationMs) || 0), 0);
   const id = React.useId();
   return (
     <li>
-      <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="ml-9 flex h-[30px] items-center gap-2 rounded-control px-2 text-xs text-muted hover:bg-raised hover:text-fg pointer-coarse:h-11">
-        <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} aria-hidden />
+      <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="ml-9 flex min-h-8 items-center gap-2 rounded-control px-2 text-sm text-muted transition-colors duration-(--duration-fast) hover:bg-raised hover:text-fg pointer-coarse:min-h-11">
+        <ChevronRight className={cn("size-3.5 transition-transform duration-(--duration-fast)", open && "rotate-90")} aria-hidden />
         <Wrench className="size-3.5" aria-hidden />
-        {items.length} tool calls
-        {failed ? <span className="text-failed">· {failed} failed</span> : null}
+        <span>{items.length} tool calls{total ? ` · ${callDuration({ durationMs: total } as unknown as ChatItem)}` : ""}</span>
+        {failedItems.length ? <span className="font-medium text-failed">· {failedItems.length} failed</span> : null}
       </button>
-      {open ? <div id={id} className="mt-2 flex flex-col gap-2">{items.map((i) => <ToolCall key={i.id} item={i} />)}</div> : null}
+      {open ? <div id={id} className="mt-1 flex flex-col gap-0.5">{items.map((i) => <ToolRow key={i.id} item={i} />)}</div> : failedItems.length ? <div className="mt-1 flex flex-col gap-0.5">{failedItems.map((i) => <ToolRow key={i.id} item={i} />)}</div> : null}
     </li>
   );
 }
@@ -233,14 +244,14 @@ function CallRun({ items }: { items: ChatItem[] }) {
 function NativeTasks({ item }: { item: ChatItem }) {
   const tasks: any[] = Array.isArray(item.tasks) ? item.tasks : [];
   return (
-    <div className={cn(cardVariants({ enter: true }), "ml-9 p-3")}>
-      <div className="mb-2 text-xs font-semibold text-muted">In-session tasks</div>
-      <ul className="flex flex-col gap-1.5">
+    <div className="ml-9 px-2">
+      <div className="mb-1 text-xs font-medium text-muted">In-session tasks</div>
+      <ul className="flex flex-col gap-1">
         {(tasks.length ? tasks : [{ label: item.text || "Task" }]).map((t, i) => (
           <li key={t.id || i} className="flex items-center gap-2 text-sm">
-            <span className={cn("size-1.5 rounded-full", t.status === "completed" ? "bg-ok" : t.status === "failed" ? "bg-failed" : "bg-live")} aria-hidden />
+            <span className={cn("size-1.5 shrink-0 rounded-full", t.status === "completed" ? "bg-ok" : t.status === "failed" ? "bg-failed" : "bg-live")} aria-hidden />
             <span className="truncate">{t.description || t.label || t.title || "Task"}</span>
-            {t.status ? <span className="ml-auto text-xs text-faint">{t.status}</span> : null}
+            {t.status ? <span className="ml-auto text-xs text-muted">{t.status}</span> : null}
           </li>
         ))}
       </ul>
@@ -248,25 +259,52 @@ function NativeTasks({ item }: { item: ChatItem }) {
   );
 }
 
-/** An agent's question as an accent-tinted card, choices as buttons, "Reply in chat…" as the escape hatch. */
+/** Choices whose wording undoes or destroys something ask once more before they are sent. */
+const DESTRUCTIVE = /\b(roll\s?back|rollback|delete|drop|force|kill|purge|reset|revert|overwrite|wipe|destroy|discard|terminate|remove)\b/i;
+export const isDestructiveChoice = (choice: string) => DESTRUCTIVE.test(choice);
+
+/** The choice an agent marked as its default, if it marked one. Nothing is primary otherwise. */
+function recommendedChoice(question: PendingQuestion, choices: string[]): string | null {
+  const mark = question.recommended ?? question.recommendedChoice ?? question.defaultChoice ?? question.default;
+  if (typeof mark === "string") return choices.find((c) => c === mark) ?? null;
+  if (typeof mark === "number") return choices[mark] ?? null;
+  return null;
+}
+
+/**
+ * An agent's question as an accent-tinted card with its choices as buttons and "Reply in chat…"
+ * as the escape hatch. Only a choice the agent marked recommended is styled as primary.
+ * A choice that sounds destructive asks "Send it?" first, in the same place.
+ */
 export function QuestionCard({ question, agentName, onAnswer, busy }: { question: PendingQuestion; agentName: string; onAnswer: (answer: string) => void; busy?: boolean }) {
   const [free, setFree] = React.useState(false);
   const [text, setText] = React.useState("");
+  const [confirming, setConfirming] = React.useState<string | null>(null);
   const choices = Array.isArray(question.choices) ? question.choices : [];
+  const recommended = recommendedChoice(question, choices);
+  const pick = (c: string) => (isDestructiveChoice(c) ? setConfirming(c) : onAnswer(c));
   return (
     <section aria-label="Question from the agent" className={cn(cardVariants({ tone: "accent", enter: true }), "p-4")}>
       <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-accent">
         <MessageSquareQuote className="size-4" aria-hidden /> <span className="font-mono">{agentName}</span> is asking
       </div>
       <p className="text-base font-medium text-fg">{question.question}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {choices.map((c, i) => (
-          <Button key={c} variant={i === 0 ? "primary" : "default"} disabled={busy} onClick={() => onAnswer(c)}>{c}</Button>
-        ))}
-        {question.allowFreeform !== false ? (
-          free ? null : <Button variant="quiet" disabled={busy} onClick={() => setFree(true)}>Reply in chat…</Button>
-        ) : null}
-      </div>
+      {confirming ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Confirm your answer">
+          <p className="min-w-0 flex-1 text-sm text-fg">Send “{confirming}”? The agent acts on it right away.</p>
+          <Button variant="danger" disabled={busy} onClick={() => onAnswer(confirming)}>Send “{confirming}”</Button>
+          <Button variant="quiet" onClick={() => setConfirming(null)}>Back</Button>
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {choices.map((c) => (
+            <Button key={c} variant={c === recommended ? "primary" : "default"} disabled={busy} onClick={() => pick(c)}>{c}{c === recommended ? <span className="sr-only"> (recommended)</span> : null}</Button>
+          ))}
+          {question.allowFreeform !== false ? (
+            free ? null : <Button variant="quiet" disabled={busy} onClick={() => setFree(true)}>Reply in chat…</Button>
+          ) : null}
+        </div>
+      )}
       {free ? (
         <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) onAnswer(text.trim()); }}>
           <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Your answer" aria-label="Your answer" />

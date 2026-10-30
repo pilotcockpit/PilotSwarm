@@ -46,6 +46,7 @@ function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent:
   const [repo, setRepo] = React.useState("");
   const [group, setGroup] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [allAgents, setAllAgents] = React.useState(false);
 
   const usable = (models || []).filter((m) => m.credentialAvailable !== false);
   const unavailable = (models || []).filter((m) => m.credentialAvailable === false);
@@ -56,6 +57,12 @@ function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent:
     const ra = recent.indexOf(a.name); const rb = recent.indexOf(b.name);
     return (ra < 0 ? 99 : ra) - (rb < 0 ? 99 : rb);
   });
+
+  // Four choices at most until you ask for more: Generic plus your three most recent or first agents,
+  // and always the one that is chosen, so a pick from the library never hides itself.
+  const SHORT = 3;
+  const shownAgents = allAgents ? sortedAgents : sortedAgents.filter((a, i) => i < SHORT || a.name === agent);
+  const hiddenCount = sortedAgents.length - shownAgents.length;
 
   const submit = async () => {
     setBusy(true);
@@ -120,11 +127,16 @@ function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent:
           ) : (
             <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Agent" onKeyDown={rovingKeyDown("radio")}>
               <AgentCard selected={agent === null} onSelect={() => setAgent(null)} title="Generic agent" name="default" description="General-purpose, with sub-agents, canvases and files." />
-              {sortedAgents.map((a) => (
+              {shownAgents.map((a) => (
                 <AgentCard key={a.name} selected={agent === a.name} onSelect={() => setAgent(a.name)} title={a.title || a.name} name={a.name} description={a.description} recent={recent.includes(a.name)} />
               ))}
             </div>
           )}
+          {hiddenCount > 0 || allAgents ? (
+            <Button variant="quiet" size="sm" className="self-start" aria-expanded={allAgents} onClick={() => setAllAgents((v) => !v)}>
+              {allAgents ? "Fewer agents" : `More agents (${hiddenCount})`}
+            </Button>
+          ) : null}
         </fieldset>
 
         <div className={cardVariants()}>
@@ -200,9 +212,9 @@ function AgentCard({ selected, onSelect, title, name, description, recent }: { s
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
           <span className="truncate text-sm font-semibold">{title}</span>
-          {recent ? <span className="shrink-0 text-xs text-faint">recent</span> : null}
+          {recent ? <span className="shrink-0 text-xs text-muted">recent</span> : null}
         </span>
-        <span className="block truncate font-mono text-xs text-faint">{name}</span>
+        <span className="block truncate font-mono text-xs text-muted">{name}</span>
         {description ? <span className="mt-0.5 line-clamp-2 text-xs text-muted">{description}</span> : null}
       </span>
     </button>

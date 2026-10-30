@@ -173,3 +173,19 @@ export function modelShort(qualified?: string | null) {
   const q = String(qualified || "");
   return q.includes(":") ? q.split(":").slice(1).join(":") : q || "default model";
 }
+
+/** Home's "needs you" set: a question to answer, a failure, or a usage hold. System sessions are the admin's concern. */
+export function needsYou(s: Session): boolean {
+  if (s.isSystem) return false;
+  const st = sessionState(s);
+  return st.key === "needs" || st.key === "failed" || st.waitKind === "hold";
+}
+
+/** Two failures with the same key have the same cause and one fix. */
+export function failureKey(s: Session): string {
+  const e = describeError(s.error);
+  return `${e.headline}|${e.provider || ""}`;
+}
+
+/** A choice that changes or removes something asks once more before it is sent. */
+export const DESTRUCTIVE_CHOICE = /\b(roll ?back|revert|delete|drop|force|kill|purge|reset|overwrite|wipe|destroy|discard|terminate)\b/i;

@@ -3,71 +3,82 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { canvasName } from "@/canvas/CanvasFrame";
 import { ArrowRight, FileText, LayoutPanelLeft, Plus, ServerCrash } from "lucide-react";
-import { toast } from "sonner";
 import { TopBar } from "@/shell/AppShell";
 import { useUi } from "@/shell/ui-state";
-import { useProfile, useRefresh, useSessions, useSource, useUsage } from "@/data/source";
-import { describeError, pauseSentence, sessionState } from "@/data/state";
+import { useProfile, useSessions, useSource } from "@/data/source";
+import { describeError, failureKey, needsYou, sessionState, type StateKey } from "@/data/state";
 import type { Artifact, Session } from "@/data/types";
 import { DurableSpine, StateGlyph } from "@/components/state";
 import { EmptyState, Panel, SectionTitle } from "@/components/empty";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/misc";
-import { ago, clock, cn, plural, tokens, until } from "@/lib/utils";
+import { ago, clock, cn, plural, until } from "@/lib/utils";
 import { cardVariants } from "@/components/ui/card";
+import { CapacityLine } from "@/components/capacity-line";
+import { FailureGroup, NeedsRow } from "@/components/needs-row";
+import { SinceLeft } from "@/components/since-left";
+import { StateFacets } from "@/components/state-facets";
 
-function greeting() {
-  const h = new Date().getHours();
-  return h < 5 ? "Working late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
-}
+type Facet = "needs" | "failed" | "running" | "waiting" | "completed";
 
 /** Home answers "what needs me?". Each section hides when it is empty. */
 export function HomePage() {
   const { data: sessions, isLoading } = useSessions();
   const { data: profile } = useProfile();
-  const { data: usage } = useUsage();
   const { openNewSession } = useUi();
+  const navigate = useNavigate();
+  const admin = Boolean(profile?.isAdmin);
 
   const groups = React.useMemo(() => {
     const all = sessions || [];
+    // System sessions are the admin's business: they never crowd a member's Running or Scheduled.
+    const visible = all.filter((s) => !s.isSystem || admin);
     const mine = all.filter((s) => !s.isSystem);
-    const needs = mine.filter((s) => {
-      const st = sessionState(s);
-      return st.key === "needs" || st.key === "failed" || st.waitKind === "hold";
-    }).sort(byNeedsPriority);
-    const running = all.filter((s) => sessionState(s).key === "running");
-    const waiting = all
+    const needs = mine.filter(needsYou).sort(byNeedsPriority);
+    const running = visible.filter((s) => sessionState(s).key === "running");
+    const waiting = visible
       .filter((s) => sessionState(s).key === "waiting" && sessionState(s).waitKind !== "hold")
       .sort((a, b) => (sessionState(a).nextAt || Infinity) - (sessionState(b).nextAt || Infinity));
     const systemFailed = all.filter((s) => s.isSystem && sessionState(s).key === "failed");
-    return { mine, needs, running, waiting, systemFailed };
-  }, [sessions]);
+    const counts: Partial<Record<StateKey, number>> = {};
+    for (const s of mine) { const k = sessionState(s).key; counts[k] = (counts[k] || 0) + 1; }
+    // Failures with one cause collapse into one row; questions and holds stay individual.
+    const items: Array<{ kind: "row"; session: Session } | { kind: "group"; key: string; sessions: Session[] }> = [];
+    const seen = new Set<string>();
+    for (const s of needs) {
+      if (sessionState(s).key !== "failed") { items.push({ kind: "row", session: s }); continue; }
+      const key = failureKey(s);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const same = needs.filter((n) => sessionState(n).key === "failed" && failureKey(n) === key);
+      items.push(same.length > 1 ? { kind: "group", key, sessions: same } : { kind: "row", session: s });
+    }
+    return { mine, needs, items, running, waiting, systemFailed, counts };
+  }, [sessions, admin]);
 
   const name = profile?.anonymous ? "" : (profile?.displayName || "").split(" ")[0];
   const nothingYet = !isLoading && groups.mine.length === 0;
+  const n = groups.needs.length;
+  const headline = isLoading ? "Reading your sessions…" : nothingYet ? `Welcome to PilotSwarm${name ? `, ${name}` : ""}` : n ? `${plural(n, "session")} ${n === 1 ? "needs" : "need"} you` : "Nothing needs you right now";
 
   return (
     <>
       <TopBar crumbs={[{ label: "Home" }]} titleIsHeading={false} />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[1180px] px-4 py-6 md:px-6">
+        <div className="mx-auto max-w-295 px-4 py-6 md:px-6">
           <div className="mb-6 flex flex-wrap items-end gap-x-6 gap-y-3">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl font-semibold tracking-tight">{greeting()}{name ? `, ${name}` : ""}</h1>
-              <p className="mt-0.5 text-sm text-muted">
-                {isLoading ? "Reading your sessions…" : summaryLine(groups.needs.length, groups.running.length, groups.waiting.length)}
-              </p>
+            <div className="min-w-0 flex-1 basis-[280px]">
+              <h1 className="text-xl font-semibold tracking-tight">{headline}</h1>
+              <CapacityLine />
             </div>
-            <div className="flex flex-wrap gap-2">
-              <StatChip glyph="running" label="running" value={groups.running.length} />
-              <StatChip glyph="waiting" label="waiting" value={groups.waiting.length} />
-              <span className="inline-flex h-8 items-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-muted">
-                Tokens today <span className="font-mono font-semibold tabular-nums text-fg">{tokens(usage?.windows?.day?.total)}</span>
-              </span>
-            </div>
+            {nothingYet || isLoading ? null : (
+              <StateFacets counts={groups.counts} onChange={(k) => navigate({ to: "/sessions", search: { state: k === "completed" ? "closed" : (k as Facet) } as any })} />
+            )}
           </div>
 
-          {groups.systemFailed.length && profile?.isAdmin ? <FleetNotice failed={groups.systemFailed} /> : null}
+          <SinceLeft sessions={sessions || []} />
+
+          {groups.systemFailed.length && admin ? <FleetNotice failed={groups.systemFailed} /> : null}
 
           {nothingYet ? (
             <Panel enter className="mb-6">
@@ -84,10 +95,12 @@ export function HomePage() {
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
             <div className="flex min-w-0 flex-col gap-6">
               {isLoading ? <LoadingList /> : null}
-              {groups.needs.length ? (
+              {groups.items.length ? (
                 <section aria-labelledby="needs-h">
                   <SectionTitle id="needs-h" count={groups.needs.length}>Needs you</SectionTitle>
-                  <Panel enter>{groups.needs.map((s) => <NeedsRow key={s.sessionId} session={s} />)}</Panel>
+                  <Panel enter>
+                    {groups.items.map((it) => it.kind === "row" ? <NeedsRow key={it.session.sessionId} session={it.session} /> : <FailureGroup key={it.key} sessions={it.sessions} />)}
+                  </Panel>
                 </section>
               ) : null}
               {groups.running.length ? (
@@ -95,14 +108,14 @@ export function HomePage() {
                   <SectionTitle id="running-h" count={groups.running.length} action={<Link to="/sessions" search={{ state: "running" }} className="text-accent hover:underline">All sessions</Link>}>Running</SectionTitle>
                   <Panel enter>
                     {groups.running.map((s) => (
-                      <Link key={s.sessionId} to="/s/$sessionId" params={{ sessionId: s.sessionId }} className="flex min-h-[52px] items-center gap-3 border-t border-line-subtle px-4 py-2 first:border-t-0 hover:bg-raised/70">
+                      <Link key={s.sessionId} to="/s/$sessionId" params={{ sessionId: s.sessionId }} className="focus-inset flex min-h-[52px] items-center gap-3 border-t border-line-subtle px-4 py-2 first:border-t-0 hover:bg-raised/70">
                         <StateGlyph state="running" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium">{s.title}</span>
-                          <span className="block truncate text-xs text-muted">{s.step || "Working"} · <span className="font-mono">{s.isSystem ? `system:${s.agentId}` : s.agentId}</span></span>
+                          <span className="block truncate text-xs text-muted">{s.step || s.shortSummary || "Working"} · {s.isSystem ? `system:${s.agentId}` : s.agentId}</span>
                         </span>
                         <DurableSpine marks={s.spine} />
-                        <span className="w-12 text-right text-xs text-faint">{ago(s.updatedAt)}</span>
+                        <span className="w-12 text-right text-xs tabular-nums text-faint">{ago(s.updatedAt)}</span>
                       </Link>
                     ))}
                   </Panel>
@@ -125,70 +138,9 @@ export function HomePage() {
   );
 }
 
-function summaryLine(needs: number, running: number, waiting: number) {
-  const parts = [];
-  parts.push(needs ? `${plural(needs, "session")} ${needs === 1 ? "needs" : "need"} you.` : "Nothing needs you right now.");
-  const rest = [running ? `${running} ${running === 1 ? "is" : "are"} running` : "", waiting ? `${waiting} ${waiting === 1 ? "is" : "are"} waiting` : ""].filter(Boolean);
-  if (rest.length) parts.push(`${rest.join(", ")}.`.replace(/^./, (c) => c.toUpperCase()));
-  return parts.join(" ");
-}
-
 function byNeedsPriority(a: Session, b: Session) {
   const rank = (s: Session) => ({ needs: 0, failed: 1, waiting: 2 } as Record<string, number>)[sessionState(s).key] ?? 3;
   return rank(a) - rank(b) || (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0);
-}
-
-function StatChip({ glyph, label, value }: { glyph: "running" | "waiting"; label: string; value: number }) {
-  return (
-    <Link to="/sessions" search={{ state: glyph }} className="inline-flex h-8 items-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-muted hover:border-line-strong hover:text-fg pointer-coarse:h-11">
-      <StateGlyph state={value ? glyph : "idle"} pulse={false} />
-      <span className="font-semibold tabular-nums text-fg">{value}</span> {label}
-    </Link>
-  );
-}
-
-function NeedsRow({ session: s }: { session: Session }) {
-  const st = sessionState(s);
-  const navigate = useNavigate();
-  const { source } = useSource();
-  const refresh = useRefresh();
-  const open = () => navigate({ to: "/s/$sessionId", params: { sessionId: s.sessionId } });
-  let body: React.ReactNode;
-  let actions: React.ReactNode;
-  if (st.key === "needs") {
-    body = <>“{s.pendingQuestion?.question || "The agent asked a question."}”</>;
-    actions = <Button variant="primary" size="sm" onClick={open}>Answer</Button>;
-  } else if (st.key === "failed") {
-    const err = describeError(s.error);
-    body = <>{err.headline}{err.detail ? `: ${lowerFirst(err.detail)}` : "."}</>;
-    actions = (
-      <>
-        {err.provider ? <Button size="sm" onClick={() => navigate({ to: "/providers", search: { provider: err.provider } })}>Fix provider</Button> : null}
-        <Button size="sm" variant="quiet" onClick={async () => {
-          try { await source.sendMessage(s.sessionId, "Please retry the last step."); toast.success("Retry sent", { description: s.title }); refresh(s.sessionId); }
-          catch (e: any) { toast.error("Couldn't retry", { description: e?.message }); }
-        }}>Retry</Button>
-      </>
-    );
-  } else {
-    body = pauseSentence(s) || "Paused by a usage limit.";
-    actions = <Button size="sm" onClick={() => navigate({ to: "/providers" })}>Open provider</Button>;
-  }
-  return (
-    <div className="flex flex-wrap items-start gap-x-3 gap-y-2 border-t border-line-subtle px-4 py-3 first:border-t-0">
-      <StateGlyph state={st.key} className="mt-[5px]" />
-      <div className="min-w-0 flex-1 basis-[240px]">
-        <Link to="/s/$sessionId" params={{ sessionId: s.sessionId }} className="text-sm font-semibold hover:underline underline-offset-2 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">{s.title}</Link>
-        <p className="mt-0.5 text-sm text-fg/85">{body}</p>
-        <p className="mt-1 text-xs text-faint"><span className="font-mono">{s.agentId}</span> · {ago(s.updatedAt)}</p>
-      </div>
-      <div className="ml-[22px] flex shrink-0 flex-wrap items-center gap-1.5 self-center sm:ml-0 sm:justify-end">{actions}</div>
-    </div>
-  );
-}
-
-function lowerFirst(s: string) {
-  return s.charAt(0).toLowerCase() + s.slice(1);
 }
 
 function WaitingRow({ session: s }: { session: Session }) {
@@ -199,7 +151,7 @@ function WaitingRow({ session: s }: { session: Session }) {
       <span className="w-[58px] shrink-0 leading-tight">
         {at ? (
           <>
-            <span className="block font-mono text-sm tabular-nums text-fg">{clock(at)}</span>
+            <span className="block text-sm font-medium tabular-nums text-fg">{clock(at)}</span>
             <span className="block text-xs text-faint">{until(at)}</span>
           </>
         ) : <StateGlyph state="waiting" />}
@@ -294,12 +246,13 @@ export function OutputCard({ output: o, index }: { output: Artifact & { session:
   const slot = canvasSlot(o.filename);
   const { source } = useSource();
   // Canvases are named by what they show, so read the page (cached per revision).
-  const { data: html } = useQuery({
+  const { data: html, isLoading: htmlLoading } = useQuery({
     queryKey: ["artifact-text", o.session.sessionId, o.filename, o.updatedAt],
     queryFn: () => source.readArtifact(o.session.sessionId, o.filename),
     enabled: canvas,
     staleTime: 60_000,
   });
+  const loadingName = canvas && htmlLoading;
   const name = canvas ? canvasName(html, slot) : o.filename;
   // The unseen dot follows the same rule as the session's Canvas tab: the primary canvas.
   const unseen = canvas && slot === 1 && o.session.unseenCanvas;
@@ -318,7 +271,7 @@ export function OutputCard({ output: o, index }: { output: Artifact & { session:
         {unseen ? <span className="absolute right-2 top-2 size-2 rounded-full bg-accent" aria-label="Updated since you looked" /> : null}
       </div>
       <div className="min-w-0 p-2.5">
-        <div className="truncate text-sm font-medium transition-colors duration-(--duration-fast) group-hover:text-accent"><span className="sr-only">{canvas ? "Canvas" : "File"}: </span>{name}</div>
+        <div className="truncate text-sm font-medium transition-colors duration-(--duration-fast) group-hover:text-accent"><span className="sr-only">{canvas ? "Canvas" : "File"}: </span>{loadingName ? <span className="block h-4 w-2/3 rounded-chip bg-raised" aria-hidden /> : name}</div>
         <div className="mt-0.5 flex items-baseline gap-2 text-xs text-muted">
           <span className="min-w-0 flex-1 truncate">{o.session.title}</span>
           <span className="shrink-0 tabular-nums text-faint">{ago(o.updatedAt as any)}</span>
