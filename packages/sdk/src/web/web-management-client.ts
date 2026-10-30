@@ -1,4 +1,5 @@
 import type { ApiClient } from "pilotswarm-sdk/api";
+import { assertStrictAnswerBinding } from "../answer-binding.js";
 import {
     PilotSwarmWebOptions,
     createApiClientFromOptions,
@@ -308,6 +309,8 @@ export class WebPilotSwarmManagementClient {
     }
 
     async sendAnswer(sessionId: string, answer: string, options?: { expectedQuestion?: { question: string; iteration?: number } | null; requireQuestionMatch?: boolean }): Promise<void> {
+        // Strict binding fails here, before any request, exactly as the direct client does.
+        if (options?.requireQuestionMatch === true) assertStrictAnswerBinding(options.expectedQuestion);
         await this._api.call("sendAnswer", { sessionId, answer, options });
     }
 

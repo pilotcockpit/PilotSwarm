@@ -169,7 +169,7 @@ describe("bound answers, orchestration 1.0.83", () => {
         h.messages.push({ answer: "Delete old files", expectedQuestion: first, requireQuestionMatch: true });
         h.step();
         expect(h.turns).toEqual([]);
-        expect(rejected(h)[0].data).toEqual(expect.objectContaining({ reason: "stale-question", currentQuestion: null }));
+        expect(rejected(h)[0].data).toEqual(expect.objectContaining({ reason: "no-open-question", currentQuestion: null }));
     });
 
     it("requireQuestionMatch with no expected question is rejected, never guessed", () => {
@@ -178,7 +178,7 @@ describe("bound answers, orchestration 1.0.83", () => {
         h.step();
         expect(h.turns).toEqual([]);
         expect(h.runtime.state.pendingInputQuestion?.question).toBe("second?");
-        expect(rejected(h)).toHaveLength(1);
+        expect(rejected(h)).toEqual([expect.objectContaining({ data: expect.objectContaining({ reason: "invalid-binding" }) })]);
     });
 
     it("a rejected answer leaves the question's hold timer running", () => {
@@ -212,6 +212,85 @@ describe("bound answers, orchestration 1.0.83", () => {
     });
 });
 
+describe("a strict answer never runs without a valid binding", () => {
+    const run = (overrides, message) => {
+        const h = harness(LIVE, overrides);
+        h.messages.push(message);
+        h.results.push({ type: "completed", content: "done" });
+        h.step();
+        return h;
+    };
+    const expectRejected = (h, reason) => {
+        expect(h.turns).toEqual([]);
+        expect(rejected(h).map(e => e.data.reason)).toEqual([reason]);
+    };
+
+    it("an empty {} binding with no question open is invalid, not a match of undefined with undefined", () => {
+        expectRejected(run({}, { answer: "Delete old files", expectedQuestion: {}, requireQuestionMatch: true }), "invalid-binding");
+    });
+
+    it("an empty {} binding with a question open is invalid", () => {
+        const h = run({ pendingInputQuestion: { ...OPEN } }, { answer: "Delete old files", expectedQuestion: {}, requireQuestionMatch: true });
+        expectRejected(h, "invalid-binding");
+        expect(h.runtime.state.pendingInputQuestion?.question).toBe("second?");
+    });
+
+    it("an omitted binding is never guessed from the question that happens to be open", () => {
+        const h = run({ pendingInputQuestion: { ...OPEN } }, { answer: "Delete old files", requireQuestionMatch: true });
+        expectRejected(h, "invalid-binding");
+        expect(h.runtime.state.pendingInputQuestion?.question).toBe("second?");
+    });
+
+    it("a null binding is invalid", () => {
+        expectRejected(run({ pendingInputQuestion: { ...OPEN } }, { answer: "x", expectedQuestion: null, requireQuestionMatch: true }), "invalid-binding");
+    });
+
+    it("an empty or non-string question text is invalid", () => {
+        expectRejected(run({}, { answer: "x", expectedQuestion: { question: "" }, requireQuestionMatch: true }), "invalid-binding");
+        expectRejected(run({ pendingInputQuestion: { ...OPEN } }, { answer: "x", expectedQuestion: { question: 7 }, requireQuestionMatch: true }), "invalid-binding");
+    });
+
+    it("a valid binding with no question open is no-open-question", () => {
+        expectRejected(run({}, { answer: "x", expectedQuestion: { question: "second?" }, requireQuestionMatch: true }), "no-open-question");
+    });
+
+    it("a valid binding to another question or iteration is stale-question", () => {
+        expectRejected(run({ pendingInputQuestion: { ...OPEN } }, { answer: "x", expectedQuestion: first, requireQuestionMatch: true }), "stale-question");
+        expectRejected(run({ pendingInputQuestion: { ...OPEN } }, { answer: "x", expectedQuestion: { question: "second?", iteration: 9 }, requireQuestionMatch: true }), "stale-question");
+    });
+
+    it("a valid binding without an iteration matches by text", () => {
+        const h = run({ pendingInputQuestion: { ...OPEN } }, { answer: "left", expectedQuestion: { question: "second?" }, requireQuestionMatch: true });
+        expect(h.turns).toHaveLength(1);
+        expect(rejected(h)).toEqual([]);
+    });
+
+    it("a persisted strict FIFO entry is re-checked after serialisation", () => {
+        for (const item of [
+            { kind: "answer", answer: "Delete old files", requireQuestionMatch: true },
+            { kind: "answer", answer: "Delete old files", expectedQuestion: {}, requireQuestionMatch: true },
+            { kind: "answer", answer: "Delete old files", expectedQuestion: first, requireQuestionMatch: true },
+        ]) {
+            const h = harness(LIVE, { pendingInputQuestion: { ...OPEN } });
+            liveQueue.appendToFifo(h.runtime, [JSON.parse(JSON.stringify(item))]);
+            h.results.push({ type: "completed", content: "done" });
+            h.step();
+            expect(h.turns).toEqual([]);
+            expect(rejected(h)).toHaveLength(1);
+            expect(h.runtime.state.pendingInputQuestion?.question).toBe("second?");
+        }
+    });
+
+    it("lenient callers are unchanged, including an empty binding", () => {
+        const h = run({}, { answer: "Delete old files", expectedQuestion: {} });
+        expect(h.turns).toHaveLength(1);
+        expect(h.turns[0][0]).toBe("Delete old files");
+        expect(rejected(h)).toEqual([]);
+        const g = run({ pendingInputQuestion: { ...OPEN } }, { answer: "left" });
+        expect(g.turns[0][0]).toMatch(/The user was asked: "second\?"/);
+    });
+});
+
 describe("the frozen 1.0.82 handler stays lenient", () => {
     it("ignores requireQuestionMatch: a stale bound answer still runs as a prompt", () => {
         const h = harness(FROZEN_1_0_82, { pendingInputQuestion: { ...OPEN } });
@@ -221,5 +300,16 @@ describe("the frozen 1.0.82 handler stays lenient", () => {
         expect(h.turns).toHaveLength(1);
         expect(h.turns[0][0]).toBe("Delete old files");
         expect(rejected(h)).toEqual([]);
+    });
+
+    it("ignores a strict answer with an empty or omitted binding too", () => {
+        for (const message of [{ answer: "Delete old files", expectedQuestion: {}, requireQuestionMatch: true }, { answer: "Delete old files", requireQuestionMatch: true }]) {
+            const h = harness(FROZEN_1_0_82, {});
+            h.messages.push(message);
+            h.results.push({ type: "completed", content: "done" });
+            h.step();
+            expect(h.turns).toHaveLength(1);
+            expect(rejected(h)).toEqual([]);
+        }
     });
 });

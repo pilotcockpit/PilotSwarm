@@ -891,7 +891,7 @@ saw. `processAnswer` compares it with `pendingInputQuestion`:
 |---|---|---|
 | matches the open question | the question closes; the turn prompt names the question and the reply | same |
 | does not match (another writer answered, a newer question is open, a client reconnected on stale state) | kept as ordinary input: the raw answer runs as a prompt and the open question stays open | **no turn runs.** The open question and its hold timer are left alone. One `session.answer_rejected` event is recorded |
-| no `expectedQuestion` to match | kept as ordinary input | rejected the same way (fail closed); the management client refuses to send this combination in the first place |
+| no valid binding: `expectedQuestion` omitted, `null`, `{}`, or without a non-empty `question` string | kept as ordinary input | rejected the same way (fail closed). The stash never guesses a binding for a strict answer, and the management and web clients refuse to send this combination in the first place |
 
 The lenient path exists so a person's words are never lost. It is wrong for an
 answer that is a command in disguise, such as the choice "Delete old files": run
@@ -899,8 +899,12 @@ against a newer question it executes something nobody asked for. A caller that
 cannot afford that sets the flag. Existing callers (the TUI, reconnecting
 clients) do not, and are unchanged.
 
-`session.answer_rejected` data: `{ reason: "stale-question", expectedQuestion,
-currentQuestion }`, where `currentQuestion` is `{question, iteration}` or `null`.
+`session.answer_rejected` data: `{ reason, expectedQuestion, currentQuestion }`, where
+`reason` is `invalid-binding` (no usable `{question, iteration?}`), `no-open-question`
+(a valid binding, but nothing is being asked) or `stale-question` (another question, or
+another iteration, is open), and `currentQuestion` is `{question, iteration}` or `null`.
+A strict answer needs all three: a valid binding, an open question, and the same text
+(and the same iteration, when one was given).
 Clients show it ("the question changed, review it and answer again") and offer the
 current question; the rejected text is not queued anywhere.
 

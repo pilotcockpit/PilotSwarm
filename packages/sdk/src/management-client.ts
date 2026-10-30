@@ -11,6 +11,7 @@
  * @module
  */
 
+import { assertStrictAnswerBinding } from "./answer-binding.js";
 import {
     RESPONSE_LATEST_KEY,
     commandResponseKey,
@@ -4154,12 +4155,7 @@ export class PilotSwarmManagementClient {
     async sendAnswer(sessionId: string, answer: string, options?: { sender?: MessageSender; expectedQuestion?: { question: string; iteration?: number } | null; requireQuestionMatch?: boolean }): Promise<void> {
         this._ensureStarted();
         const requireQuestionMatch = options?.requireQuestionMatch === true;
-        if (requireQuestionMatch && !options?.expectedQuestion) {
-            throw new Error(
-                "sendAnswer: requireQuestionMatch needs an expectedQuestion, the question the answer was written for. " +
-                "Pass { question, iteration } as observed, or drop requireQuestionMatch to answer whichever question is open.",
-            );
-        }
+        if (requireQuestionMatch) assertStrictAnswerBinding(options?.expectedQuestion);
         const orchId = `session-${sessionId}`;
         await this._assertOrchestrationLive(orchId, sessionId, "sendAnswer");
         const expectedQuestion = options?.expectedQuestion !== undefined

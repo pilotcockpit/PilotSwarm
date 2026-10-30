@@ -45,6 +45,16 @@ test("requireQuestionMatch without an expected question fails closed and enqueue
     assert.deepEqual(enqueued, []);
 });
 
+test("a strict binding must be an object with a non-empty question text and a numeric iteration, if any", async () => {
+    const { client, enqueued } = makeClient({ pending: asked });
+    for (const bad of [{}, { question: "" }, { question: 5 }, { question: "q", iteration: "3" }, { iteration: 3 }, "first?", [], 0]) {
+        await assert.rejects(() => client.sendAnswer("s-1", "left", { expectedQuestion: bad, requireQuestionMatch: true }), /non-empty text/, JSON.stringify(bad));
+    }
+    assert.deepEqual(enqueued, []);
+    await client.sendAnswer("s-1", "left", { expectedQuestion: { question: "first?" }, requireQuestionMatch: true });
+    assert.equal(enqueued.length, 1, "an iteration is optional");
+});
+
 test("an answer that does not opt in is byte-identical to what older clients sent", async () => {
     const { client, enqueued } = makeClient({ pending: asked });
     await client.sendAnswer("s-1", "left", { expectedQuestion: asked });
@@ -66,6 +76,19 @@ test("the web client sends the option to the API", async () => {
     client._api = { call: async (name, params) => { calls.push({ name, params }); } };
     await client.sendAnswer("s-1", "left", { expectedQuestion: asked, requireQuestionMatch: true });
     assert.deepEqual(calls, [{ name: "sendAnswer", params: { sessionId: "s-1", answer: "left", options: { expectedQuestion: asked, requireQuestionMatch: true } } }]);
+});
+
+test("the web client validates a strict binding before any API request", async () => {
+    const calls = [];
+    const client = Object.create(WebPilotSwarmManagementClient.prototype);
+    client._api = { call: async (name, params) => { calls.push({ name, params }); } };
+    for (const bad of [undefined, null, {}, { question: "" }, { question: "q", iteration: "x" }]) {
+        await assert.rejects(() => client.sendAnswer("s-1", "left", { expectedQuestion: bad, requireQuestionMatch: true }), /non-empty text/);
+    }
+    await assert.rejects(() => client.sendAnswer("s-1", "left", { requireQuestionMatch: true }), /non-empty text/);
+    assert.deepEqual(calls, [], "no request was made");
+    await client.sendAnswer("s-1", "left", { expectedQuestion: asked });
+    assert.equal(calls.length, 1, "an answer that does not opt in is not validated here");
 });
 
 test("the sendAnswer operation documents the option", () => {
