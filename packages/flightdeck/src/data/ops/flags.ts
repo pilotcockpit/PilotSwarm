@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useSource } from "@/data/source";
 import { useOpQuery } from "./use-op";
 import type { Worker } from "@/data/types";
+import { describeFlagChange, type FlagChangeView } from "./contracts";
 
 // Feature flags have three layers: the code-defined default, the cluster policy an admin sets
 // (on/off, and whether people may choose for themselves), and each person's own choice. The API
@@ -28,7 +29,7 @@ export interface FlagView {
 }
 export interface FlagsData { userId: number | null; flags: FlagView[] }
 export interface FlagUser { userId: number; displayName: string | null; email: string | null; subject?: string; provider?: string }
-export interface FlagChange { auditId?: string; at?: string; actor: string; action: string; featureKey: string; summary: string }
+export type FlagChange = FlagChangeView;
 
 export type Policy = { enabled: boolean; allowUserOverride: boolean };
 export const clusterPolicy = (f: FlagView): Policy => ({ enabled: f.cluster?.enabled ?? f.defaultEnabled, allowUserOverride: f.cluster?.allowUserOverride ?? f.defaultAllowUserOverride });
@@ -75,20 +76,13 @@ export function useFlagChanges(enabled = true) {
   return useOpQuery<FlagChange[]>(flagKeys.changes, "listFeatureFlagChanges", { limit: 100 }, {
     enabled,
     staleTime: 10_000,
-    select: (raw) => (Array.isArray(raw) ? raw : raw?.changes || []).map((r: any): FlagChange => {
-      const d = r.details && typeof r.details === "object" ? r.details : {};
-      const featureKey = String(d.featureKey || d.feature_key || String(r.target || "").replace(/^feature[:/]/, "") || "");
-      const scope = d.scope || (r.action === "feature_flag.user_adopt" ? "user" : "cluster");
-      const action = String(r.action || "");
-      const what = action.endsWith("unset") ? (scope === "cluster" ? "reset to the default" : "removed a personal choice") : d.enabled === true ? "turned on" : d.enabled === false ? "turned off" : "changed";
-      const extra = scope === "cluster" && d.allowUserOverride === false ? ", locked for everyone" : scope === "cluster" && d.allowUserOverride === true && d.enabled != null ? ", people can choose" : "";
-      return { auditId: r.audit_id || r.auditId, at: r.occurred_at || r.occurredAt || r.at, actor: String(r.actor_subject || r.actorSubject || r.actor || "An admin"), action, featureKey, summary: `${what}${scope === "user" ? " for one person" : extra}` };
-    }),
+    select: (raw) => (Array.isArray(raw) ? raw : raw?.changes || []).map(describeFlagChange),
   });
 }
 
-type Target = { kind: "cluster" } | { kind: "me" } | { kind: "user"; userId: number };
-interface Mutation { featureKey: string; expectedRevision: string; enabled?: boolean; allowUserOverride?: boolean; /** unset/reset instead of set */ clear?: boolean }
+export type FlagTarget = { kind: "cluster" } | { kind: "me" } | { kind: "user"; userId: number };
+/** `target` travels with the write (and with its Undo), so a late click can never act on whoever is selected now. */
+export interface Mutation { target: FlagTarget; featureKey: string; expectedRevision: string; enabled?: boolean; allowUserOverride?: boolean; /** unset/reset instead of set */ clear?: boolean }
 export interface MutationResult { featureKey: string; revision: string; setting: FlagSetting | null }
 
 /**
@@ -96,7 +90,7 @@ export interface MutationResult { featureKey: string; revision: string; setting:
  * else changed the flag meanwhile the server refuses it, we refresh, and the person sees the new
  * state instead of losing their edit silently. A retry of the same write reuses its request id.
  */
-export function useFlagMutation(target: Target) {
+export function useFlagMutation() {
   const { source } = useSource();
   const qc = useQueryClient();
   const refresh = () => {
@@ -105,10 +99,8 @@ export function useFlagMutation(target: Target) {
   };
   return useMutation({
     mutationFn: async (m: Mutation): Promise<MutationResult> => {
-      const base = { featureKey: m.featureKey, expectedRevision: m.expectedRevision, requestId: requestId() };
-      if (target.kind === "cluster") return source.call(m.clear ? "resetClusterFeatureFlag" : "setClusterFeatureFlag", m.clear ? base : { ...base, enabled: m.enabled, allowUserOverride: m.allowUserOverride });
-      if (target.kind === "me") return source.call(m.clear ? "unsetMyFeatureFlag" : "setMyFeatureFlag", m.clear ? base : { ...base, enabled: m.enabled });
-      return source.call(m.clear ? "unsetUserFeatureFlag" : "setUserFeatureFlag", m.clear ? { ...base, userId: target.userId } : { ...base, userId: target.userId, enabled: m.enabled });
+      const { op, params } = flagWriteCall(m, requestId());
+      return source.call(op, params);
     },
     onSuccess: refresh,
     onError: (e: any) => {
@@ -138,4 +130,13 @@ export function flagDelivery(flag: FlagView, workers: Worker[] = [], now = Date.
     if (validRevision(applied) && BigInt(applied) >= BigInt(flag.revision)) updated += 1;
   }
   return { eligible, updated };
+}
+
+/** The operation and parameters one flag write sends. Pure, so the target binding can be tested. */
+export function flagWriteCall(m: Mutation, id: string): { op: string; params: Record<string, unknown> } {
+  const { target } = m;
+  const base = { featureKey: m.featureKey, expectedRevision: m.expectedRevision, requestId: id };
+  if (target.kind === "cluster") return m.clear ? { op: "resetClusterFeatureFlag", params: base } : { op: "setClusterFeatureFlag", params: { ...base, enabled: m.enabled, allowUserOverride: m.allowUserOverride } };
+  if (target.kind === "me") return m.clear ? { op: "unsetMyFeatureFlag", params: base } : { op: "setMyFeatureFlag", params: { ...base, enabled: m.enabled } };
+  return m.clear ? { op: "unsetUserFeatureFlag", params: { ...base, userId: target.userId } } : { op: "setUserFeatureFlag", params: { ...base, userId: target.userId, enabled: m.enabled } };
 }

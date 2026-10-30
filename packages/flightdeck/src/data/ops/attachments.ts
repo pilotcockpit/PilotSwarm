@@ -45,24 +45,70 @@ const extFor = (type: string, name: string) => ({ "image/png": "png", "image/jpe
 const safeName = (name: string) => name.replace(/[^\w.\- ()]+/g, "_").replace(/\s+/g, " ").trim().slice(0, 120) || "file";
 
 /** "report.csv" taken becomes "report (2).csv": never overwrite a file the session already has. */
-function uniqueName(name: string, taken: Set<string>) {
+function uniqueName(name: string, taken: Set<string>, makeId: () => string) {
   if (!taken.has(name)) return name;
   const dot = name.lastIndexOf(".");
   const stem = dot > 0 ? name.slice(0, dot) : name;
   const ext = dot > 0 ? name.slice(dot) : "";
   for (let n = 2; n < 100; n++) if (!taken.has(`${stem} (${n})${ext}`)) return `${stem} (${n})${ext}`;
-  return `${stem}-${newId().slice(0, 6)}${ext}`;
+  return `${stem}-${makeId().slice(0, 6)}${ext}`;
 }
+
+export interface AttachmentPlan { staged: Array<{ item: Attachment; file: File }>; rejected: string[] }
+
+/**
+ * Decide, without awaiting anything, which of `incoming` join the tray. `existing` is the tray as it
+ * is right now, including files another add() already reserved, so two adds in flight can never pick
+ * the same name or break the count and size limits together. `known` is the session's current files.
+ */
+export function planAttachments(incoming: File[], existing: Attachment[], known: Iterable<string>, make: { newId: () => string; previewUrl?: (file: File) => string }): AttachmentPlan {
+  const taken = new Set<string>([...known, ...existing.map((a) => a.artifact)]);
+  let images = existing.filter((a) => a.kind === "image" && a.status !== "error");
+  let imageBytes = images.reduce((n, a) => n + a.size, 0);
+  let fileCount = existing.filter((a) => a.kind === "file" && a.status !== "error").length;
+  const staged: AttachmentPlan["staged"] = [];
+  const rejected: string[] = [];
+  for (const file of incoming.filter(Boolean)) {
+    const type = (file.type || "").toLowerCase();
+    const isImage = IMAGE_TYPES.has(type);
+    if (file.size === 0) { rejected.push(`${file.name || "That file"} is empty`); continue; }
+    if (isImage) {
+      if (file.size > IMAGE_MAX_BYTES) { rejected.push(`${file.name || "Image"} is over ${formatBytes(IMAGE_MAX_BYTES)}`); continue; }
+      if (images.length >= IMAGE_MAX_COUNT) { rejected.push(`Only ${IMAGE_MAX_COUNT} images fit in one message`); continue; }
+      if (imageBytes + file.size > IMAGE_MAX_TOTAL) { rejected.push(`Images together are over ${formatBytes(IMAGE_MAX_TOTAL)}`); continue; }
+    } else {
+      if (file.size > FILE_MAX_BYTES) { rejected.push(`${file.name || "File"} is over ${formatBytes(FILE_MAX_BYTES)}`); continue; }
+      if (fileCount >= FILE_MAX_COUNT) { rejected.push(`Only ${FILE_MAX_COUNT} files fit in one message`); continue; }
+    }
+    const base = isImage ? `attach-${make.newId().slice(0, 8)}.${extFor(type, file.name)}` : safeName(file.name || `file.${extFor(type, "")}`);
+    const artifact = uniqueName(base, taken, make.newId);
+    taken.add(artifact);
+    const item: Attachment = { id: make.newId(), name: file.name || artifact, artifact, size: file.size, type: type || "application/octet-stream", kind: isImage ? "image" : "file", status: "uploading", ...(isImage && make.previewUrl ? { previewUrl: make.previewUrl(file) } : {}) };
+    if (isImage) { images = [...images, item]; imageBytes += file.size; } else fileCount += 1;
+    staged.push({ item, file });
+  }
+  return { staged, rejected };
+}
+
+/** What is left in the tray after a send: only the attachments that were part of it go. */
+export const withoutSent = (items: Attachment[], sentIds: Iterable<string>) => { const sent = new Set(sentIds); return items.filter((a) => !sent.has(a.id)); };
 
 export function useAttachments(sessionId: string) {
   const { source } = useSource();
   const [items, setItems] = React.useState<Attachment[]>([]);
   const itemsRef = React.useRef<Attachment[]>([]);
   itemsRef.current = items;
+  // Uploads whose chip was removed (or whose session was left) while they ran: delete them when they land.
+  const cancelled = React.useRef(new Set<string>());
 
   const revoke = (a: Attachment) => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl); };
+  const setTray = (next: Attachment[]) => { itemsRef.current = next; setItems(next); };
   // A different session starts with an empty tray.
-  React.useEffect(() => () => { itemsRef.current.forEach(revoke); setItems([]); }, [sessionId]);
+  React.useEffect(() => () => {
+    for (const a of itemsRef.current) { revoke(a); if (a.status === "uploading") cancelled.current.add(a.id); }
+    itemsRef.current = [];
+    setItems([]);
+  }, [sessionId]);
 
   const patch = (id: string, change: Partial<Attachment>) => setItems((cur) => cur.map((a) => (a.id === id ? { ...a, ...change } : a)));
 
@@ -70,41 +116,27 @@ export function useAttachments(sessionId: string) {
     const incoming = files.filter(Boolean);
     if (!incoming.length) return;
     const known = await source.listArtifacts(sessionId).catch(() => []);
-    const taken = new Set<string>([...known.map((a) => a.filename), ...itemsRef.current.map((a) => a.artifact)]);
-    let images = itemsRef.current.filter((a) => a.kind === "image" && a.status !== "error");
-    let imageBytes = images.reduce((n, a) => n + a.size, 0);
-    let fileCount = itemsRef.current.filter((a) => a.kind === "file" && a.status !== "error").length;
-    const staged: Array<{ item: Attachment; file: File }> = [];
-    const rejected: string[] = [];
-    for (const file of incoming) {
-      const type = (file.type || "").toLowerCase();
-      const isImage = IMAGE_TYPES.has(type);
-      if (file.size === 0) { rejected.push(`${file.name || "That file"} is empty`); continue; }
-      if (isImage) {
-        if (file.size > IMAGE_MAX_BYTES) { rejected.push(`${file.name || "Image"} is over ${formatBytes(IMAGE_MAX_BYTES)}`); continue; }
-        if (images.length >= IMAGE_MAX_COUNT) { rejected.push(`Only ${IMAGE_MAX_COUNT} images fit in one message`); continue; }
-        if (imageBytes + file.size > IMAGE_MAX_TOTAL) { rejected.push(`Images together are over ${formatBytes(IMAGE_MAX_TOTAL)}`); continue; }
-      } else {
-        if (file.size > FILE_MAX_BYTES) { rejected.push(`${file.name || "File"} is over ${formatBytes(FILE_MAX_BYTES)}`); continue; }
-        if (fileCount >= FILE_MAX_COUNT) { rejected.push(`Only ${FILE_MAX_COUNT} files fit in one message`); continue; }
-      }
-      const base = isImage ? `attach-${newId().slice(0, 8)}.${extFor(type, file.name)}` : safeName(file.name || `file.${extFor(type, "")}`);
-      const artifact = uniqueName(base, taken);
-      taken.add(artifact);
-      const item: Attachment = { id: newId(), name: file.name || artifact, artifact, size: file.size, type: type || "application/octet-stream", kind: isImage ? "image" : "file", status: "uploading", ...(isImage ? { previewUrl: URL.createObjectURL(file) } : {}) };
-      if (isImage) { images = [...images, item]; imageBytes += file.size; } else fileCount += 1;
-      staged.push({ item, file });
-    }
+    // No await from here to setTray: a second add() that was waiting on the same listing runs after
+    // this one and sees these reservations, so names, counts and sizes are decided once.
+    const { staged, rejected } = planAttachments(incoming, itemsRef.current, known.map((a) => a.filename), { newId, previewUrl: (f) => URL.createObjectURL(f) });
     if (rejected.length) toast.warning(rejected.length === 1 ? rejected[0] : "Some files were not added", { description: rejected.length === 1 ? undefined : rejected.join(". ") + "." });
     if (!staged.length) return;
-    setItems((cur) => [...cur, ...staged.map((s) => s.item)]);
+    setTray([...itemsRef.current, ...staged.map((s) => s.item)]);
     await Promise.all(staged.map(async ({ item, file }) => {
+      let uploaded = false;
       try {
         const content = toBase64(new Uint8Array(await file.arrayBuffer()));
         await source.call("uploadArtifact", { sessionId, filename: item.artifact, content, contentType: item.type, contentEncoding: "base64" });
+        uploaded = true;
+        if (cancelled.current.delete(item.id)) {
+          // The chip was removed while this ran: do not leave the file behind.
+          void source.call("deleteArtifact", { sessionId, filename: item.artifact }).catch(() => undefined);
+          return;
+        }
         patch(item.id, { status: "ready" });
       } catch (e: any) {
-        patch(item.id, { status: "error", error: e?.message || "Upload failed" });
+        if (cancelled.current.delete(item.id)) return;
+        patch(item.id, { status: uploaded ? "ready" : "error", error: e?.message || "Upload failed" });
       }
     }));
   }, [source, sessionId]);
@@ -113,13 +145,18 @@ export function useAttachments(sessionId: string) {
     const gone = itemsRef.current.find((a) => a.id === id);
     if (!gone) return;
     revoke(gone);
-    setItems((cur) => cur.filter((a) => a.id !== id));
+    setTray(itemsRef.current.filter((a) => a.id !== id));
+    if (gone.status === "uploading") cancelled.current.add(id);
     // Best effort: a writer who cannot manage files keeps the upload, which is harmless.
-    if (gone.status === "ready") void source.call("deleteArtifact", { sessionId, filename: gone.artifact }).catch(() => undefined);
+    else if (gone.status === "ready") void source.call("deleteArtifact", { sessionId, filename: gone.artifact }).catch(() => undefined);
   }, [source, sessionId]);
 
-  /** After a successful send the files belong to the conversation: clear the tray, keep the uploads. */
-  const clear = React.useCallback(() => { itemsRef.current.forEach(revoke); setItems([]); }, []);
+  /** After a successful send the sent files belong to the conversation: clear those chips, keep the uploads and any chip added since. */
+  const clear = React.useCallback((sentIds?: string[]) => {
+    const keep = sentIds ? withoutSent(itemsRef.current, sentIds) : [];
+    for (const a of itemsRef.current) if (!keep.includes(a)) revoke(a);
+    setTray(keep);
+  }, []);
 
   const ready = items.filter((a) => a.status === "ready");
   return { items, add, remove, clear, ready, uploading: items.some((a) => a.status === "uploading"), hasFailed: items.some((a) => a.status === "error") };

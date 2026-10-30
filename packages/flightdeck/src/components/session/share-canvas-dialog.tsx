@@ -52,23 +52,37 @@ function CopyField({ label, value, className }: { label: string; value: string; 
  * A public link is shown once, when it is made, because the server keeps only its hash.
  */
 export function ShareCanvasDialog({ sessionId, slot, name, open, onOpenChange }: { sessionId: string; slot: number; name?: string; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const link = useShareLink(sessionId, slot, open);
   const kv = useKvAccess(sessionId, slot, open);
+  // The server's own answer decides: only the owner or an admin may make, rotate or remove a public link.
+  const relation = kv.data?.me?.relation;
+  const canManage = relation === "owner" || relation === "admin";
+  const link = useShareLink(sessionId, slot, open && canManage);
   const mint = useMintShareLink(sessionId, slot);
   const remove = useRemoveShareLink(sessionId, slot);
   const setAccess = useSetKvAccess(sessionId, slot);
   const [fresh, setFresh] = React.useState<string | null>(null);
   const [confirm, setConfirm] = React.useState<"rotate" | "remove" | null>(null);
-  React.useEffect(() => { if (!open) { setFresh(null); setConfirm(null); } }, [open]);
+  // A new link is shown once, to the dialog that asked for it. Closing it (or moving to another canvas)
+  // ends that lifetime: a response that lands afterwards is dropped, never shown on a later open.
+  const generation = React.useRef(0);
+  React.useEffect(() => {
+    generation.current += 1;
+    setFresh(null);
+    setConfirm(null);
+    mint.reset();
+  }, [open, sessionId, slot]);
 
   const sessionUrl = `${window.location.origin}/s/${encodeURIComponent(sessionId)}?view=canvas&slot=${slot}`;
   const make = async () => {
+    const mine = generation.current;
     const r = await mint.mutateAsync();
+    // The token is only ever in this variable and in `fresh`: drop the mutation's own copy right away.
+    mint.reset();
+    if (generation.current !== mine) return;
     setFresh(`${publicShareOrigin()}/?canvasShare=${encodeURIComponent(r.token)}`);
   };
   const policy = kv.data?.policy ?? "owner";
-  const relation = kv.data?.me?.relation;
-  const canSetAccess = relation === "owner" || relation === "admin";
+  const canSetAccess = canManage;
   const exists = link.data?.exists || Boolean(fresh);
 
   return (
@@ -85,10 +99,10 @@ export function ShareCanvasDialog({ sessionId, slot, name, open, onOpenChange }:
             <section aria-labelledby="share-public" className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <h3 id="share-public" className="text-sm font-semibold">Anyone with the link</h3>
-                {exists ? <Tag tone="live">Link active</Tag> : <Tag>Off</Tag>}
+                {!canManage ? null : exists ? <Tag tone="live">Link active</Tag> : <Tag>Off</Tag>}
               </div>
               <p className="text-sm text-muted">View only, live, no sign-in. There is one link at a time.</p>
-              {link.isLoading ? <Skeleton className="h-9" /> : fresh ? (
+              {!canManage ? <p className="text-sm text-muted">{kv.isLoading ? "Checking what you can do…" : "Only the session's owner or an admin can create, rotate or remove the public link."}</p> : link.isLoading ? <Skeleton className="h-9" /> : fresh ? (
                 <div className="flex flex-col gap-2">
                   <CopyField label="Public link" value={fresh} />
                   <p className={cn(cardVariants({ tone: "waiting" }), "flex items-start gap-2 px-3 py-2 text-sm")}>
@@ -103,7 +117,7 @@ export function ShareCanvasDialog({ sessionId, slot, name, open, onOpenChange }:
                 </p>
               ) : null}
               {link.error ? <p role="alert" className="text-sm text-failed">Couldn't check the link. {(link.error as Error).message}</p> : null}
-              <div className="flex flex-wrap gap-2">
+              {canManage ? <div className="flex flex-wrap gap-2">
                 {exists ? (
                   <>
                     <Button onClick={() => setConfirm("rotate")} disabled={mint.isPending}><Link2 /> Rotate link</Button>
@@ -112,7 +126,7 @@ export function ShareCanvasDialog({ sessionId, slot, name, open, onOpenChange }:
                 ) : (
                   <Button variant="primary" onClick={make} disabled={mint.isPending || link.isLoading}>{mint.isPending ? <Loader2 className="animate-spin" /> : <Link2 />} Create public link</Button>
                 )}
-              </div>
+              </div> : null}
             </section>
 
             {kv.data ? (

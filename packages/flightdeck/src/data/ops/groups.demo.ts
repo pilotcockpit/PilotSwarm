@@ -5,7 +5,7 @@ const groups = [
   { groupId: "g-ops", title: "Ops", memberCount: 3 },
 ];
 
-registerDemoOps({
+registerDemoOps(import.meta.url, {
   listSessionGroups: () => groups.map((g) => ({ ...g })),
   createSessionGroup: ({ input }) => {
     const g = { groupId: `g-${Math.random().toString(36).slice(2, 8)}`, title: String(input?.title || "New group").trim(), memberCount: 0 };

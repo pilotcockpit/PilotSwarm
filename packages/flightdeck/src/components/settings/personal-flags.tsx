@@ -41,7 +41,7 @@ export function PersonalFlagList({ data, target, who }: { data: FlagsData; targe
 }
 
 function PersonalRow({ flag, target, who }: { flag: FlagView; target: Target; who: string }) {
-  const mutation = useFlagMutation(target);
+  const mutation = useFlagMutation();
   const policy = clusterPolicy(flag);
   const mine = target.kind === "me";
   const choice: Choice = flag.user ? (flag.user.enabled ? "on" : "off") : "inherit";
@@ -49,9 +49,11 @@ function PersonalRow({ flag, target, who }: { flag: FlagView; target: Target; wh
   const blocked = flag.reason === "requires_native_tasks";
   const disabled = !flag.supported || (mine && locked) || mutation.isPending;
 
-  const apply = async (next: Choice, revision: string): Promise<string | null> => {
+  // The target is read once, here, when the write is made. Undo reuses this closure, so it can only
+  // ever act on the person who was selected at the time.
+  const apply = async (next: Choice, revision: string, at: Target = target): Promise<string | null> => {
     try {
-      const r = await mutation.mutateAsync(next === "inherit" ? { featureKey: flag.featureKey, expectedRevision: revision, clear: true } : { featureKey: flag.featureKey, expectedRevision: revision, enabled: next === "on" });
+      const r = await mutation.mutateAsync(next === "inherit" ? { target: at, featureKey: flag.featureKey, expectedRevision: revision, clear: true } : { target: at, featureKey: flag.featureKey, expectedRevision: revision, enabled: next === "on" });
       return r?.revision ?? null;
     } catch {
       return null; // already toasted by the mutation
@@ -60,11 +62,12 @@ function PersonalRow({ flag, target, who }: { flag: FlagView; target: Target; wh
   const choose = async (next: Choice) => {
     if (next === choice) return;
     const before = choice;
-    const revision = await apply(next, flag.revision);
+    const writtenTo = target;
+    const revision = await apply(next, flag.revision, writtenTo);
     if (!revision) return;
     toast(`${flag.displayName}: ${next === "inherit" ? `back to the default (${onOff(policy.enabled)})` : onOff(next === "on")} for ${who}`, {
       duration: 8000,
-      action: { label: "Undo", onClick: () => void apply(before, revision) },
+      action: { label: "Undo", onClick: () => void apply(before, revision, writtenTo) },
     });
   };
 

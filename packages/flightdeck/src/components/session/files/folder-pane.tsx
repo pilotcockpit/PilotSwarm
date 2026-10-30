@@ -14,6 +14,8 @@ import { FILE_CODES, base64FromBytes, baseName, bytesFromBase64, checkName, dirO
 import { ago, bytes as formatBytes, cn, plural } from "@/lib/utils";
 import { ChangesView } from "./changes-view";
 import { FileViewer, downloadBlob } from "./file-viewer";
+import { dirtyDrafts } from "./drafts";
+import { isEditable } from "./keys";
 
 type Add = null | { kind: "file" | "dir" };
 
@@ -45,7 +47,13 @@ export function FolderPane({ session, info, folder, openWorkingFolder }: { sessi
   const listRef = React.useRef<HTMLUListElement>(null);
 
   // A different folder starts at its top.
-  React.useEffect(() => { setDir(""); setOpenPath(null); setView("files"); setQuery(""); setAdding(null); setRenaming(null); }, [folder.id]);
+  // A draft left behind in this folder brings its file back, so unsaved work is where it was left.
+  React.useEffect(() => {
+    const draft = dirtyDrafts(sessionId, folder.id)[0];
+    setDir(draft ? dirOf(draft.path) : "");
+    setOpenPath(draft ? draft.path : null);
+    setView("files"); setQuery(""); setAdding(null); setRenaming(null);
+  }, [folder.id, sessionId]);
   React.useEffect(() => { const t = window.setTimeout(() => setDebounced(query.trim()), 250); return () => window.clearTimeout(t); }, [query]);
 
   const listing = useQuery({
@@ -135,13 +143,16 @@ export function FolderPane({ session, info, folder, openWorkingFolder }: { sessi
 
   // ── keyboard: arrows move through the list, Enter opens, Backspace climbs ──
   const onListKey = (e: React.KeyboardEvent) => {
+    // Only the list's own rows steer: never keys typed into a field, the editor or a menu.
+    if (isEditable(e.target)) return;
     const rows = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-row]") ?? [])];
-    const i = rows.indexOf(document.activeElement as HTMLElement);
+    const i = rows.indexOf(e.target as HTMLElement);
+    if (i < 0 && e.key === "Backspace") return;
     if (e.key === "ArrowDown" && rows.length) { e.preventDefault(); rows[Math.min(rows.length - 1, i + 1)]?.focus(); }
     else if (e.key === "ArrowUp" && rows.length) { e.preventDefault(); rows[Math.max(0, i - 1)]?.focus(); }
     else if (e.key === "Home" && rows.length) { e.preventDefault(); rows[0].focus(); }
     else if (e.key === "End" && rows.length) { e.preventDefault(); rows.at(-1)?.focus(); }
-    else if (e.key === "Backspace" && dir && !(e.target as HTMLElement).closest("input")) { e.preventDefault(); goDir(dirOf(dir)); }
+    else if (e.key === "Backspace" && dir) { e.preventDefault(); goDir(dirOf(dir)); }
   };
 
   if (!folder.available) {
@@ -192,7 +203,7 @@ export function FolderPane({ session, info, folder, openWorkingFolder }: { sessi
       {view === "changes" ? (
         <ChangesView sessionId={sessionId} folderId={folder.id} onOpenFile={openFile} />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onListKey}>
+        <div className="flex min-h-0 flex-1 flex-col">
           {!searching ? (
             <nav aria-label="Folder path" className={cn("flex min-h-9 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-line-subtle px-2 text-sm", openPath && "max-sm:hidden")}>
               {dir ? <Button variant="quiet" size="icon-sm" aria-label="Up one folder" onClick={() => goDir(dirOf(dir))}><ArrowUp /></Button> : null}
@@ -207,7 +218,7 @@ export function FolderPane({ session, info, folder, openWorkingFolder }: { sessi
             </nav>
           ) : null}
 
-          <ul ref={listRef} className={cn("min-h-0 shrink-0 overflow-y-auto", openPath ? "max-h-[38%] border-b border-line max-sm:hidden" : "flex-1")} aria-label={searching ? "Search results" : `Contents of ${dir || folder.name}`}>
+          <ul ref={listRef} onKeyDown={onListKey} className={cn("min-h-0 shrink-0 overflow-y-auto", openPath ? "max-h-[38%] border-b border-line max-sm:hidden" : "flex-1")} aria-label={searching ? "Search results" : `Contents of ${dir || folder.name}`}>
             {searching ? (
               found.isLoading ? <li className="p-3"><Skeleton className="h-9" /></li>
               : found.error ? <li className="p-3 text-sm text-failed">Search failed. {fileErrorText(found.error)}</li>

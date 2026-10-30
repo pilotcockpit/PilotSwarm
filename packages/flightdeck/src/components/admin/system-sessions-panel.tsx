@@ -8,6 +8,8 @@ import { Button, DisclosureButton } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm";
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/misc";
+import { RadioCard, RadioCards } from "@/components/ui/radio";
+import { TypedConfirmDialog } from "@/components/admin/typed-confirm";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { Loader2 } from "lucide-react";
 import { cardVariants } from "@/components/ui/card";
@@ -89,6 +91,10 @@ function RestartDialog({ session, onClose }: { session: Session; onClose: () => 
   const [advanced, setAdvanced] = React.useState(false);
   const [replace, setReplace] = React.useState(true);
   const picked = RESTART_MODES.find((m) => m.value === mode)!;
+  // Erasing history, or removing with no replacement, cannot be undone: the person types the agent's name first.
+  const irreversible = mode === "hard_delete" || !replace;
+  const [typing, setTyping] = React.useState(false);
+  const phrase = session.agentId || session.title || session.sessionId.slice(0, 8);
   const err = sessionState(session).key === "failed" ? describeError(session.error) : null;
   const go = async () => {
     const r = await restart.mutateAsync({ agentIdOrSessionId: session.agentId || session.sessionId, disposition: mode, startReplacement: replace });
@@ -100,22 +106,14 @@ function RestartDialog({ session, onClose }: { session: Session; onClose: () => 
     <Dialog open onOpenChange={(o) => !o && !restart.isPending && onClose()}>
       <DialogContent title={`Restart ${session.title}`} description={err ? `${err.headline}. ${err.detail || ""}` : "Pick how it should stop. You'll see what happened afterwards."}>
         <DialogBody className="flex flex-col gap-3">
-          <div role="radiogroup" aria-label="How to restart" className="flex flex-col gap-2">
+          <RadioCards value={mode} onValueChange={(v) => setMode(v as Disposition)} label="How to restart" className="flex flex-col gap-2">
             {RESTART_MODES.map((m) => (
-              <button
-                key={m.value}
-                type="button"
-                role="radio"
-                aria-checked={mode === m.value}
-                tabIndex={mode === m.value ? 0 : -1}
-                onClick={() => setMode(m.value)}
-                className={cn(cardVariants({ interactive: true, selected: mode === m.value }), "flex min-h-11 flex-col items-start gap-0.5 p-3 text-left")}
-              >
+              <RadioCard key={m.value} value={m.value} className="flex min-h-11 flex-col items-start gap-0.5 p-3">
                 <span className="text-sm font-semibold">{m.label}</span>
                 <span className="text-sm text-muted">{m.promise}</span>
-              </button>
+              </RadioCard>
             ))}
-          </div>
+          </RadioCards>
           <p className={cn("text-sm", picked.danger ? "text-waiting" : "text-muted")}>{picked.consequence}</p>
           <div>
             <DisclosureButton aria-expanded={advanced} onClick={() => setAdvanced((v) => !v)} className="text-xs text-muted">{advanced ? "Fewer options" : "More options"}</DisclosureButton>
@@ -129,9 +127,19 @@ function RestartDialog({ session, onClose }: { session: Session; onClose: () => 
         </DialogBody>
         <DialogFooter>
           <Button onClick={onClose} disabled={restart.isPending}>Cancel</Button>
-          <Button variant={picked.danger ? "danger" : "primary"} onClick={() => void go().catch(() => undefined)} disabled={restart.isPending}>{restart.isPending ? <Loader2 className="animate-spin" /> : null} {replace ? picked.label : "Remove"}</Button>
+          <Button variant={picked.danger ? "danger" : "primary"} onClick={() => (irreversible ? setTyping(true) : void go().catch(() => undefined))} disabled={restart.isPending}>{restart.isPending ? <Loader2 className="animate-spin" /> : null} {replace ? picked.label : "Remove"}{irreversible ? "…" : ""}</Button>
         </DialogFooter>
       </DialogContent>
+      <TypedConfirmDialog
+        open={typing}
+        onOpenChange={setTyping}
+        title={replace ? `Delete ${session.title} and restart it?` : `Remove ${session.title}?`}
+        description="This cannot be undone."
+        consequences={[mode === "hard_delete" ? "The session and its whole history are erased." : "The session is removed.", replace ? "A clean session starts in its place." : "No replacement is started."]}
+        phrase={phrase}
+        confirmLabel={replace ? "Delete and restart" : "Remove"}
+        onConfirm={go}
+      />
     </Dialog>
   );
 }

@@ -12,6 +12,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/empty";
 import { FILE_CODES, IMAGE_TYPES, base64FromBytes, baseName, bytesFromBase64, errorCode, extOf, fileErrorText, looksBinary, readText, textToBase64, useFileCall, workspaceKeys } from "@/data/ops/workspace";
 import { bytes as formatBytes, cn } from "@/lib/utils";
+import { clearDraft, draftKey, getDraft, isDirty, setDraft as storeDraft } from "./drafts";
 
 const MAX_RENDERED_LINES = 5000;
 
@@ -47,8 +48,13 @@ export function FileViewer({ sessionId, folderId, path, readOnly, onBack, onDirt
   const qc = useQueryClient();
   const name = baseName(path);
   const ext = extOf(name);
+  const dKey = draftKey(sessionId, folderId, path);
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState("");
+  // What the edit started from, frozen when Edit was pressed (or restored with a draft). A refetch,
+  // Refresh or the agent's own save never changes it: saving is checked against these bytes' etag.
+  const [editBase, setEditBase] = React.useState<{ etag: string; text: string; bom: boolean; crlf: boolean } | null>(null);
+  const [restored, setRestored] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [conflict, setConflict] = React.useState<{ etag: string | null } | null>(null);
   const [face, setFace] = React.useState<"preview" | "source">("preview");
@@ -68,16 +74,29 @@ export function FileViewer({ sessionId, folderId, path, readOnly, onBack, onDirt
   const loaded = file.data;
   const text = React.useMemo(() => (loaded && !looksBinary(loaded.bytes) ? readText(loaded.bytes) : null), [loaded]);
   const canEdit = Boolean(text) && !readOnly && !loaded?.readOnly;
-  const dirty = editing && text != null && draft !== text.text;
+  const dirty = editing && editBase != null && draft !== editBase.text;
 
   React.useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange]);
-  // Leaving the file (another path) ends any edit.
-  React.useEffect(() => { setEditing(false); setConflict(null); setFace("preview"); }, [path, folderId]);
+  // Opening a file picks up an unsaved draft left behind earlier (another tab, folder or session visit).
+  React.useEffect(() => {
+    const d = getDraft(dKey);
+    setConflict(null);
+    if (d) {
+      setEditBase({ etag: d.etag, text: d.baseText, bom: d.bom, crlf: d.crlf });
+      setDraft(d.text);
+      setEditing(true);
+      setFace("source");
+      setRestored(isDirty(d));
+    } else {
+      setEditing(false);
+      setEditBase(null);
+      setRestored(false);
+      setFace("preview");
+    }
+  }, [dKey]);
   React.useEffect(() => { if (file.error && errorCode(file.error) === FILE_CODES.NOT_FOUND) onGone(); }, [file.error, onGone]);
 
   // While editing, watch for the file changing on disk (the agent works in these folders too).
-  const baseEtag = React.useRef<string | null>(null);
-  React.useEffect(() => { if (editing && loaded && baseEtag.current == null) baseEtag.current = loaded.etag; if (!editing) baseEtag.current = null; }, [editing, loaded]);
   const changedUnderneath = useQuery({
     queryKey: [...key, "stat"],
     queryFn: async () => (await call<any>({ op: "stat", folder: folderId, path })).etag as string,
@@ -85,20 +104,34 @@ export function FileViewer({ sessionId, folderId, path, readOnly, onBack, onDirt
     refetchInterval: 8_000,
     retry: false,
   });
-  const stale = editing && baseEtag.current != null && changedUnderneath.data != null && changedUnderneath.data !== baseEtag.current;
+  const stale = editing && editBase != null && changedUnderneath.data != null && changedUnderneath.data !== editBase.etag;
 
-  const startEdit = () => { if (!text) return; setDraft(text.text); setEditing(true); setFace("source"); };
-  const discard = () => { setEditing(false); setConflict(null); };
+  const startEdit = () => {
+    if (!text || !loaded) return;
+    const base = { etag: loaded.etag, text: text.text, bom: text.bom, crlf: text.crlf };
+    setEditBase(base);
+    setDraft(base.text);
+    setEditing(true);
+    setFace("source");
+    setRestored(false);
+    storeDraft({ sessionId, folderId, path, text: base.text, baseText: base.text, etag: base.etag, bom: base.bom, crlf: base.crlf });
+  };
+  const edit = (value: string) => {
+    setDraft(value);
+    if (editBase) storeDraft({ sessionId, folderId, path, text: value, baseText: editBase.text, etag: editBase.etag, bom: editBase.bom, crlf: editBase.crlf });
+  };
+  const finish = () => { clearDraft(dKey); setEditing(false); setEditBase(null); setRestored(false); setConflict(null); };
+  const discard = () => finish();
 
   const write = async (ifMatch: string | null) => {
-    if (!text) return;
+    if (!editBase) return;
     setSaving(true);
     try {
-      const r = await call<any>({ op: "write", folder: folderId, path, contentBase64: textToBase64(draft, { bom: text.bom, crlf: text.crlf }), ifMatch });
+      const body = textToBase64(draft, { bom: editBase.bom, crlf: editBase.crlf });
+      const r = await call<any>({ op: "write", folder: folderId, path, contentBase64: body, ifMatch });
       toast.success("Saved", { description: name });
-      setEditing(false);
-      setConflict(null);
-      qc.setQueryData(key, (old: Loaded | undefined) => (old ? { ...old, bytes: bytesFromBase64(textToBase64(draft, { bom: text.bom, crlf: text.crlf })), etag: r.etag, size: r.size } : old));
+      finish();
+      qc.setQueryData(key, (old: Loaded | undefined) => (old ? { ...old, bytes: bytesFromBase64(body), etag: r.etag, size: r.size } : old));
       void qc.invalidateQueries({ queryKey: [...workspaceKeys.all(sessionId), "dir"] });
     } catch (e: any) {
       if (errorCode(e) === FILE_CODES.CONFLICT) setConflict({ etag: e?.etag ?? e?.body?.etag ?? null });
@@ -107,8 +140,9 @@ export function FileViewer({ sessionId, folderId, path, readOnly, onBack, onDirt
       setSaving(false);
     }
   };
-  const save = () => { if (loaded && dirty && !saving) void write(loaded.etag); };
-  const takeTheirs = async () => { setEditing(false); setConflict(null); await qc.invalidateQueries({ queryKey: key }); };
+  // Always the etag the edit started from: if the file moved on since, the server says so and the person chooses.
+  const save = () => { if (editBase && dirty && !saving) void write(editBase.etag); };
+  const takeTheirs = async () => { finish(); await qc.invalidateQueries({ queryKey: key }); };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s" && editing) { e.preventDefault(); save(); }
@@ -136,7 +170,7 @@ export function FileViewer({ sessionId, folderId, path, readOnly, onBack, onDirt
         <textarea
           aria-label={`Editing ${name}`}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => edit(e.target.value)}
           spellCheck={false}
           wrap="off"
           autoFocus
@@ -172,8 +206,14 @@ export function FileViewer({ sessionId, folderId, path, readOnly, onBack, onDirt
           </>
         )}
       </div>
+      {restored && !stale && !conflict ? (
+        <p role="status" className={cn(cardVariants({ tone: "accent" }), "m-2 px-3 py-2 text-sm")}>Your unsaved changes from earlier are back.</p>
+      ) : null}
       {stale && !conflict ? (
-        <p role="status" className={cn(cardVariants({ tone: "waiting" }), "m-2 px-3 py-2 text-sm")}>This file changed on disk while you were editing. When you save, you can keep your version or take theirs.</p>
+        <div role="status" className={cn(cardVariants({ tone: "waiting" }), "m-2 flex flex-col gap-2 px-3 py-2 text-sm")}>
+          <p>This file changed on disk since you started editing. Saving asks whether to keep your version or take theirs.</p>
+          <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => void takeTheirs()} disabled={saving}>Reload the file and discard my edits</Button></div>
+        </div>
       ) : null}
       {conflict ? (
         <div role="alert" className={cn(cardVariants({ tone: "waiting" }), "m-2 flex flex-col gap-2 px-3 py-2 text-sm")}>

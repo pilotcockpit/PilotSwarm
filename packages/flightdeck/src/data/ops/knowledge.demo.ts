@@ -17,7 +17,7 @@ const facts = [
   { scopeKey: "shared:config/crawler/schedule", key: "config/crawler/schedule", value: { every: "15m", namespaces: ["pilotswarm/runbooks"] }, tags: ["crawler"], shared: true, agentId: null, sessionId: null, updatedAt: hours(200) },
 ];
 
-registerDemoOps({
+registerDemoOps(import.meta.url, {
   factsCapabilities: () => ({ search: true, embedder: true, graph: true }),
   getSharedFactsStats: () => [
     { namespace: "skills", factCount: 184, totalValueBytes: 612_000, oldestCreatedAt: hours(2200), newestUpdatedAt: hours(2) },

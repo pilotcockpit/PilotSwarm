@@ -43,8 +43,10 @@ function needsConfirm(cur: Policy, next: Policy) {
   return !next.allowUserOverride && (next.enabled !== cur.enabled || cur.allowUserOverride);
 }
 
+const CLUSTER = { kind: "cluster" } as const;
+
 function ClusterFlagRow({ flag, changes }: { flag: FlagView; changes: FlagChange[] }) {
-  const mutation = useFlagMutation({ kind: "cluster" });
+  const mutation = useFlagMutation();
   const { data: workers } = useWorkers();
   const policy = clusterPolicy(flag);
   const fallback = defaultPolicy(flag);
@@ -55,7 +57,7 @@ function ClusterFlagRow({ flag, changes }: { flag: FlagView; changes: FlagChange
 
   const write = async (next: Policy | "reset") => {
     const before = flag.cluster ? policy : null;
-    const input = next === "reset" ? { featureKey: flag.featureKey, expectedRevision: flag.revision, clear: true } : { featureKey: flag.featureKey, expectedRevision: flag.revision, enabled: next.enabled, allowUserOverride: next.allowUserOverride };
+    const input = next === "reset" ? { target: CLUSTER, featureKey: flag.featureKey, expectedRevision: flag.revision, clear: true } : { target: CLUSTER, featureKey: flag.featureKey, expectedRevision: flag.revision, enabled: next.enabled, allowUserOverride: next.allowUserOverride };
     const r = await mutation.mutateAsync(input).catch(() => null);
     if (!r) return;
     const label = next === "reset" ? `back to the default (${policySentence(fallback)})` : policySentence(next);
@@ -63,7 +65,7 @@ function ClusterFlagRow({ flag, changes }: { flag: FlagView; changes: FlagChange
       duration: 9000,
       action: {
         label: "Undo",
-        onClick: () => void mutation.mutate(before ? { featureKey: flag.featureKey, expectedRevision: r.revision, enabled: before.enabled, allowUserOverride: before.allowUserOverride } : { featureKey: flag.featureKey, expectedRevision: r.revision, clear: true }),
+        onClick: () => void mutation.mutate(before ? { target: CLUSTER, featureKey: flag.featureKey, expectedRevision: r.revision, enabled: before.enabled, allowUserOverride: before.allowUserOverride } : { target: CLUSTER, featureKey: flag.featureKey, expectedRevision: r.revision, clear: true }),
       },
     });
   };

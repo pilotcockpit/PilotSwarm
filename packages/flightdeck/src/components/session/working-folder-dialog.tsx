@@ -26,7 +26,7 @@ const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
 
 function workspaceProblem(code: string, message: string): string {
   switch (code) {
-    case "WORKSPACE_REVISION_CONFLICT": return "Someone else changed the working folder first. Their version is loaded: review it and save again.";
+    case "WORKSPACE_REVISION_CONFLICT": return "Someone else changed the working folder first. Your edits are still here: load their version, or save again to replace it.";
     case "WORKSPACE_ROOT_UNKNOWN": return "That root isn't one this deployment knows. Pick one from the list.";
     case "WORKSPACE_FOLDER_MISSING": return "That folder doesn't exist under the root. Create it first, or pick another.";
     case "WORKSPACE_PATH_INVALID": return "That path isn't allowed.";
@@ -59,19 +59,31 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
   const [problem, setProblem] = React.useState<string | null>(null);
   const [confirmClear, setConfirmClear] = React.useState(false);
   const loadedRevision = React.useRef<number | null>(null);
+  // Set when the record changed on the server while the form holds unsaved edits: the edits stay, and
+  // the person decides whether to load the new version.
+  const [remoteRevision, setRemoteRevision] = React.useState<number | null>(null);
+  const dirtyRef = React.useRef(false);
 
-  // Load the form from the server's record when the dialog opens or the record changes under it.
-  React.useEffect(() => {
-    if (!open || !w || loadedRevision.current === w.revision) return;
+  const load = React.useCallback(() => {
+    if (!w) return;
     loadedRevision.current = w.revision;
+    setRemoteRevision(null);
+    setProblem(null);
     setRoot(record?.root ?? w.defaults?.workingFolder?.root ?? "");
     setFolder(record?.folder ?? w.defaults?.workingFolder?.folder ?? "");
     const ex = Object.entries(record?.extra ?? {}).map(([name, e]) => ({ name, root: e.root, folder: e.folder ?? "" }));
     setExtras(ex);
     setExtrasTouched(false);
     setShowExtras(ex.length > 0);
-  }, [open, w, record]);
-  React.useEffect(() => { if (!open) { loadedRevision.current = null; setProblem(null); } }, [open]);
+  }, [w, record]);
+  // Load the form from the server's record when the dialog opens. If the record changes under a form
+  // with unsaved edits, keep the edits and say so instead of replacing them.
+  React.useEffect(() => {
+    if (!open || !w || loadedRevision.current === w.revision) return;
+    if (loadedRevision.current != null && dirtyRef.current) { setRemoteRevision(w.revision); return; }
+    load();
+  }, [open, w, load]);
+  React.useEffect(() => { if (!open) { loadedRevision.current = null; setRemoteRevision(null); setProblem(null); } }, [open]);
 
   const knownRoots = React.useMemo(() => {
     const set = new Set<string>(folders.data?.roots ?? []);
@@ -93,6 +105,7 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
     ? Boolean(root.trim())
     : root.trim() !== record.root || folder.trim() !== (record.folder ?? "") || extrasTouched;
   const valid = root.trim().length > 0 && !folderError && extraErrors.every((e) => !e);
+  dirtyRef.current = dirty;
 
   const apply = () => {
     if (!w) return;
@@ -101,7 +114,7 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
     if (extrasTouched) next.extra = Object.fromEntries(extras.filter((e) => e.name).map((e) => [e.name, { root: e.root.trim(), ...(e.folder.trim() ? { folder: e.folder.trim().replace(/\/+$/, "") } : {}) }]));
     save.mutate({ expectedRevision: w.revision, workspace: next }, {
       onSuccess: () => { loadedRevision.current = null; },
-      onError: (e: any) => { setProblem(workspaceProblem(errorCode(e), e?.message)); void view.refetch(); loadedRevision.current = null; },
+      onError: (e: any) => { setProblem(workspaceProblem(errorCode(e), e?.message)); void view.refetch(); },
     });
   };
   const clear = async () => {
@@ -181,6 +194,12 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
                   ) : null}
                 </div>
 
+                {remoteRevision != null ? (
+                  <div role="status" className={cn(cardVariants({ tone: "waiting" }), "flex flex-col gap-2 px-3 py-2 text-sm")}>
+                    <p>The working folder was changed elsewhere. Your edits here are kept.</p>
+                    <div><Button size="sm" onClick={load}>Load their version and discard my edits</Button></div>
+                  </div>
+                ) : null}
                 {problem ? <p role="alert" className="text-sm text-failed">{problem}</p> : null}
               </>
             ) : null}

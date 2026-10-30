@@ -16,8 +16,13 @@ export function DialogContent({
   description,
   side = "center",
   hideClose = false,
+  onCloseAutoFocus,
   ...props
 }: Omit<React.ComponentProps<typeof D.Content>, "title"> & { title: React.ReactNode; description?: React.ReactNode; side?: "center" | "right"; hideClose?: boolean }) {
+  // Most dialogs here are opened from code (a menu item, a button's handler), with no Trigger for Radix
+  // to hand focus back to. Remember what had focus when this opened and return it on close.
+  const invoker = React.useRef<Element | null>(null);
+  if (invoker.current === null && typeof document !== "undefined") invoker.current = document.activeElement;
   return (
     <D.Portal>
       <D.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim data-[state=open]:animate-fade" />
@@ -31,6 +36,12 @@ export function DialogContent({
           className,
         )}
         {...props}
+        onCloseAutoFocus={(e) => {
+          onCloseAutoFocus?.(e);
+          if (e.defaultPrevented) return;
+          const el = invoker.current;
+          if (el instanceof HTMLElement && el !== document.body && el.isConnected) { e.preventDefault(); el.focus(); }
+        }}
       >
         <div className="flex items-start gap-3 px-5 pb-1 pt-4">
           <div className="min-w-0 flex-1">

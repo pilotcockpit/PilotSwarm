@@ -106,7 +106,7 @@ const slot = (configured: Tup, fallbackChain: Array<[Tup, "cluster_default" | "u
 
 const need = (cond: unknown, msg: string) => { if (!cond) throw new Error(msg); };
 
-registerDemoOps({
+registerDemoOps(import.meta.url, {
   "providers.rows": ({ base }) => {
     const baseRows: any[] = base || [];
     const out = live().map((p) => {
@@ -138,9 +138,14 @@ registerDemoOps({
     const scale = (used[provider]?.month ?? 1_000_000) / 14;
     const models = limits.size ? modelsOf(find(provider)) : [];
     return {
-      totals: { total: Math.round(scale * days), turns: Math.round(scale / 9000 * days) },
-      daily: Array.from({ length: days }, (_, i) => ({ day: new Date(Date.now() - (days - 1 - i) * 86400000).toISOString().slice(0, 10), total: Math.round(scale * (0.7 + 0.5 * Math.abs(Math.sin(i / 2)))) })),
-      breakdown: models.map((m, i) => ({ key: m.qualifiedName, total: Math.round(scale * days * (i === 0 ? 0.7 : 0.3)), turns: 120 - i * 40, sessions: 9 - i * 3 })),
+      totals: { tokensTotal: Math.round(scale * days), turns: Math.round(scale / 9000 * days), sessions: 9 },
+      daily: Array.from({ length: days }, (_, i) => {
+        const tokensTotal = Math.round(scale * (0.7 + 0.5 * Math.abs(Math.sin(i / 2))));
+        return { dayUtc: new Date(Date.now() - (days - 1 - i) * 86400000).toISOString().slice(0, 10), tokensTotal, turns: Math.round(tokensTotal / 9000), tokensInput: Math.round(tokensTotal * 0.7), tokensOutput: Math.round(tokensTotal * 0.2), tokensCacheRead: Math.round(tokensTotal * 0.1), tokensCacheWrite: 0 };
+      }),
+      breakdown: models.map((m, i) => ({ key: m.qualifiedName, label: m.qualifiedName, tokensTotal: Math.round(scale * days * (i === 0 ? 0.7 : 0.3)), turns: 120 - i * 40 })),
+      dimension: "model",
+      truncated: false,
     };
   },
 

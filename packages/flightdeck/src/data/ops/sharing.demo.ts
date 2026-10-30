@@ -26,7 +26,7 @@ const stateFor = (id: string): State => {
   return state.get(id)!;
 };
 
-registerDemoOps({
+registerDemoOps(import.meta.url, {
   getSessionAccess: ({ sessionId }) => {
     const s = stateFor(sessionId);
     const viewer = sessionId === VIEWER_ONLY;

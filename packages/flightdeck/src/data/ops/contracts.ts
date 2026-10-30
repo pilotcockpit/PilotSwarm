@@ -1,0 +1,61 @@
+// Response contracts for operations whose server shape differs from what a screen wants to read.
+// Each normaliser is pure and takes the wire shape documented in the SDK, so the demo fixtures can
+// (and must) return the same wire shape: a demo that invents a field would hide a live defect.
+
+// ── getProviderUsage ── packages/sdk/src/management-client.ts: ProviderUsageReport ──────────────
+export interface UsageReport {
+  totals: { total: number; turns: number; sessions: number };
+  daily: Array<{ day: string; total: number; turns: number }>;
+  breakdown: Array<{ key: string; label: string; total: number; turns: number }>;
+}
+const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+export function normalizeUsageReport(raw: any): UsageReport {
+  const t = raw?.totals || {};
+  return {
+    totals: { total: num(t.tokensTotal), turns: num(t.turns), sessions: num(t.sessions) },
+    daily: (Array.isArray(raw?.daily) ? raw.daily : []).map((d: any) => ({ day: String(d?.dayUtc ?? ""), total: num(d?.tokensTotal), turns: num(d?.turns) })),
+    breakdown: (Array.isArray(raw?.breakdown) ? raw.breakdown : []).map((b: any) => ({ key: String(b?.key ?? ""), label: String(b?.label ?? b?.key ?? ""), total: num(b?.tokensTotal), turns: num(b?.turns) })),
+  };
+}
+
+// ── getAgentPackageFile ── management-client.ts getAgentPackageFile: { content, encoding } ──────
+export interface PackageFileView { path?: string; text: string; binary: boolean; truncated: boolean; size?: number }
+
+export function normalizePackageFile(raw: any): PackageFileView {
+  const binary = Boolean(raw?.binary) || raw?.encoding === "base64";
+  return {
+    path: raw?.path,
+    text: binary ? "" : typeof raw?.content === "string" ? raw.content : "",
+    binary,
+    truncated: Boolean(raw?.truncated),
+    size: Number.isFinite(Number(raw?.size)) ? Number(raw.size) : undefined,
+  };
+}
+
+// ── listFeatureFlagChanges ── migrations/feature-flags-0077.ts: audit rows with details.before/after
+export interface FlagChangeView { auditId?: string; at?: string; actor: string; action: string; featureKey: string; userId: number | null; summary: string }
+
+export function describeFlagChange(row: any): FlagChangeView {
+  const d = row?.details && typeof row.details === "object" ? row.details : {};
+  const action = String(row?.action || "");
+  const featureKey = String(d.featureKey || String(row?.target || "").replace(/^feature[:/]/, "") || "");
+  const scope = String(d.scope || (action === "feature_flag.user_adopt" ? "user" : "cluster"));
+  const before = d.before && typeof d.before === "object" ? d.before : null;
+  const after = d.after && typeof d.after === "object" ? d.after : null;
+  const userId = Number.isFinite(Number(d.userId)) && d.userId != null ? Number(d.userId) : null;
+  let summary: string;
+  if (action === "feature_flag.user_adopt") summary = "adopted a personal choice";
+  else if (action === "feature_flag.unset") summary = scope === "cluster" ? "reset to the default" : "removed a personal choice";
+  else {
+    const parts: string[] = [];
+    if (after && after.enabled !== (before ? before.enabled : undefined) && typeof after.enabled === "boolean") parts.push(after.enabled ? "turned on" : "turned off");
+    else if (after && typeof after.enabled === "boolean" && !before) parts.push(after.enabled ? "turned on" : "turned off");
+    if (scope === "cluster" && after && typeof after.allowUserOverride === "boolean" && (!before || before.allowUserOverride !== after.allowUserOverride)) {
+      parts.push(after.allowUserOverride ? "people can choose" : "locked for everyone");
+    }
+    summary = parts.length ? parts.join(", ") : "changed";
+  }
+  if (scope === "user") summary += " for one person";
+  return { auditId: row?.audit_id ?? row?.auditId, at: row?.occurred_at ?? row?.occurredAt, actor: String(row?.actor_subject ?? row?.actorSubject ?? "An admin"), action, featureKey, userId, summary };
+}

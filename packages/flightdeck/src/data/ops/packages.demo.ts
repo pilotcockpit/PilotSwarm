@@ -82,7 +82,7 @@ const need = (p: any) => {
 const active = (p: Pkg) => p.versions.find((v) => v.versionId === p.activeVersionId) ?? p.versions[0];
 const summary = (p: Pkg) => ({ packageId: p.packageId, name: p.name, scope: p.scope, owner: p.owner, enabled: p.enabled, shadowed: Boolean(p.shadowed), canEdit: true, createdAt: p.versions.at(-1)?.createdAt, active: active(p) });
 
-registerDemoOps({
+registerDemoOps(import.meta.url, {
   listAgentPackages: () => store.map(summary),
   getAgentPackage: (p) => {
     const pkg = need(p);
@@ -98,7 +98,7 @@ registerDemoOps({
     const pkg = need(p);
     const text = pkg.files[p.filePath];
     if (text == null) throw Object.assign(new Error(`"${p.filePath}" is not in ${pkg.name}`), { code: "NOT_FOUND" });
-    return { path: p.filePath, text, binary: false, truncated: false, size: text.length };
+    return { name: pkg.name, semver: p.semver || active(pkg).semver, path: p.filePath, size: text.length, truncated: false, binary: false, encoding: "utf8", content: text };
   },
   setAgentPackageEnabled: (p) => { need(p).enabled = Boolean(p.enabled); return { ok: true }; },
   pinAgentPackageVersion: (p) => {

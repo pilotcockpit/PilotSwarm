@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Eraser } from "lucide-react";
 import { Panel } from "@/components/empty";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm";
+import { TypedConfirmDialog } from "@/components/admin/typed-confirm";
 import { Segmented } from "@/components/ui/tabs";
 import { StatusRow } from "@/components/admin/status-row";
 import { usePruneSummaries } from "@/data/ops/admin";
@@ -57,14 +57,14 @@ function PruneSummaries() {
           </>
         }
       />
-      <ConfirmDialog
+      <TypedConfirmDialog
         open={open}
         onOpenChange={setOpen}
         title="Clear old summaries?"
         description={`Removes the summaries of sessions deleted more than ${days} days ago.`}
         consequences={["Only the summaries are removed. Sessions, messages and files stay as they are.", "This can't be undone."]}
+        phrase="clear summaries"
         confirmLabel="Clear summaries"
-        tone="danger"
         onConfirm={async () => {
           const n = await prune.mutateAsync({ olderThanDays: Number(days) });
           setLast({ count: Number(n) || 0, days: Number(days), at: Date.now() });

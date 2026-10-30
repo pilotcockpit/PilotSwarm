@@ -46,8 +46,7 @@ const childrenOf = (fs: Map<string, Node>, dir: string) => [...fs.keys()].filter
 let revision = 3;
 let record: any = { root: "work", folder: "projects/flight-deck", extra: { notes: { root: "shared", folder: "notes" } } };
 
-registerDemoOps({
-  exportExecutionHistory: () => ({ filename: "execution-history.json" }),
+registerDemoOps(import.meta.url, {
   getSessionWorkspace: () => ({
     workspace: record, revision, turnRevision: revision, path: record ? `/srv/${record.root}/${record.folder || ""}` : null,
     extraPaths: record?.extra ? { notes: "/srv/shared/notes" } : {}, status: record ? "ready" : "none", lastError: null, heldPrompts: 0,

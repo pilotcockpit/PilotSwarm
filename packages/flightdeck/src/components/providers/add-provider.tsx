@@ -1,4 +1,5 @@
 import * as React from "react";
+import { rovingKeyDown } from "@/lib/roving";
 import { Check, ChevronRight, KeyRound, Loader2, Server, ShieldCheck, User, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button, DisclosureButton } from "@/components/ui/button";
@@ -103,15 +104,18 @@ export function AddProviderSheet({ open, onOpenChange, initialType, onOpenProvid
               <fieldset className="flex flex-col gap-2">
                 <legend className="mb-1 text-sm font-medium">What are you connecting?</legend>
                 {isLoading ? <p className="text-sm text-muted">Loading provider types…</p> : !types?.length ? <p className="text-sm text-muted">This deployment lists no provider types.</p> : (
-                  <div role="radiogroup" aria-label="Provider type" className="grid gap-2 sm:grid-cols-2">
-                    {types.map((t) => {
+                  <div role="radiogroup" aria-label="Provider type" onKeyDown={rovingKeyDown("radio")} className="grid gap-2 sm:grid-cols-2">
+                    {types.map((t, i) => {
                       const selected = t.id === typeId;
+                      // One tab stop: the chosen type, or the first while none is chosen.
+                      const stop = selected || (!typeId && i === 0);
                       return (
                         <button
                           key={t.id}
                           type="button"
                           role="radio"
                           aria-checked={selected}
+                          tabIndex={stop ? 0 : -1}
                           aria-label={`${typeLabel(t.id)}. ${BLURB[t.id] || `${t.models.length} models`}`}
                           onClick={() => { setTypeId(t.id); setApiKey(""); }}
                           className={cn("flex min-h-16 flex-col items-start gap-0.5 rounded-pane border p-2.5 text-left transition-colors duration-(--duration-fast) pointer-coarse:min-h-14", selected ? "border-accent bg-accent-tint" : "border-line hover:border-line-strong hover:bg-raised/60")}

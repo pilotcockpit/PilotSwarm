@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useBlocker, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Download, FileText, Folder, GitBranch, Lock, Maximize2, Minimize2, MoreHorizontal, Settings2, Share2, Square, ZoomIn, ZoomOut } from "lucide-react";
 import { toast } from "sonner";
@@ -13,7 +13,9 @@ import { EmptyState, Panel } from "@/components/empty";
 import { Markdown } from "@/components/chat";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/tabs";
-import { Chip, Skeleton } from "@/components/ui/misc";
+import { Chip, Skeleton, Tag } from "@/components/ui/misc";
+import { ConfirmDialog } from "@/components/ui/confirm";
+import { useDirtyDrafts } from "@/components/session/files/drafts";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { FolderPane } from "@/components/session/files/folder-pane";
@@ -124,7 +126,23 @@ export function FilesView({ session, tab, file, onTab, onFile }: { session: Sess
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const folders = info.data?.folders ?? [];
   const folder = folders.find((f) => f.id === folderId) ?? folders[0];
-  const choose = (v: string) => { if (v === "outputs") onTab("outputs"); else { if (v !== "folders") setFolderId(v); onTab("folders"); } };
+  const drafts = useDirtyDrafts(session.sessionId);
+  const draftsRef = React.useRef(drafts);
+  draftsRef.current = drafts;
+  const [leaving, setLeaving] = React.useState<null | (() => void)>(null);
+  const go = (v: string) => { if (v === "outputs") onTab("outputs"); else { if (v !== "folders") setFolderId(v); onTab("folders"); } };
+  // Switching folders (or to Outputs) leaves the editor behind: ask first, and say what happens to the edits.
+  const choose = (v: string) => {
+    const here = tab === "outputs" ? "outputs" : folder?.id ?? "folders";
+    if (v === here) return;
+    if (drafts.length && tab === "folders") setLeaving(() => () => go(v)); else go(v);
+  };
+  // Leaving the Files view or the session with unsaved edits asks too; closing the tab uses the browser's own prompt.
+  const blocker = useBlocker({
+    shouldBlockFn: ({ current, next }) => draftsRef.current.length > 0 && (next.pathname !== current.pathname || (next.search as any)?.view !== (current.search as any)?.view),
+    enableBeforeUnload: () => draftsRef.current.length > 0,
+    withResolver: true,
+  });
   const options = [
     { value: "outputs", label: `Outputs${outputs.length ? ` ${outputs.length}` : ""}` },
     ...(folders.length ? folders.map((f) => ({ value: f.id, label: f.role === "working" && f.home ? "Home" : f.name })) : [{ value: "folders", label: "Folders" }]),
@@ -132,6 +150,7 @@ export function FilesView({ session, tab, file, onTab, onFile }: { session: Sess
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-[44px] shrink-0 items-center gap-2 border-b border-line px-3">
+        {drafts.length ? <Tag tone="waiting">{drafts.length} unsaved</Tag> : null}
         <div className="min-w-0 overflow-x-auto"><Segmented label="Files" value={tab === "outputs" ? "outputs" : folder?.id ?? "folders"} onChange={choose} options={options} /></div>
         {tab === "folders" ? (
           <Tooltip content="Working folder settings"><Button variant="quiet" size="icon-sm" className="ml-auto" aria-label="Working folder settings" onClick={() => setSettingsOpen(true)}><Settings2 /></Button></Tooltip>
@@ -176,6 +195,14 @@ export function FilesView({ session, tab, file, onTab, onFile }: { session: Sess
         </div>
       )}
       <WorkingFolderDialog sessionId={session.sessionId} open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <ConfirmDialog
+        open={Boolean(leaving) || blocker.status === "blocked"}
+        onOpenChange={(v) => { if (!v) { setLeaving(null); if (blocker.status === "blocked") blocker.reset(); } }}
+        title="Leave without saving?"
+        description={`You have unsaved edits to ${plural(drafts.length, "file")}. They stay on this device as a draft and come back when you return to the file. Nothing is written to the folder until you press Save.`}
+        confirmLabel="Leave, keep my draft"
+        onConfirm={() => { const next = leaving; setLeaving(null); if (blocker.status === "blocked") blocker.proceed(); else next?.(); }}
+      />
     </div>
   );
 }

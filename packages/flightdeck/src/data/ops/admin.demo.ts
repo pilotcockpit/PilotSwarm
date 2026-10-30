@@ -5,7 +5,7 @@ import { registerDemoOps } from "./registry";
 
 let busyOnce = true;
 
-registerDemoOps({
+registerDemoOps(import.meta.url, {
   restartSystemSession: ({ agentIdOrSessionId, options }) => {
     const disposition = options?.disposition || "complete";
     if (disposition === "complete" && busyOnce && /sweeper/i.test(String(agentIdOrSessionId))) {

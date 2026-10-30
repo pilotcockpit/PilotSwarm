@@ -660,19 +660,22 @@ function Composer({ session }: { session: Session }) {
     if (!request) return;
     const prompt = request.text;
     let result: "sent" | "queued" | "failed" = "failed";
+    let sentAttachments: string[] = [];
     try {
       if (mode === "steer") {
         const outcome = await source.steerTurn(session.sessionId, prompt);
         if (outcome !== "accepted") throw new Error(outcome === "steering_disabled" ? "Steering is turned off for this deployment (feature flag sessions.steering)." : `The turn did not accept it (${outcome}).`);
         toast.success("Guidance added to the running turn");
       } else if (hasAttachments) {
-        await sendWithAttachments(source, session.sessionId, buildAttachedMessage(session.sessionId, prompt, att.ready), mode === "queue" ? { enqueueOnly: true } : undefined);
+        const sent = att.ready;
+        await sendWithAttachments(source, session.sessionId, buildAttachedMessage(session.sessionId, prompt, sent), mode === "queue" ? { enqueueOnly: true } : undefined);
+        sentAttachments = sent.map((a) => a.id);
       } else if (mode === "queue") {
         await source.sendMessage(session.sessionId, prompt, { enqueueOnly: true });
       } else {
         await source.sendMessage(session.sessionId, prompt);
       }
-      if (mode !== "steer") att.clear();
+      if (mode !== "steer") att.clear(sentAttachments);
       result = mode === "queue" ? "queued" : "sent";
       refresh(session.sessionId);
     } catch (e: any) {

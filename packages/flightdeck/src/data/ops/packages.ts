@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { normalizePackageFile, type PackageFileView } from "./contracts";
 import { useSource } from "@/data/source";
 import { useOpMutation, useOpQuery } from "@/data/ops/use-op";
 import type { Profile } from "@/data/types";
@@ -38,7 +39,7 @@ export interface PackageDetail extends PackageSummary {
   editors: PackageEditor[];
 }
 export interface PackageTree { name?: string; semver: string; sha256?: string; dirs: string[]; files: Array<{ path: string; size: number }> }
-export interface PackageFile { path?: string; text?: string; binary?: boolean; truncated?: boolean; size?: number }
+export type PackageFile = PackageFileView;
 export interface WorkerPackageState { workerNodeId: string; epoch?: number; installed: Record<string, { semver?: string; sha256?: string; status?: string; error?: string }>; updatedAt?: string | number }
 export interface KnownUser extends Principal {}
 
@@ -106,6 +107,7 @@ export function usePackageFile(pkg: PackageSummary | null, semver: string | unde
   return useOpQuery<PackageFile>(["packages", "file", pkg ? packageKey(pkg) : "", semver || "active", filePath || ""], "getAgentPackageFile", pkg && filePath ? { ...packageSelector(pkg, profile), ...(semver ? { semver } : {}), filePath } : {}, {
     enabled: Boolean(pkg && filePath),
     staleTime: 60_000,
+    select: normalizePackageFile,
   });
 }
 
@@ -151,7 +153,8 @@ export function describeFiles(paths: string[]): Provides {
   };
 }
 
-const invalidate = [["packages"]];
+// A package change alters which agents exist and what each worker reports, so those catalogs refresh too.
+const invalidate = [["packages"], ["agents"]];
 const sel = (pkg: PackageSummary, profile?: Profile | null) => packageSelector(pkg, profile);
 
 export function usePackageActions(profile?: Profile | null) {
@@ -201,6 +204,6 @@ export function useUploadPackage() {
   return useMutation({
     mutationFn: async (v: { files: UploadFile[]; scope: "shared" | "user" }) =>
       (await source.call("uploadAgentPackage", { files: v.files, scope: v.scope })) as { status?: "published" | "noop"; packageId?: string; versionId?: string },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["packages"] }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["packages"] }); void qc.invalidateQueries({ queryKey: ["agents"] }); },
   });
 }
