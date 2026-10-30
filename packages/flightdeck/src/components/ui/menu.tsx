@@ -12,7 +12,7 @@ export function MenuContent({ className, align = "end", sideOffset = 6, ...props
       <M.Content
         align={align}
         sideOffset={sideOffset}
-        className={cn("z-50 min-w-[220px] overflow-hidden rounded-pane border border-line bg-overlay p-1 text-sm text-fg shadow-pop outline-none data-[state=open]:animate-pop", className)}
+        className={cn("z-(--z-overlay) min-w-[220px] overflow-hidden rounded-pane border border-line bg-overlay p-1 text-sm text-fg shadow-pop outline-none data-[state=open]:animate-pop", className)}
         {...props}
       />
     </M.Portal>

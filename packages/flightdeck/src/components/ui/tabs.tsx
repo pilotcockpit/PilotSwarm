@@ -38,11 +38,27 @@ export function Segmented<T extends string>({ value, onChange, options, classNam
           value={o.value}
           disabled={o.disabled}
           title={o.title}
-          className="inline-flex h-full items-center gap-1 rounded-[4px] px-2.5 text-xs font-medium text-muted focus-inset hover:text-fg data-[state=on]:bg-raised data-[state=on]:text-fg data-[state=on]:shadow-[inset_0_0_0_1px_var(--line-strong)] disabled:opacity-45"
+          className="inline-flex h-full items-center gap-1 rounded-chip px-2.5 text-xs font-medium text-muted focus-inset hover:text-fg data-[state=on]:bg-raised data-[state=on]:text-fg data-[state=on]:shadow-[inset_0_0_0_1px_var(--line-strong)] disabled:opacity-45"
         >
           {o.label}
         </ToggleGroup.Item>
       ))}
     </ToggleGroup.Root>
+  );
+}
+
+/** Vertical section list for Admin and Settings: one recipe, one active style, 44px on touch. */
+export function SideNav({ className, label, ...props }: React.HTMLAttributes<HTMLElement> & { label: string }) {
+  return <nav aria-label={label} className={cn("flex shrink-0 gap-1 overflow-x-auto border-b border-line px-3 py-2 md:w-[200px] md:flex-col md:overflow-visible md:border-b-0 md:border-r md:py-4", className)} {...props} />;
+}
+
+export function SideNavItem({ active, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-current={active ? "page" : undefined}
+      className={cn("focus-inset inline-flex h-8 shrink-0 items-center gap-2 rounded-control px-2.5 text-left text-sm font-medium transition-colors duration-(--duration-fast) pointer-coarse:h-11", active ? "bg-raised text-fg" : "text-muted hover:bg-raised/60 hover:text-fg", className)}
+      {...props}
+    />
   );
 }

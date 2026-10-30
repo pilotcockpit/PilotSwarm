@@ -312,7 +312,7 @@ export function OutputCard({ output: o, index }: { output: Artifact & { session:
       className={cn(cardVariants({ interactive: true, clip: true, enter: true }), "group flex flex-col")}
     >
       <div className={cn("relative grid h-[92px] place-items-center overflow-hidden border-b border-line", canvas ? "bg-raised" : "bg-bg")}>
-        <div className="grid size-full place-items-center transition-transform duration-(--duration-slow) ease-emphasized group-hover:scale-[1.04]">
+        <div className="grid size-full place-items-center transition-transform duration-(--duration-slow) ease-emphasized motion-safe:group-hover:scale-[1.04]">
           {canvas ? <CanvasThumb kind={canvasKind(html)} /> : <FileText className="size-5 text-faint" aria-hidden />}
         </div>
         {unseen ? <span className="absolute right-2 top-2 size-2 rounded-full bg-accent" aria-label="Updated since you looked" /> : null}

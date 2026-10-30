@@ -132,13 +132,13 @@ function Rail() {
       </div>
       {collapsed ? (
         <Tooltip content={<span className="flex items-center gap-2">New session <Kbd>N</Kbd></span>} side="right">
-          <Button variant="primary" size="icon" className="mb-3 size-10" aria-label="New session" onClick={() => openNewSession()}>
+          <Button size="icon" className="mb-3 size-10" aria-label="New session" onClick={() => openNewSession()}>
             <Plus />
           </Button>
         </Tooltip>
       ) : (
-        <Button variant="primary" size="lg" className="mb-3 w-full justify-start" onClick={() => openNewSession()}>
-          <Plus /> <span className="flex-1 text-left">New session</span> <Kbd className="border-accent-fg/40 bg-transparent font-semibold text-accent-fg">N</Kbd>
+        <Button className="mb-3 w-full justify-start" onClick={() => openNewSession()}>
+          <Plus /> <span className="flex-1 text-left">New session</span> <Kbd>N</Kbd>
         </Button>
       )}
       <div className="flex w-full flex-col gap-0.5">
@@ -194,7 +194,7 @@ function BottomTabs() {
   const moreActive = !tabs.some((t) => t.match(path));
   return (
     <>
-      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-(--z-sticky) grid grid-cols-5 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         {tabs.map((t) => {
           const active = t.match(path);
           const Icon = t.icon;
@@ -216,7 +216,7 @@ function BottomTabs() {
       <Dialog open={more} onOpenChange={setMore}>
         <DialogContent title="More" side="right" className="max-w-[360px]">
           <DialogBody className="flex flex-col gap-1">
-            <Button variant="primary" size="lg" className="mb-2" onClick={() => { setMore(false); openNewSession(); }}><Plus /> New session</Button>
+            <Button className="mb-2" onClick={() => { setMore(false); openNewSession(); }}><Plus /> New session</Button>
             {[top[4], ...bottom].filter(Boolean).map((item) => {
               const Icon = item!.icon;
               return (
@@ -304,7 +304,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const phone = useMediaQuery("(max-width: 767px)");
   return (
     <div className="flex h-dvh overflow-hidden">
-      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-control focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-fg">Skip to content</a>
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-(--z-toast) focus:rounded-control focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-fg">Skip to content</a>
       {phone ? null : <Rail />}
       <main id="main" tabIndex={-1} className={cn("flex min-w-0 flex-1 flex-col outline-none", phone && "pb-[calc(56px+env(safe-area-inset-bottom))]")}>
         {children}

@@ -162,10 +162,12 @@ function ClusterUsage() {
   return (
     <>
       <Card as="div" enter clip className="mb-4">
-        <dl className="grid grid-cols-2 divide-line sm:grid-cols-3 [&>div]:border-line [&>div:nth-child(n+3)]:border-t sm:[&>div:nth-child(n+4)]:border-t sm:[&>div:nth-child(-n+3)]:border-t-0 [&>div:nth-child(even)]:border-l sm:[&>div]:border-l sm:[&>div:nth-child(3n+1)]:border-l-0">
+        {/* Cells sit on a 1px line gap; fillers keep the last row solid at both column counts. */}
+        <dl className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3">
           {entries.slice(0, 6).map(([k, v]) => (
-            <Stat key={k} label={k.replace(/([A-Z])/g, " $1").toLowerCase()} value={typeof v === "number" && v > 9999 ? tokens(v) : String(v)} />
+            <Stat key={k} className="bg-surface" label={k.replace(/([A-Z])/g, " $1").toLowerCase()} value={typeof v === "number" && v > 9999 ? tokens(v) : String(v)} />
           ))}
+          {Array.from({ length: Math.max(0, 6 - entries.slice(0, 6).length) }, (_, i) => <div key={`fill-${i}`} className="bg-surface" aria-hidden />)}
         </dl>
       </Card>
       {Array.isArray((data as any).noisiest) ? (

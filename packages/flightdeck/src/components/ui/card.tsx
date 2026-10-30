@@ -22,7 +22,7 @@ export const cardVariants = cva("relative min-w-0 rounded-pane border bg-surface
       accent: "border-accent/45 bg-accent-tint",
     },
     interactive: {
-      true: "cursor-pointer transition-[border-color,background-color,box-shadow,transform] duration-(--duration-fast) ease-out-fd hover:border-line-strong hover:shadow-lift active:translate-y-px active:shadow-none",
+      true: "cursor-pointer transition-[border-color,background-color,box-shadow,transform] duration-(--duration-fast) ease-out-fd hover:border-line-strong hover:shadow-lift motion-safe:active:translate-y-px active:shadow-none",
       false: "",
     },
     selected: {
@@ -53,7 +53,7 @@ export function Stat({ label, value, hint, className }: { label: React.ReactNode
     <div className={cn("min-w-0 px-4 py-3", className)}>
       <dt className="truncate text-xs text-muted">{label}</dt>
       <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
-        <span className="font-mono text-lg font-semibold tabular-nums">{value}</span>
+        <span className="text-lg font-semibold tabular-nums">{value}</span>
         {hint ? <span className="text-xs text-faint">{hint}</span> : null}
       </dd>
     </div>

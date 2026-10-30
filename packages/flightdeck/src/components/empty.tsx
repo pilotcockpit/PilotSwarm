@@ -17,7 +17,7 @@ export function SectionTitle({ children, count, action, className, id }: { child
   return (
     <div className={cn("mb-2 flex items-baseline gap-2", className)}>
       <h2 id={id} className="text-prose font-semibold text-fg">{children}</h2>
-      {count != null ? <span className="font-mono text-sm tabular-nums text-faint">{count}</span> : null}
+      {count != null ? <span className="text-sm tabular-nums text-faint">{count}</span> : null}
       {action ? <div className="ml-auto text-sm">{action}</div> : null}
     </div>
   );

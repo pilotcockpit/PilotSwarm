@@ -120,7 +120,7 @@ function TranscriptItem({ item, agentName, onOpenCanvas, errorActions }: { item:
         <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-control border border-line bg-surface text-muted" title={agentName}><Bot className="size-3.5" aria-hidden /></span>
         <div className="min-w-0 flex-1">
           <span className="sr-only">{agentName}:</span>
-          <Markdown text={String(item.text || "")} className={cn(item.streaming && "after:ml-0.5 after:inline-block after:h-4 after:w-1.5 after:animate-pulse after:bg-live after:align-middle")} />
+          <Markdown text={String(item.text || "")} className={cn(item.streaming && "after:ml-0.5 after:inline-block after:h-4 after:w-1.5 motion-safe:after:animate-pulse after:bg-live after:align-middle")} />
         </div>
       </li>
     );
@@ -145,7 +145,7 @@ export function ToolCall({ item }: { item: ChatItem }) {
   const done = item.status === "Done" || item.status === "Started";
   const spawn = item.category === "Agent" && item.result?.childSessionId;
   return (
-    <div className={cn(cardVariants({ clip: true, tone: failed ? "failed" : "neutral" }), "ml-9")}>
+    <div className={cn(cardVariants({ clip: true, tone: failed ? "failed" : "neutral" }), "ml-9", failed && "bg-surface")}>
       <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="flex h-[34px] w-full items-center gap-2 px-3 text-left transition-colors duration-(--duration-fast) hover:bg-raised/60 pointer-coarse:h-11">
         {item.category === "Agent" ? <GitBranch className="size-3.5 shrink-0 text-muted" aria-hidden /> : <Wrench className="size-3.5 shrink-0 text-muted" aria-hidden />}
         <span className="shrink-0 font-mono text-sm text-fg">{item.name}</span>

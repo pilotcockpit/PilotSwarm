@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 // Flight Deck token guard. Components read semantic tokens (src/styles.css) and nothing else.
 //
-//   npm run tokens:check            fail on violations
+//   npm run tokens:check               fail on violations
 //   npm run tokens:check -- --update   re-baseline the arbitrary-value ratchet (review the diff!)
 //
-// Hard rules (zero tolerance; add `token-ok: <reason>` on the line to except one):
+// Hard rules (zero tolerance). To except one line, put a comment on it: `// token-ok: <reason>`
+// (or `/* token-ok: <reason> */`); a bare "token-ok" with no reason does not count.
 //   1. no raw colour: hex, rgb(), hsl(), oklch(), color-mix() in TS/TSX
-//   2. no colour escapes in class names: bg-[#fff], text-[rgb(...)], bg-white, text-red-500 ...
+//   2. no colour escapes in class names: bg-[#fff], bg-[red], bg-white, text-red-500, border-x-red-500 ...
 //   3. no text under 12px
-// Ratchet (may only go down): arbitrary size values like h-[26px] or w-[240px]. New ones mean
-// a token or a layout primitive is missing; promote the value in styles.css instead.
+// Ratchet: arbitrary size values like h-[26px] are counted per file against
+// scripts/token-guard.baseline.json. The count may not rise, and may not silently fall either:
+// when you remove some, re-run with --update and commit the lower baseline.
 import { readFileSync, readdirSync, statSync, writeFileSync, existsSync } from "node:fs";
 import { join, relative, extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,14 +23,28 @@ const baselinePath = join(root, "scripts", "token-guard.baseline.json");
 const skip = [/^src\/data\//, /^src\/canvas\/demo-canvases\.ts$/, /\.d\.ts$/];
 
 const PALETTE = "red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|neutral|stone|white|black";
-const COLOR_PROPS = "bg|text|border|ring|fill|stroke|from|to|via|shadow|outline|divide|decoration|accent|caret";
+const COLOR_PROPS = "bg|text|border(?:-[xytblrse])?|ring|fill|stroke|from|to|via|outline|divide|decoration|accent|caret|placeholder";
+// Arbitrary values that are not colours: lengths, calc, var(), url(), explicit type hints.
+const NON_COLOUR_ARB = /^(?:var\(|calc\(|url\(|length:|percentage:|position:|image:|size:|-?\.?\d)/;
+
+/** Drop anchors like href="#feed" and URL hashes so they are not read as hex colours. */
+const stripAnchors = (line) => line.replace(/(?:href|to|hash|id|aria-controls|htmlFor)\s*[=:]\s*[{"'`]+#[\w-]*/g, "").replace(/["'`]#[a-z][\w-]*["'`]/g, (m) => (/^["'`]#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})["'`]$/i.test(m) ? m : '""'));
+const hasException = (line) => /(?:\/\/|\/\*)\s*token-ok:\s*\S+/.test(line);
+
 const rules = [
-  { id: "raw-colour", re: /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|oklab|lab|lch|color-mix)\(/, msg: "raw colour; use a semantic token from styles.css" },
-  { id: "colour-escape", re: new RegExp(`\\b(?:${COLOR_PROPS})-\\[(?:#|rgb|hsl|oklch|color-mix)`), msg: "arbitrary colour in a class" },
-  { id: "palette-class", re: new RegExp(`\\b(?:${COLOR_PROPS})-(?:${PALETTE})(?:-\\d{2,3})?(?:/\\d+)?(?![\\w-])`), msg: "Tailwind default palette; use a semantic token (bg-surface, text-muted, text-failed ...)" },
-  { id: "tiny-text", re: /\btext-\[(?:[0-9]|1[01])(?:\.\d+)?px\]/, msg: "text under 12px; use text-xs" },
+  { id: "raw-colour", test: (l) => /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])|\b(?:rgba?|hsla?|oklch|oklab|lab|lch|color-mix)\(/.test(stripAnchors(l)), msg: "raw colour; use a semantic token from styles.css" },
+  {
+    id: "colour-escape",
+    test: (l) => {
+      for (const m of l.matchAll(new RegExp(`(?<![\\w-])(?:${COLOR_PROPS})-\\[([^\\]]+)\\]`, "g"))) if (!NON_COLOUR_ARB.test(m[1])) return true;
+      return false;
+    },
+    msg: "arbitrary colour in a class",
+  },
+  { id: "palette-class", test: (l) => new RegExp(`(?<![\\w-])(?:${COLOR_PROPS})-(?:${PALETTE})(?:-\\d{2,3})?(?:/\\d+)?(?![\\w-])`).test(l), msg: "Tailwind default palette; use a semantic token (bg-surface, text-muted, text-failed ...)" },
+  { id: "tiny-text", test: (l) => /(?<![\w-])text-\[(?:length:)?(?:[0-9]|1[01])(?:\.\d+)?px\]/.test(l), msg: "text under 12px; use text-xs" },
 ];
-const arbitrary = /\b(?:size|[hw]|min-[hw]|max-[hw]|p[xytblr]?|m[xytblr]?|gap(?:-[xy])?|top|left|right|bottom|inset(?:-[xy])?|rounded|text|leading|translate-[xy])-\[-?\d*\.?\d+(?:px|rem|em)\]/g;
+const arbitrary = /(?<![\w-])(?:size|[hw]|min-[hw]|max-[hw]|p[xytblr]?|m[xytblr]?|gap(?:-[xy])?|top|left|right|bottom|inset(?:-[xy])?|rounded|text|leading|translate-[xy])-\[-?\d*\.?\d+(?:px|rem|em)\]/g;
 
 function* walk(dir) {
   for (const name of readdirSync(dir)) {
@@ -43,10 +59,9 @@ const counts = {};
 for (const file of walk(src)) {
   const rel = relative(root, file).split("\\").join("/");
   if (skip.some((r) => r.test(rel))) continue;
-  const lines = readFileSync(file, "utf8").split("\n");
-  lines.forEach((line, i) => {
-    if (/token-ok/.test(line)) return;
-    for (const r of rules) if (r.re.test(line)) violations.push(`${rel}:${i + 1}  [${r.id}] ${r.msg}\n    ${line.trim().slice(0, 140)}`);
+  readFileSync(file, "utf8").split("\n").forEach((line, i) => {
+    if (/token-ok/.test(line) && !hasException(line)) violations.push(`${rel}:${i + 1}  [bad-exception] token-ok needs a reason: // token-ok: <why>`);
+    if (!hasException(line)) for (const r of rules) if (r.test(line)) violations.push(`${rel}:${i + 1}  [${r.id}] ${r.msg}\n    ${line.trim().slice(0, 140)}`);
     const m = line.match(arbitrary);
     if (m) counts[rel] = (counts[rel] || 0) + m.length;
   });
@@ -57,9 +72,11 @@ if (process.argv.includes("--update")) {
   console.log(`token-guard: baseline written (${Object.values(counts).reduce((a, b) => a + b, 0)} arbitrary values in ${Object.keys(counts).length} files)`);
 } else {
   const baseline = existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, "utf8")) : {};
-  for (const [file, n] of Object.entries(counts)) {
+  for (const file of new Set([...Object.keys(counts), ...Object.keys(baseline)])) {
+    const n = counts[file] || 0;
     const allowed = baseline[file] || 0;
     if (n > allowed) violations.push(`${file}  [arbitrary-value] ${n} arbitrary size values, baseline allows ${allowed}. Add a token or use a scale step instead.`);
+    else if (n < allowed) violations.push(`${file}  [stale-baseline] ${n} arbitrary size values, baseline still allows ${allowed}. Lock in the reduction: npm run tokens:check -- --update`);
   }
 }
 

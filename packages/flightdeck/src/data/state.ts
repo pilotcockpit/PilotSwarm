@@ -104,7 +104,7 @@ export const STATE_TONE: Record<StateKey, string> = {
 
 export const STATE_TINT: Record<StateKey, string> = {
   running: "bg-live-tint text-live",
-  needs: "bg-accent-tint text-needs",
+  needs: "bg-needs-tint text-needs",
   waiting: "bg-waiting-tint text-waiting",
   failed: "bg-failed-tint text-failed",
   idle: "bg-raised text-muted",

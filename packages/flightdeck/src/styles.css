@@ -19,7 +19,7 @@
   --line-strong: #858b94;
   --fg: #111214;
   --muted: #565a61;
-  --faint: #6a6e75;
+  --faint: #62666d;
   /* Light state colours are darkened so they hold 4.5:1 as text on their own tints. */
   --accent: #1a5fcc;
   --accent-fg: #ffffff;
@@ -27,7 +27,8 @@
   --waiting: #855607;
   --failed: #b8293a;
   --ok: #1a6e46;
-  --needs: #1a5fcc;
+  /* Needs you is the one state that wants a person, so it gets its own hue: accent already means link, selection and focus. */
+  --needs: #6b3fc2;
   /* How much of a hue a tint carries; the dark theme needs more to read on its ground. */
   --tint: 9%;
   --scrim: rgb(14 15 17 / 0.45);
@@ -45,6 +46,7 @@
   --waiting-tint: color-mix(in oklab, var(--waiting) var(--tint), transparent);
   --failed-tint: color-mix(in oklab, var(--failed) var(--tint), transparent);
   --ok-tint: color-mix(in oklab, var(--ok) var(--tint), transparent);
+  --needs-tint: color-mix(in oklab, var(--needs) var(--tint), transparent);
 }
 
 .dark {
@@ -56,15 +58,15 @@
   --line-subtle: #1d1e22;
   --line-strong: #64666f;
   --fg: #ececee;
-  --muted: #a1a3ab;
-  --faint: #8b8d95;
+  --muted: #b3b5bd;
+  --faint: #9a9ca5;
   --accent: #5c9dff;
   --accent-fg: #0b1220;
   --live: #3ec7b0;
   --waiting: #e2a93b;
   --failed: #f2666f;
   --ok: #57c785;
-  --needs: #5c9dff;
+  --needs: #b497ff;
   --tint: 13%;
   --scrim: rgb(0 0 0 / 0.62);
   --shadow-pop: 0 12px 36px -8px rgb(0 0 0 / 0.6), 0 2px 8px -2px rgb(0 0 0 / 0.45);
@@ -100,6 +102,7 @@
   --color-waiting-tint: var(--waiting-tint);
   --color-failed-tint: var(--failed-tint);
   --color-ok-tint: var(--ok-tint);
+  --color-needs-tint: var(--needs-tint);
 
   --font-sans: "Recursive Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Recursive Variable", ui-monospace, "SF Mono", Menlo, monospace;
@@ -138,6 +141,12 @@
   --duration-fast: 120ms;
   --duration-base: 180ms;
   --duration-slow: 260ms;
+
+  /* Stacking: sticky chrome, overlays and menus, tooltips, toasts. Nothing else gets a z-index. */
+  --z-sticky: 40;
+  --z-overlay: 50;
+  --z-tooltip: 60;
+  --z-toast: 70;
 
   --animate-pulse-live: pulse-live 1.6s ease-in-out infinite;
   @keyframes pulse-live {
@@ -193,8 +202,6 @@
      travel, scale and every ambient loop. Spinners stay: they say "working". */
   @media (prefers-reduced-motion: reduce) {
     :root { --fd-rise: 0px; --fd-rise-sm: 0px; --fd-scale: 1; --fd-slide: 0px; }
-    .animate-pulse-live, .animate-pulse { animation: none; }
-    * { scroll-behavior: auto !important; }
   }
 }
 
@@ -218,8 +225,19 @@
 }
 
 /* Unlayered on purpose: these must beat the density tokens above and utility classes. */
+@media (prefers-reduced-motion: reduce) {
+  /* Ambient loops stop, including pseudo-elements; the arrival fades keep running. */
+  .animate-pulse-live, .animate-pulse, [class*="animate-pulse"], [class*="animate-pulse"]::after { animation: none !important; }
+  /* Nothing slides or resizes: only colour, border, opacity and shadow may transition. */
+  *, *::before, *::after {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, outline-color !important;
+    scroll-behavior: auto !important;
+  }
+}
 @media (pointer: coarse) {
   :root, :root[data-density="comfortable"] { --control: 44px; --row: 44px; }
+  /* 16px keeps iOS from zooming the page when a field takes focus. */
+  input, textarea, select { font-size: 16px; }
 }
 /* Very short viewports (200% zoom, landscape phones): keep reading space for the transcript. */
 @media (max-height: 520px) {
