@@ -175,6 +175,8 @@ export interface DataSource {
   steerTurn(id: string, text: string): Promise<string>;
   createSession(input: CreateSessionInput): Promise<string>;
   renameSession(id: string, title: string): Promise<void>;
+  /** Switch the model a session uses from its next turn. `model` is the qualified name. */
+  setSessionModel(id: string, model: string): Promise<void>;
   completeSession(id: string): Promise<void>;
   cancelSession(id: string): Promise<void>;
   deleteSession(id: string): Promise<void>;

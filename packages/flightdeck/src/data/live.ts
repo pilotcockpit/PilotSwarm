@@ -95,6 +95,9 @@ export function createLiveSource(): DataSource {
       if (input.prompt.trim()) await source.sendMessage(id, input.prompt.trim());
       return id;
     },
+    async setSessionModel(id, model) {
+      await api.call("setSessionModel", { sessionId: id, options: { model } });
+    },
     async renameSession(id, title) {
       await api.call("renameSession", { sessionId: id, title });
     },

@@ -300,6 +300,7 @@ export function createDemoSource(): DataSource {
       return wait(id, 250);
     },
     async renameSession(id, title) { const s = byId.get(id); if (s) s.title = title; },
+    async setSessionModel(id, model) { const s = byId.get(id); if (s) { s.model = model; if (s.status === "failed") s.error = undefined; } },
     async completeSession(id) { const s = byId.get(id); if (s) { s.status = "completed"; s.pendingQuestion = null; } },
     async cancelSession(id) { const s = byId.get(id); if (s) { s.status = "cancelled"; s.pendingQuestion = null; } },
     async deleteSession(id) { byId.delete(id); for (const s of byId.values()) if (s.parentSessionId === id) byId.delete(s.sessionId); },
