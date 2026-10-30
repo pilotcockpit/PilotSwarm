@@ -2,10 +2,10 @@ import * as React from "react";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { Group, Panel as SplitPanel, Separator, useDefaultLayout } from "react-resizable-panels";
 import {
-  Activity, ArrowUp, Ban, PanelRightClose, CheckCircle2, Clock, Copy, ExternalLink, FolderGit2, Files, GitBranch, Globe, Info, LayoutPanelLeft, ListPlus, Lock, MoreHorizontal, Navigation, Paperclip, Pencil, Share2, Shuffle, Square, Trash2, Users,
+  Activity, ArrowUp, Ban, Download, FolderInput, PanelRightClose, CheckCircle2, Clock, Copy, FolderGit2, Files, GitBranch, Globe, Info, LayoutPanelLeft, ListPlus, Lock, MoreHorizontal, Navigation, Paperclip, Pencil, Share2, Shuffle, Square, Trash2, Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { TopBar, ClassicLink } from "@/shell/AppShell";
+import { TopBar } from "@/shell/AppShell";
 import { useMediaQuery } from "@/shell/prefs";
 import { useArtifacts, useRefresh, useSession, useSessions, useSource, useTranscript } from "@/data/source";
 import { describeError, modelShort, questionKey, sessionState, STATE_TINT, type SessionState } from "@/data/state";
@@ -31,6 +31,12 @@ import { rovingKeyDown } from "@/lib/roving";
 import { sessionIsViewOnly } from "@/lib/session-access";
 import { createSessionComposerMemory } from "@/lib/session-composer";
 import { fillComposer } from "@/lib/composer";
+import { ShareButton, ShareSheet } from "@/components/session/share-sheet";
+import { MoveToGroupDialog, useCurrentGroupId } from "@/components/session/move-to-group";
+import { AttachmentTray } from "@/components/session/attachment-tray";
+import { ScheduleActions } from "@/components/session/schedule-actions";
+import { WorkingFolderDialog } from "@/components/session/working-folder-dialog";
+import { buildAttachedMessage, sendWithAttachments, useAttachments } from "@/data/ops/attachments";
 
 const route = getRouteApi("/s/$sessionId");
 
@@ -300,6 +306,8 @@ function SessionBarActions({ session, childCount }: { session: Session; childCou
   const [modelOpen, setModelOpen] = React.useState(false);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const [shareOpen, setShareOpen] = React.useState(false);
+  const [groupOpen, setGroupOpen] = React.useState(false);
+  const [folderOpen, setFolderOpen] = React.useState(false);
   const ctx = contextPercent(session);
   const stalled = isStalled(session);
   return (
@@ -323,16 +331,18 @@ function SessionBarActions({ session, childCount }: { session: Session; childCou
               <SessionDetails session={session} onChangeModel={() => { setDetailsOpen(false); setModelOpen(true); }} />
             </PopoverContent>
           </Popover>
-          <Button aria-label="Share" onClick={() => setShareOpen(true)}><Share2 /> <span className="max-2xl:hidden">Share</span></Button>
+          <ShareButton session={session} onOpen={() => setShareOpen(true)} />
         </>
       )}
-      <SessionMenu session={session} childCount={childCount} onChangeModel={() => setModelOpen(true)} onDetails={() => setDetailsOpen(true)} onShare={() => setShareOpen(true)} phone={phone} />
+      <SessionMenu session={session} childCount={childCount} onChangeModel={() => setModelOpen(true)} onDetails={() => setDetailsOpen(true)} onShare={() => setShareOpen(true)} onMoveToGroup={() => setGroupOpen(true)} onWorkingFolder={() => setFolderOpen(true)} phone={phone} />
       {phone ? (
         <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
           <DialogContent title="Session details"><DialogBody><SessionDetails session={session} onChangeModel={() => { setDetailsOpen(false); setModelOpen(true); }} /></DialogBody></DialogContent>
         </Dialog>
       ) : null}
-      <ShareDialog session={session} open={shareOpen} onOpenChange={setShareOpen} />
+      <ShareSheet session={session} open={shareOpen} onOpenChange={setShareOpen} />
+      <MoveToGroupDialog session={session} open={groupOpen} onOpenChange={setGroupOpen} />
+      <WorkingFolderDialog sessionId={session.sessionId} open={folderOpen} onOpenChange={setFolderOpen} />
       <ChangeModelDialog open={modelOpen} onOpenChange={setModelOpen} session={session} />
     </div>
   );
@@ -402,37 +412,13 @@ function StatePillWithSchedule({ state, session, showReason, compact = false }: 
           <dt className="text-muted">Time zone</dt><dd>{Intl.DateTimeFormat().resolvedOptions().timeZone}</dd>
           <dt className="text-muted">Runs so far</dt><dd className="tabular-nums">{session.iterations ?? "—"}</dd>
         </dl>
-        <p className="mt-3 text-xs text-muted">Pausing a schedule or waking it early isn't available here yet.</p>
+        <ScheduleActions session={session} />
       </PopoverContent>
     </Popover>
   );
 }
 
-function ShareDialog({ session, open, onOpenChange }: { session: Session; open: boolean; onOpenChange: (v: boolean) => void }) {
-  const link = `${window.location.origin}/s/${session.sessionId}`;
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={`Share “${session.title}”`} description="Who can open this session and its sub-agents.">
-        <DialogBody className="flex flex-col gap-4">
-          <div>
-            <div className="mb-1.5 text-sm font-medium">General access</div>
-            <div className="flex items-center gap-2 rounded-control border border-line px-3 py-2"><VisibilityLabel visibility={session.visibility} /></div>
-            <p className="mt-1.5 text-xs text-muted">Changing access and adding people is not ported yet: <ClassicLink>use the classic portal</ClassicLink>. When the deployment does not enforce ownership, everyone signed in can open every session.</p>
-          </div>
-          <div>
-            <div className="mb-1.5 text-sm font-medium">Link</div>
-            <div className="flex gap-2">
-              <Input readOnly value={link} aria-label="Session link" className="font-mono text-xs" />
-              <Button onClick={() => { void navigator.clipboard?.writeText(link); toast.success("Link copied"); }}><Copy /> Copy</Button>
-            </div>
-          </div>
-        </DialogBody>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function SessionMenu({ session, childCount, onChangeModel, onDetails, onShare, phone }: { session: Session; childCount: number; onChangeModel: () => void; onDetails: () => void; onShare: () => void; phone: boolean }) {
+function SessionMenu({ session, childCount, onChangeModel, onDetails, onShare, onMoveToGroup, onWorkingFolder, phone }: { session: Session; childCount: number; onChangeModel: () => void; onDetails: () => void; onShare: () => void; onMoveToGroup: () => void; onWorkingFolder: () => void; phone: boolean }) {
   const { source } = useSource();
   const refresh = useRefresh();
   const navigate = useNavigate();
@@ -458,6 +444,20 @@ function SessionMenu({ session, childCount, onChangeModel, onDetails, onShare, p
     } finally { inFlight.current = false; setBusy(false); }
   };
   const closed = ["completed", "cancelled"].includes(sessionState(session).key);
+  const currentGroup = useCurrentGroupId(session);
+  const [exporting, setExporting] = React.useState(false);
+  const exportHistory = async () => {
+    setExporting(true);
+    try {
+      const meta: any = await source.call("exportExecutionHistory", { sessionId: session.sessionId });
+      const filename = String(meta?.filename || meta?.name || "");
+      toast.success("History exported", {
+        description: filename || "Saved to this session's files.",
+        ...(filename ? { action: { label: "Open", onClick: () => void navigate({ to: "/s/$sessionId", params: { sessionId: session.sessionId }, search: { view: "files", files: "outputs", file: filename } as any }) } } : {}),
+      });
+    } catch (e: any) { toast.error("Couldn't export the history", { description: e?.message }); }
+    finally { setExporting(false); }
+  };
   return (
     <>
       <Menu>
@@ -468,7 +468,9 @@ function SessionMenu({ session, childCount, onChangeModel, onDetails, onShare, p
           <MenuItem disabled={readOnly} icon={<Pencil />} onSelect={() => window.dispatchEvent(new Event("fd:rename-session"))}>Rename</MenuItem>
           <MenuItem icon={<Copy />} onSelect={() => { void navigator.clipboard?.writeText(window.location.href); toast.success("Link copied"); }}>Copy link</MenuItem>
           <MenuItem disabled={readOnly} icon={<Shuffle />} onSelect={onChangeModel} hint={modelShort(session.model)}>Change model</MenuItem>
-          <MenuItem icon={<ExternalLink />} onSelect={() => window.open(import.meta.env.VITE_CLASSIC_URL || "http://localhost:3001", "_blank", "noopener")} hint="Group, working folder, export history">More in classic portal</MenuItem>
+          <MenuItem icon={<FolderInput />} onSelect={onMoveToGroup} hint={currentGroup ? "In a group now" : undefined}>Move to group…</MenuItem>
+          <MenuItem disabled={readOnly} icon={<FolderGit2 />} onSelect={onWorkingFolder} hint={session.workspace?.repo ? String(session.workspace.repo) : "Where the agent reads and writes files"}>Working folder…</MenuItem>
+          <MenuItem disabled={readOnly || exporting} icon={<Download />} onSelect={() => void exportHistory()} hint="Saves the full record to Files">Export history</MenuItem>
           <MenuSeparator />
           <MenuLabel>{readOnly ? "Management requires owner access" : "Close the session"}</MenuLabel>
           <MenuItem icon={<CheckCircle2 />} disabled={closed || readOnly} onSelect={() => setConfirm("complete")} hint="Close as done">Complete</MenuItem>
@@ -637,6 +639,11 @@ function Composer({ session }: { session: Session }) {
   const closed = st.key === "completed" || st.key === "cancelled";
   const readOnly = sessionIsViewOnly(session);
   const ref = React.useRef<HTMLTextAreaElement>(null);
+  const att = useAttachments(session.sessionId);
+  const fileInput = React.useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = React.useState(false);
+  const hasAttachments = att.ready.length > 0;
+  const canSend = (Boolean(text.trim()) || hasAttachments) && !att.uploading;
 
   React.useEffect(() => {
     const el = ref.current;
@@ -646,7 +653,9 @@ function Composer({ session }: { session: Session }) {
   }, [text]);
 
   const send = async (mode: "send" | "queue" | "steer") => {
-    if (readOnly) return;
+    if (readOnly || att.uploading) return;
+    // Pictures and files can be sent on their own: give the message the words the tray implies.
+    if (!composer.getSnapshot().text.trim() && hasAttachments) composer.setText(buildAttachedMessage(session.sessionId, "", att.ready).prompt.split("\n\n").pop() || "See the attached file.");
     const request = composer.beginSend();
     if (!request) return;
     const prompt = request.text;
@@ -656,11 +665,14 @@ function Composer({ session }: { session: Session }) {
         const outcome = await source.steerTurn(session.sessionId, prompt);
         if (outcome !== "accepted") throw new Error(outcome === "steering_disabled" ? "Steering is turned off for this deployment (feature flag sessions.steering)." : `The turn did not accept it (${outcome}).`);
         toast.success("Guidance added to the running turn");
+      } else if (hasAttachments) {
+        await sendWithAttachments(source, session.sessionId, buildAttachedMessage(session.sessionId, prompt, att.ready), mode === "queue" ? { enqueueOnly: true } : undefined);
       } else if (mode === "queue") {
         await source.sendMessage(session.sessionId, prompt, { enqueueOnly: true });
       } else {
         await source.sendMessage(session.sessionId, prompt);
       }
+      if (mode !== "steer") att.clear();
       result = mode === "queue" ? "queued" : "sent";
       refresh(session.sessionId);
     } catch (e: any) {
@@ -704,17 +716,30 @@ function Composer({ session }: { session: Session }) {
           </div>
         ))}
         {readOnly ? <p className="mb-2 flex items-center gap-1.5 text-sm text-muted"><Lock className="size-3.5" aria-hidden /> View-only access: you can read this session but not reply.</p> : null}
-        <div className={cn("rounded-pane border border-line-strong bg-surface transition-colors focus-within:border-accent focus-within:ring-1 focus-within:ring-accent", readOnly && "bg-raised")}>
+        <div
+          className={cn("relative rounded-pane border border-line-strong bg-surface transition-colors focus-within:border-accent focus-within:ring-1 focus-within:ring-accent", readOnly && "bg-raised", dragging && "border-accent bg-accent-tint")}
+          onDragOver={(e) => { if (!readOnly && e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragging(true); } }}
+          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false); }}
+          onDrop={(e) => { setDragging(false); if (readOnly || !e.dataTransfer.files.length) return; e.preventDefault(); void att.add(Array.from(e.dataTransfer.files)); }}
+        >
+          {dragging ? <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-pane text-sm font-medium text-accent">Drop to attach</div> : null}
+          <AttachmentTray items={att.items} onRemove={att.remove} />
           <Textarea
             ref={ref}
             rows={2}
             value={text}
             disabled={Boolean(readOnly)}
             onChange={(e) => composer.setText(e.target.value)}
+            onPaste={(e) => {
+              const files = Array.from(e.clipboardData.files || []);
+              if (!files.length || readOnly) return;
+              e.preventDefault();
+              void att.add(files);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
-                void send(running ? "queue" : "send");
+                if (canSend && !busy) void send(running ? "queue" : "send");
               }
             }}
             placeholder={readOnly ? "Replies are off for you" : running ? `Add to the queue, or steer ${session.agentId || "the agent"}…` : `Message ${session.agentId || "the agent"}…`}
@@ -723,21 +748,22 @@ function Composer({ session }: { session: Session }) {
           />
           <div className="flex flex-wrap items-center gap-2 px-2 pb-2">
             <span className="hidden text-xs text-muted sm:inline">{running ? "Enter queues it · Steer adds it to this turn" : "Enter to send · Shift+Enter for a new line"}</span>
-            <Tooltip content="Attaching files is in the classic portal for now">
-              <span className="ml-auto"><Button size="icon-sm" variant="quiet" disabled aria-label="Attach a file"><Paperclip /></Button></span>
+            <input ref={fileInput} type="file" multiple hidden tabIndex={-1} aria-hidden onChange={(e) => { void att.add(Array.from(e.target.files || [])); e.target.value = ""; }} />
+            <Tooltip content="Attach images or files. You can also drop or paste them here.">
+              <span className="ml-auto"><Button size="icon-sm" variant="quiet" disabled={Boolean(readOnly)} aria-label="Attach images or files" onClick={() => fileInput.current?.click()}><Paperclip /></Button></span>
             </Tooltip>
             {running ? (
               <>
                 <Tooltip content="Ends this turn now and discards its unfinished work">
                   <Button size="sm" variant="danger" disabled={readOnly || stopping} onClick={stop}><Square className="!size-3 fill-current" /> {stopping ? "Stopping…" : "Stop"}</Button>
                 </Tooltip>
-                <Tooltip content={session.acceptsTurnControl === false ? "This turn can't be steered (older runtime)" : "Adds your message as guidance to the running turn"}>
-                  <span><Button size="sm" disabled={!text.trim() || busy || readOnly || session.acceptsTurnControl === false} onClick={() => send("steer")}><Navigation /> Steer</Button></span>
+                <Tooltip content={session.acceptsTurnControl === false ? "This turn can't be steered (older runtime)" : att.items.length ? "Steering takes text only. Remove the attachments, or queue this message instead." : "Adds your message as guidance to the running turn"}>
+                  <span><Button size="sm" disabled={!text.trim() || busy || readOnly || session.acceptsTurnControl === false || att.items.length > 0} onClick={() => send("steer")}><Navigation /> Steer</Button></span>
                 </Tooltip>
-                <Button size="sm" variant="primary" disabled={!text.trim() || busy || readOnly} onClick={() => send("queue")}><ListPlus /> Queue</Button>
+                <Button size="sm" variant="primary" disabled={!canSend || busy || readOnly} onClick={() => send("queue")}><ListPlus /> Queue</Button>
               </>
             ) : (
-              <Button size="sm" variant="primary" disabled={!text.trim() || busy || Boolean(readOnly)} onClick={() => send("send")}><ArrowUp /> Send</Button>
+              <Button size="sm" variant="primary" disabled={!canSend || busy || Boolean(readOnly)} onClick={() => send("send")}><ArrowUp /> {att.uploading ? "Uploading…" : "Send"}</Button>
             )}
           </div>
         </div>

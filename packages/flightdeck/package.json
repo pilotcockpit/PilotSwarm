@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:ux": "node --experimental-strip-types --test src/lib/session-access.test.mjs src/lib/session-composer.test.mjs",
-    "tokens:check": "node scripts/token-guard.mjs"
+    "tokens:check": "node scripts/token-guard.mjs",
+    "test": "vitest run --exclude \"**/*.test.mjs\" && node --test src/lib/*.test.mjs"
   },
   "dependencies": {
     "@fontsource-variable/recursive": "5.3.0",

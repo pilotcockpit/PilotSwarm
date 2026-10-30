@@ -2,18 +2,22 @@
 import * as React from "react";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Brain, ShieldCheck, Wrench } from "lucide-react";
-import { TopBar, ClassicLink } from "@/shell/AppShell";
+import { ShieldCheck } from "lucide-react";
+import { TopBar } from "@/shell/AppShell";
+import { ClusterFlags } from "@/components/admin/flags-panel";
+import { KnowledgeHealth } from "@/components/admin/knowledge-panel";
+import { Maintenance } from "@/components/admin/maintenance-panel";
+import { SystemSessions } from "@/components/admin/system-sessions-panel";
+import { WorkerPackages } from "@/components/admin/worker-packages";
 import { useFlags, useProfile, useSessions, useSource, useWorkers } from "@/data/source";
 import { describeError, sessionState } from "@/data/state";
-import { SessionRow } from "@/components/session-row";
 import { EmptyState, Panel } from "@/components/empty";
 import { Skeleton, Tag } from "@/components/ui/misc";
 import { SideNav, SideNavItem } from "@/components/ui/tabs";
 import { StateGlyph } from "@/components/state";
 import { ADMIN_TABS } from "@/router";
 import { ago, bytes, clock, cn, tokens } from "@/lib/utils";
-import { Card, Stat, cardVariants } from "@/components/ui/card";
+import { Card, Stat } from "@/components/ui/card";
 
 const route = getRouteApi("/admin");
 
@@ -48,41 +52,18 @@ export function AdminPage() {
         </SideNav>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="max-w-[880px] px-4 py-5 md:px-6">
-            <p className="mb-5 text-sm text-muted">{tab === "overview" ? "Check worker availability and system sessions before investigating a specific issue." : tab === "workers" ? "Runtime capacity and versions reported by registered workers." : tab === "usage" ? "Review the fleet statistics this deployment reports, with each measure shown in its own units." : tab === "audit" ? "Review returned access decisions. A missing record is not proof that no access occurred." : tab === "system" ? "Monitor the agents responsible for platform housekeeping." : "Deployment administration and configuration."}</p>
+            <p className="mb-5 text-sm text-muted">{tab === "overview" ? "Check worker availability and system sessions before investigating a specific issue." : tab === "workers" ? "Runtime capacity and versions reported by registered workers." : tab === "usage" ? "Review the fleet statistics this deployment reports, with each measure shown in its own units." : tab === "audit" ? "Review returned access decisions. A missing record is not proof that no access occurred." : tab === "system" ? "The agents that keep the platform tidy. Restart one that is stuck." : tab === "flags" ? "Switch features on or off for everyone, or let people choose for themselves. Changes reach workers within about 20 seconds." : tab === "knowledge" ? "What the agents know, whether search is healthy, and the graph built from it." : tab === "maintenance" ? "Housekeeping you can run by hand. Each task says what it touches." : "Deployment administration and configuration."}</p>
             {tab === "overview" ? <Overview /> : null}
-            {tab === "flags" ? <Flags /> : null}
+            {tab === "flags" ? <ClusterFlags /> : null}
             {tab === "workers" ? <Workers /> : null}
             {tab === "system" ? <SystemSessions /> : null}
             {tab === "audit" ? <Audit /> : null}
-            {tab === "knowledge" ? <Panel><EmptyState icon={<Brain />} title="Knowledge" action={<ClassicLink>Open in classic portal</ClassicLink>}>Facts and graph namespaces, embedder status and purge are not ported yet.</EmptyState></Panel> : null}
+            {tab === "knowledge" ? <KnowledgeHealth /> : null}
             {tab === "usage" ? <ClusterUsage /> : null}
-            {tab === "maintenance" ? <Panel><EmptyState icon={<Wrench />} title="Maintenance" action={<ClassicLink>Open in classic portal</ClassicLink>}>Pruning deleted-session summaries and similar upkeep. Destructive, so it stays in the classic portal until it has a reviewed confirmation flow here.</EmptyState></Panel> : null}
+            {tab === "maintenance" ? <Maintenance /> : null}
           </div>
         </div>
       </div>
-    </>
-  );
-}
-
-function Flags() {
-  const { data: flags, isLoading } = useFlags();
-  if (isLoading) return <Skeleton className="h-48" />;
-  return (
-    <>
-      <p className="mb-3 text-sm text-muted">Read-only here. Change a flag in <ClassicLink>the classic portal</ClassicLink>; each flag's history is its change audit.</p>
-      <Panel>
-        {(flags || []).map((f) => (
-          <div key={f.key} className="flex items-center gap-4 border-t border-line-subtle px-4 py-3 first:border-t-0">
-            <div className="min-w-0 flex-1">
-              <div className="font-mono text-sm">{f.key}</div>
-              {f.description ? <div className="text-xs text-muted">{String(f.description)}</div> : null}
-            </div>
-            {typeof (f.value ?? f.default) === "boolean" ? (
-              <span className={cn("text-sm font-medium", f.value ?? f.default ? "text-fg" : "text-faint")}><span className="sr-only">{f.key}: </span>{f.value ?? f.default ? "On" : "Off"}</span>
-            ) : <span className="font-mono text-xs text-muted">{JSON.stringify(f.value ?? f.default)}</span>}
-          </div>
-        ))}
-      </Panel>
     </>
   );
 }
@@ -91,6 +72,7 @@ function Workers() {
   const { data: workers, isLoading } = useWorkers();
   if (isLoading) return <Skeleton className="h-48" />;
   return (
+    <>
     <Panel className="overflow-x-auto">
       <table className="w-full min-w-[640px] text-sm">
         <thead><tr className="border-b border-line text-left text-xs text-faint"><th className="px-3 py-2 font-medium">Worker</th><th className="px-3 py-2 font-medium">State</th><th className="px-3 py-2 font-medium">Version</th><th className="px-3 py-2 text-right font-medium">Sessions</th><th className="px-3 py-2 text-right font-medium">Memory</th><th className="px-3 py-2 text-right font-medium">Up</th></tr></thead>
@@ -108,24 +90,7 @@ function Workers() {
         </tbody>
       </table>
     </Panel>
-  );
-}
-
-function SystemSessions() {
-  const { data: sessions } = useSessions();
-  const system = (sessions || []).filter((s) => s.isSystem);
-  const failed = system.filter((s) => sessionState(s).key === "failed");
-  const err = failed[0] ? describeError(failed[0].error) : null;
-  return (
-    <>
-      {err ? (
-        <div role="alert" className={cn(cardVariants({ tone: "failed", enter: true }), "mb-4 p-3 text-sm")}>
-          <p className="font-semibold">{failed.length} of {system.length} system sessions reported a failure.</p>
-          <p className="mt-0.5 text-fg/85">First reported error: {err.detail || err.headline}</p>
-        </div>
-      ) : null}
-      <Panel>{system.length ? system.map((s) => <SessionRow key={s.sessionId} session={s} />) : <EmptyState title="No system sessions" />}</Panel>
-      <p className="mt-3 text-xs text-muted">Restart with Complete, Cancel or Delete &amp; restart is not ported yet: <ClassicLink>use the classic portal</ClassicLink>.</p>
+    <WorkerPackages />
     </>
   );
 }
@@ -138,7 +103,7 @@ function Audit() {
     <>
       <Panel className="mb-4 p-4">
         <div className="text-sm font-semibold">{source.kind === "live" ? "Access policy is not reported here" : "Example access policy"}</div>
-        <p className="mt-1 text-sm text-muted">{source.kind === "live" ? <>This dashboard has not verified authentication, ownership enforcement, or the deployment's admin scope. Review the configured policy in <ClassicLink>the classic portal</ClassicLink> before relying on a session's privacy label.</> : "In this demo, ownership is enforced and new sessions are private by default. These are example settings, not a statement about your deployment."}</p>
+        <p className="mt-1 text-sm text-muted">{source.kind === "live" ? <>This dashboard has not verified authentication, ownership enforcement, or the deployment's admin scope. Check the deployment's configured access policy before relying on a session's privacy label.</> : "In this demo, ownership is enforced and new sessions are private by default. These are example settings, not a statement about your deployment."}</p>
       </Panel>
       {!data?.length ? <Panel><EmptyState title="No access records returned">The current request returned no records. This does not establish whether audit history is empty, unavailable, or outside your access.</EmptyState></Panel> : (
         <Panel>
@@ -247,7 +212,7 @@ function Overview() {
       key: "flags",
       state: "completed",
       title: `${on} of ${(flags || []).length} feature flags on`,
-      detail: "Cluster-wide values, read-only here.",
+      detail: "Turn features on or off for everyone, or let people choose.",
       to: "flags",
     },
   ];

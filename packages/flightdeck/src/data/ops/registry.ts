@@ -6,7 +6,10 @@ type Handler = (params: any) => unknown | Promise<unknown>;
 const handlers = new Map<string, Handler>();
 
 export function registerDemoOps(ops: Record<string, Handler>) {
-  for (const [name, fn] of Object.entries(ops)) handlers.set(name, fn);
+  for (const [name, fn] of Object.entries(ops)) {
+    if (import.meta.env.DEV && handlers.has(name)) console.warn(`demo op ${name} is registered twice; the later file wins`);
+    handlers.set(name, fn);
+  }
 }
 
 export async function callDemoOp(op: string, params?: Record<string, unknown>) {

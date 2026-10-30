@@ -1,20 +1,20 @@
 import { getRouteApi } from "@tanstack/react-router";
 import * as React from "react";
 import { Database } from "lucide-react";
-import { TopBar, ClassicLink } from "@/shell/AppShell";
+import { TopBar } from "@/shell/AppShell";
+import { MyFeaturePreferences } from "@/components/settings/personal-flags";
 import { useDensity, useTheme } from "@/shell/prefs";
 import { ShortcutList } from "@/shell/shortcuts";
 import { useProfile, useSource } from "@/data/source";
-import { EmptyState, Panel } from "@/components/empty";
+import { Panel } from "@/components/empty";
 import { Segmented, SideNav, SideNavItem } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/misc";
 import { notificationSupport, useNotifyPref } from "@/shell/notifications";
 import { SETTINGS_TABS } from "@/router";
 
 const route = getRouteApi("/settings");
-const LABEL: Record<(typeof SETTINGS_TABS)[number], string> = { profile: "Profile", appearance: "Appearance", shortcuts: "Keyboard shortcuts", flags: "My feature flags", notifications: "Notifications", data: "Data source" };
-// "flags" is not built yet, so it is not in the list; a direct link still gets an honest page.
-const NAV: Array<(typeof SETTINGS_TABS)[number]> = ["appearance", "notifications", "shortcuts", "profile", "data"];
+const LABEL: Record<(typeof SETTINGS_TABS)[number], string> = { profile: "Profile", appearance: "Appearance", shortcuts: "Keyboard shortcuts", flags: "Feature preferences", notifications: "Notifications", data: "Data source" };
+const NAV: Array<(typeof SETTINGS_TABS)[number]> = ["appearance", "notifications", "flags", "shortcuts", "profile", "data"];
 
 export function SettingsPage() {
   const search = route.useSearch();
@@ -34,7 +34,7 @@ export function SettingsPage() {
             {tab === "profile" ? <Profile /> : null}
             {tab === "appearance" ? <Appearance /> : null}
             {tab === "shortcuts" ? <Panel className="px-4"><ShortcutList /></Panel> : null}
-            {tab === "flags" ? <Panel><EmptyState title="My feature flags" action={<ClassicLink>Open in classic portal</ClassicLink>}>Per-person overrides of cluster flags live in the classic portal for now.</EmptyState></Panel> : null}
+            {tab === "flags" ? <MyFeaturePreferences /> : null}
             {tab === "notifications" ? <Notifications /> : null}
             {tab === "data" ? <DataSourceSettings /> : null}
           </div>
@@ -83,7 +83,7 @@ function DataSourceSettings() {
   const { mode, setMode, source } = useSource();
   return (
     <Panel>
-      <Row title="Where Flight Deck reads from" note={mode === "live" ? `The PilotSwarm Web API at ${source.label}, the same server as the classic portal.` : "Realistic fixtures, for judging the design when the deployment has little to show. Nothing is sent anywhere."}>
+      <Row title="Where Flight Deck reads from" note={mode === "live" ? `The PilotSwarm Web API at ${source.label}, the same server every PilotSwarm client uses.` : "Realistic fixtures, for judging the design when the deployment has little to show. Nothing is sent anywhere."}>
         <Segmented label="Data source" value={mode} onChange={setMode} options={[{ value: "live", label: "Live" }, { value: "demo", label: "Demo" }]} />
       </Row>
       <div className="flex items-start gap-2 border-t border-line px-4 py-3 text-xs text-muted"><Database className="mt-0.5 size-3.5 shrink-0" aria-hidden /> Add <span className="font-mono">?data=demo</span> or <span className="font-mono">?data=live</span> to any Flight Deck link to switch.</div>

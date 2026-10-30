@@ -13,7 +13,7 @@ import { Tooltip, TooltipProvider } from "@/components/ui/tooltip";
 import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog";
 import { cn, initials } from "@/lib/utils";
 import { useUi, UiStateProvider } from "./ui-state";
-import { CLASSIC_PORTAL_URL, useDensity, useMediaQuery, useTheme } from "./prefs";
+import { useDensity, useMediaQuery, useTheme } from "./prefs";
 import { CommandPalette } from "./CommandPalette";
 import { ShortcutsDialog, useGlobalShortcuts } from "./shortcuts";
 import { useAttentionNotifications } from "./notifications";
@@ -302,15 +302,6 @@ export function TopBar({ crumbs, actions, titleIsHeading = true }: { crumbs: Arr
         </Button>
       </Tooltip>
     </header>
-  );
-}
-
-/** "Not in Flight Deck yet": every unported feature links back to the classic portal. */
-export function ClassicLink({ path = "", children = "Open in classic portal", className }: { path?: string; children?: React.ReactNode; className?: string }) {
-  return (
-    <a href={`${CLASSIC_PORTAL_URL}${path}`} target="_blank" rel="noreferrer" className={cn("text-accent hover:underline underline-offset-2", className)}>
-      {children}
-    </a>
   );
 }
 

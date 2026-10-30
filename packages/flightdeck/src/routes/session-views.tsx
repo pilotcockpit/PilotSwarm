@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Download, ExternalLink, FileText, Folder, GitBranch, Lock, Maximize2, Minimize2, MoreHorizontal, Square, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronRight, Download, FileText, Folder, GitBranch, Lock, Maximize2, Minimize2, MoreHorizontal, Settings2, Share2, Square, ZoomIn, ZoomOut } from "lucide-react";
 import { toast } from "sonner";
 import type { HistoryModel } from "@ps/history";
 import { useArtifacts, useRefresh, useSessions, useSource, useWorkers } from "@/data/source";
@@ -16,7 +16,11 @@ import { Segmented } from "@/components/ui/tabs";
 import { Chip, Skeleton } from "@/components/ui/misc";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
-import { ClassicLink } from "@/shell/AppShell";
+import { FolderPane } from "@/components/session/files/folder-pane";
+import { ShareCanvasDialog } from "@/components/session/share-canvas-dialog";
+import { WorkingFolderDialog } from "@/components/session/working-folder-dialog";
+import { errorCode, useWorkspaceFolders } from "@/data/ops/workspace";
+import { useOpMutation } from "@/data/ops/use-op";
 import { ago, bytes, clock, cn, plural, shortId } from "@/lib/utils";
 import { describeEvent, eventTime, statLabel } from "@/lib/event-text";
 import { fillComposer } from "@/lib/composer";
@@ -48,6 +52,7 @@ export function useCanvases(sessionId: string) {
 export function CanvasView({ session, slot, focus, onSlot, onFocus, phone, onUsePrompt }: { session: Session; slot?: number; focus: boolean; onSlot: (slot: number) => void; onFocus: (v: boolean) => void; phone?: boolean; onUsePrompt?: (prompt: string) => void }) {
   const { canvases, loading } = useCanvases(session.sessionId);
   const [zoom, setZoom] = React.useState(1);
+  const [shareOpen, setShareOpen] = React.useState(false);
   const current = canvases.find((c) => c.slot === slot) || canvases[0];
   if (loading) return <div className="p-4"><Skeleton className="h-full min-h-[300px] w-full" /></div>;
   if (!current) {
@@ -96,13 +101,14 @@ export function CanvasView({ session, slot, focus, onSlot, onFocus, phone, onUse
             <MenuItem icon={<ZoomOut />} onSelect={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}>Zoom out</MenuItem>
             <MenuItem icon={<Square />} onSelect={() => setZoom(1)} hint={`Now ${Math.round(zoom * 100)}%`}>Actual size</MenuItem>
             <MenuSeparator />
-            <MenuItem icon={<ExternalLink />} onSelect={() => window.open(`${import.meta.env.VITE_CLASSIC_URL || "http://localhost:3001"}`, "_blank", "noopener")} hint="Public share links live there for now">Share link in classic portal</MenuItem>
+            <MenuItem icon={<Share2 />} onSelect={() => setShareOpen(true)} hint="Links and who can edit">Share canvas…</MenuItem>
           </MenuContent>
         </Menu>
       </div>
       <div id="canvas-panel" role="tabpanel" aria-labelledby={`canvas-tab-${current.slot}`} className="min-h-0 flex-1">
         <CanvasFrame key={`${current.slot}`} html={current.html} title={`${current.name} (canvas ${current.slot})`} zoom={zoom} />
       </div>
+      <ShareCanvasDialog sessionId={session.sessionId} slot={current.slot} name={current.name} open={shareOpen} onOpenChange={setShareOpen} />
     </div>
   );
 }
@@ -113,16 +119,41 @@ export function FilesView({ session, tab, file, onTab, onFile }: { session: Sess
   const { data: artifacts, isLoading } = useArtifacts(session.sessionId);
   const outputs = (artifacts || []).filter((a) => !isCanvasFile(a.filename));
   const selected = outputs.find((a) => a.filename === file) || null;
+  const info = useWorkspaceFolders(session.sessionId);
+  const [folderId, setFolderId] = React.useState("working");
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const folders = info.data?.folders ?? [];
+  const folder = folders.find((f) => f.id === folderId) ?? folders[0];
+  const choose = (v: string) => { if (v === "outputs") onTab("outputs"); else { if (v !== "folders") setFolderId(v); onTab("folders"); } };
+  const options = [
+    { value: "outputs", label: `Outputs${outputs.length ? ` ${outputs.length}` : ""}` },
+    ...(folders.length ? folders.map((f) => ({ value: f.id, label: f.role === "working" && f.home ? "Home" : f.name })) : [{ value: "folders", label: "Folders" }]),
+  ];
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-[44px] shrink-0 items-center gap-2 border-b border-line px-3">
-        <Segmented label="Files" value={tab} onChange={onTab} options={[{ value: "outputs", label: `Outputs${outputs.length ? ` ${outputs.length}` : ""}` }, { value: "folders", label: "Folders" }]} />
-        <span className="ml-auto hidden text-xs text-muted sm:inline">Your attachments and what the agent publishes</span>
+        <div className="min-w-0 overflow-x-auto"><Segmented label="Files" value={tab === "outputs" ? "outputs" : folder?.id ?? "folders"} onChange={choose} options={options} /></div>
+        {tab === "folders" ? (
+          <Tooltip content="Working folder settings"><Button variant="quiet" size="icon-sm" className="ml-auto" aria-label="Working folder settings" onClick={() => setSettingsOpen(true)}><Settings2 /></Button></Tooltip>
+        ) : <span className="ml-auto hidden text-xs text-muted sm:inline">Your attachments and what the agent publishes</span>}
       </div>
       {tab === "folders" ? (
-        <EmptyState icon={<Folder />} title="Working folders open in the classic portal for now" className="h-full" action={<ClassicLink>Open working folders</ClassicLink>}>
-          The tree, editor, find, upload and git changes for main, home and shared folders are not ported to Flight Deck yet. A working-folder file reaches Outputs only when you publish it.
-        </EmptyState>
+        info.isLoading ? <div className="flex flex-col gap-2 p-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-9" />)}</div>
+        : info.error ? (
+          <EmptyState icon={<Folder />} title={["WORKSPACE_FILES_READ_ONLY", "FORBIDDEN"].includes(errorCode(info.error)) || /owner|forbidden|403/i.test((info.error as Error).message) ? "Only the session's owner can browse its folders" : "Couldn't read this session's folders"} className="h-full" action={<Button onClick={() => void info.refetch()}>Try again</Button>}>
+            {(info.error as Error).message}
+          </EmptyState>
+        ) : !info.data?.enabled ? (
+          <EmptyState icon={<Folder />} title="Working folders aren't set up on this server" className="h-full">
+            An administrator turns them on by giving the portal a list of folder roots. Until then, files the agent publishes appear under Outputs.
+          </EmptyState>
+        ) : !folder ? (
+          <EmptyState icon={<Folder />} title="This session has no working folder yet" className="h-full" action={<Button variant="primary" onClick={() => setSettingsOpen(true)}>Choose a working folder</Button>}>
+            Point the session at a project folder and the agent reads and writes there. You can browse and edit those files here.
+          </EmptyState>
+        ) : (
+          <FolderPane session={session} info={info.data} folder={folder} openWorkingFolder={() => setSettingsOpen(true)} />
+        )
       ) : isLoading ? (
         <div className="flex flex-col gap-2 p-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-9" />)}</div>
       ) : outputs.length === 0 ? (
@@ -144,6 +175,7 @@ export function FilesView({ session, tab, file, onTab, onFile }: { session: Sess
           {selected ? <FilePreview session={session} file={selected} /> : null}
         </div>
       )}
+      <WorkingFolderDialog sessionId={session.sessionId} open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 }
@@ -380,10 +412,17 @@ function Nodes() {
 function ExecHistory({ session }: { session: Session }) {
   const { source } = useSource();
   const { data, isLoading } = useQuery({ queryKey: ["exec-history", session.sessionId], queryFn: () => source.executionHistory(session.sessionId) });
+  // The whole history goes to a file in Outputs, where it can be previewed and downloaded.
+  const exporter = useOpMutation<void, { filename?: string }>("exportExecutionHistory", {
+    params: () => ({ sessionId: session.sessionId }),
+    invalidate: [["artifacts", session.sessionId]],
+    success: (r) => `History exported${r?.filename ? ` to ${r.filename}` : ""}. Find it under Files, Outputs.`,
+    failure: "Couldn't export the history",
+  });
   if (isLoading) return <Skeleton className="h-40" />;
   return (
     <>
-      <div className="mb-2 flex items-center gap-2"><span className="text-sm text-muted">{plural((data || []).length, "durable history event")} · showing the last 80</span><span className="ml-auto"><ClassicLink>Export history</ClassicLink></span></div>
+      <div className="mb-2 flex items-center gap-2"><span className="text-sm text-muted">{plural((data || []).length, "durable history event")} · showing the last 80</span><Button size="sm" className="ml-auto" disabled={exporter.isPending} onClick={() => exporter.mutate()}>{exporter.isPending ? "Exporting…" : "Export history"}</Button></div>
       <pre className="max-h-[60vh] overflow-auto rounded-pane border border-line bg-bg p-3 font-mono text-xs leading-5">{JSON.stringify((data || []).slice(-80), null, 2)}</pre>
     </>
   );

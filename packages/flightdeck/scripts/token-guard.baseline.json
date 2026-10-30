@@ -12,7 +12,7 @@
   "src/routes/home.tsx": 3,
   "src/routes/library.tsx": 1,
   "src/routes/new-session.tsx": 2,
-  "src/routes/providers.tsx": 4,
+  "src/routes/providers.tsx": 1,
   "src/routes/session-views.tsx": 4,
   "src/routes/session.tsx": 5,
   "src/routes/sessions.tsx": 2,
