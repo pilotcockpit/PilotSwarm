@@ -1107,6 +1107,8 @@ export class PortalRuntime {
             case "sendAnswer":
                 return this.transport.sendAnswer(safeParams.sessionId, safeParams.answer, {
                     ...(safeParams.options?.expectedQuestion !== undefined ? { expectedQuestion: safeParams.options.expectedQuestion } : {}),
+                    // Strict binding is opt-in and only ever literally true.
+                    ...(safeParams.options?.requireQuestionMatch === true ? { requireQuestionMatch: true } : {}),
                     sender: this._buildSender(authContext, gate.snapshot, { isAdmin }),
                 });
             case "sendSessionEvent":

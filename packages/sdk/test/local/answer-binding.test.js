@@ -181,6 +181,17 @@ describe("bound answers, orchestration 1.0.83", () => {
         expect(rejected(h)).toHaveLength(1);
     });
 
+    it("a rejected answer leaves the question's hold timer running", () => {
+        const h = harness(LIVE, { pendingInputQuestion: { ...OPEN } });
+        h.runtime.state.activeTimer = { deadlineMs: 1_750_000_000_000 + 60_000, originalDurationMs: 60_000, reason: "input grace", type: "input-grace" };
+        h.messages.push({ answer: "Delete old files", expectedQuestion: first, requireQuestionMatch: true });
+        h.step();
+        expect(h.turns).toEqual([]);
+        expect(h.runtime.state.pendingInputQuestion?.question).toBe("second?");
+        expect(h.runtime.state.activeTimer?.type).toBe("input-grace");
+        expect(rejected(h)).toHaveLength(1);
+    });
+
     it("an answer that does not opt in stays lenient: a stale one is kept as ordinary input", () => {
         const h = harness(LIVE, { pendingInputQuestion: { ...OPEN } });
         h.messages.push({ answer: "Delete old files", expectedQuestion: first, wasFreeform: true });

@@ -4139,14 +4139,33 @@ export class PilotSwarmManagementClient {
 
     /**
      * Send an answer to a pending question from a session.
+     *
+     * `expectedQuestion` binds the answer to the question the caller saw. By
+     * default an answer whose question is no longer open is kept as ordinary
+     * input (a reconnecting client, or another writer who answered first).
+     * `requireQuestionMatch: true` opts into the opposite for answers that
+     * must not run against the wrong question, such as a choice labelled
+     * "Delete old files": from orchestration 1.0.83 such an answer runs no
+     * turn and the session records `session.answer_rejected`. It needs an
+     * `expectedQuestion`: with none to bind to this fails here, not by
+     * guessing from whatever is open now. A session still on an older
+     * orchestration version ignores the flag and stays lenient.
      */
-    async sendAnswer(sessionId: string, answer: string, options?: { sender?: MessageSender; expectedQuestion?: { question: string; iteration?: number } | null }): Promise<void> {
+    async sendAnswer(sessionId: string, answer: string, options?: { sender?: MessageSender; expectedQuestion?: { question: string; iteration?: number } | null; requireQuestionMatch?: boolean }): Promise<void> {
         this._ensureStarted();
+        const requireQuestionMatch = options?.requireQuestionMatch === true;
+        if (requireQuestionMatch && !options?.expectedQuestion) {
+            throw new Error(
+                "sendAnswer: requireQuestionMatch needs an expectedQuestion, the question the answer was written for. " +
+                "Pass { question, iteration } as observed, or drop requireQuestionMatch to answer whichever question is open.",
+            );
+        }
         const orchId = `session-${sessionId}`;
         await this._assertOrchestrationLive(orchId, sessionId, "sendAnswer");
         const expectedQuestion = options?.expectedQuestion !== undefined
             ? options.expectedQuestion : (await this.getSession(sessionId))?.pendingQuestion ?? null;
         const payload: Record<string, unknown> = { answer, wasFreeform: true, expectedQuestion };
+        if (requireQuestionMatch) payload.requireQuestionMatch = true;
         const sender = normalizeMessageSender(options?.sender);
         if (sender) payload.sender = sender;
         await this._duroxideClient.enqueueEvent(

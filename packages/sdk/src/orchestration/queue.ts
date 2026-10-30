@@ -898,7 +898,7 @@ export function* drain(runtime: DurableSessionRuntime): Generator<any, void, any
         }
 
         if (msg.answer !== undefined) {
-            const answerItem = { kind: "answer", expectedQuestion: msg.expectedQuestion !== undefined ? msg.expectedQuestion : state.pendingInputQuestion ? { question: state.pendingInputQuestion.question, iteration: state.pendingInputQuestion.iteration ?? state.iteration } : null, answer: msg.answer, wasFreeform: msg.wasFreeform, ...(msg.sender && typeof msg.sender === "object" ? { sender: msg.sender } : {}) };
+            const answerItem = { kind: "answer", expectedQuestion: msg.expectedQuestion !== undefined ? msg.expectedQuestion : state.pendingInputQuestion ? { question: state.pendingInputQuestion.question, iteration: state.pendingInputQuestion.iteration ?? state.iteration } : null, answer: msg.answer, wasFreeform: msg.wasFreeform, ...(msg.requireQuestionMatch === true ? { requireQuestionMatch: true } : {}), ...(msg.sender && typeof msg.sender === "object" ? { sender: msg.sender } : {}) };
             // 1.0.82 (defect E): an answer too large to queue is refused
             // before anything changes: the question stays open and its hold
             // timer keeps running.
@@ -1244,7 +1244,7 @@ function* sweepMessagesBeforePromptDispatch(runtime: DurableSessionRuntime): Gen
         }
 
         if (msg.answer !== undefined) {
-            const answerItem = { kind: "answer", expectedQuestion: msg.expectedQuestion !== undefined ? msg.expectedQuestion : state.pendingInputQuestion ? { question: state.pendingInputQuestion.question, iteration: state.pendingInputQuestion.iteration ?? state.iteration } : null, answer: msg.answer, wasFreeform: msg.wasFreeform, ...(msg.sender && typeof msg.sender === "object" ? { sender: msg.sender } : {}) };
+            const answerItem = { kind: "answer", expectedQuestion: msg.expectedQuestion !== undefined ? msg.expectedQuestion : state.pendingInputQuestion ? { question: state.pendingInputQuestion.question, iteration: state.pendingInputQuestion.iteration ?? state.iteration } : null, answer: msg.answer, wasFreeform: msg.wasFreeform, ...(msg.requireQuestionMatch === true ? { requireQuestionMatch: true } : {}), ...(msg.sender && typeof msg.sender === "object" ? { sender: msg.sender } : {}) };
             // 1.0.82 (defect E): refused at arrival, as in drain.
             if (isFifoItemTooLarge(answerItem)) {
                 yield* reportUnstoredItems(runtime, [answerItem], ["too-large"]);
@@ -1304,6 +1304,25 @@ function* processAnswer(runtime: DurableSessionRuntime, answerItem: any): Genera
         && expected.question === pending
         && (expected.iteration === undefined
             || expected.iteration === (runtime.state.pendingInputQuestion?.iteration ?? runtime.state.iteration)));
+    // 1.0.83: an answer that asked for strict binding and no longer matches runs
+    // no turn. Nothing else changes: the open question stays open and its hold
+    // timer is re-armed after decide, as for any queued work that ran no turn.
+    // Answers that did not ask keep the lenient path below.
+    if (answerItem.requireQuestionMatch === true && !matchesQuestion) {
+        const open = runtime.state.pendingInputQuestion;
+        runtime.ctx.traceInfo(`[answer] stale bound answer rejected: expected=${JSON.stringify(expected ?? null).slice(0, 120)} open=${open ? JSON.stringify(open.question).slice(0, 80) : "none"}`);
+        yield runtime.manager.recordSessionEvent(runtime.input.sessionId, [{
+            eventType: "session.answer_rejected",
+            data: {
+                reason: "stale-question",
+                expectedQuestion: expected ?? null,
+                currentQuestion: open
+                    ? { question: open.question, iteration: open.iteration ?? runtime.state.iteration }
+                    : null,
+            },
+        }]);
+        return;
+    }
     const question = matchesQuestion ? pending : undefined;
     if (matchesQuestion) runtime.state.pendingInputQuestion = null;
     // Any writer may answer (security model); attribution shows who did.

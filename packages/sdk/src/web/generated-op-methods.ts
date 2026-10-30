@@ -1358,7 +1358,7 @@ export interface ManagementOps {
     }): Promise<any>;
 
     /**
-     * Answer a pending input-required question; options.expectedQuestion binds to the observed question and iteration.
+     * Answer a pending input-required question; options.expectedQuestion binds to the observed question and iteration. options.requireQuestionMatch: true (needs expectedQuestion) makes a stale answer fail closed: from orchestration 1.0.83 it runs no turn and the session records session.answer_rejected; without it a stale answer is kept as ordinary input.
      * @remarks `POST /sessions/:sessionId/answers` — access: `session:write`
      */
     sendAnswer(params: {
