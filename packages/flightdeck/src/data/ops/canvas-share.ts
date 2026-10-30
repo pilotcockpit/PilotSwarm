@@ -1,3 +1,7 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useSource } from "@/data/source";
+import type { DataSource } from "@/data/types";
 import { useOpMutation, useOpQuery } from "./use-op";
 
 // Who can see and use one canvas: a public view link (one at a time), and who may write inside the app.
@@ -19,13 +23,34 @@ export const useKvAccess = (sessionId: string, slot: number, enabled = true) =>
     select: (raw) => ({ policy: (raw?.policy as KvAccess) || "owner", me: raw?.me ?? null }),
   });
 
-/** Mint a link, or rotate the existing one: the old link stops working at once. The token is returned this one time only. */
-export const useMintShareLink = (sessionId: string, slot: number) =>
-  useOpMutation<void, { token: string }>("resetCanvasShareLink", {
-    params: () => ({ sessionId, slot }),
-    invalidate: [[...key(sessionId, slot), "link"]],
-    failure: "Couldn't create the link",
+/**
+ * The mutation that mints (or rotates) the public link. The raw token is returned by the server exactly
+ * once and must live nowhere but the component that shows it: it is handed to `onToken` and NEVER returned,
+ * so it is not in the mutation's data; and gcTime 0 drops the mutation from TanStack's cache the moment
+ * nothing observes it. Variables hold only the callback, not the token.
+ */
+export function mintLinkOptions(source: Pick<DataSource, "call">, sessionId: string, slot: number) {
+  return {
+    gcTime: 0,
+    mutationFn: async (v: { onToken: (token: string) => void }) => {
+      const r = await source.call("resetCanvasShareLink", { sessionId, slot });
+      const token = typeof r?.token === "string" ? r.token : "";
+      if (!token) throw new Error("The server didn't return a link.");
+      v.onToken(token);
+      return { minted: true as const };
+    },
+  };
+}
+
+export function useMintShareLink(sessionId: string, slot: number) {
+  const { source } = useSource();
+  const qc = useQueryClient();
+  return useMutation({
+    ...mintLinkOptions(source, sessionId, slot),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: [...key(sessionId, slot), "link"] }),
+    onError: (e: any) => toast.error("Couldn't create the link", { description: e?.message }),
   });
+}
 
 export const useRemoveShareLink = (sessionId: string, slot: number) =>
   useOpMutation<void, unknown>("removeCanvasShareLink", {

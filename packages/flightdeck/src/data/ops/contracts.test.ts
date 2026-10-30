@@ -54,10 +54,11 @@ describe("describeFlagChange", () => {
   it("describes resets and personal changes, with the person", () => {
     expect(describeFlagChange(row("feature_flag.unset", { scope: "cluster", before: setting({ enabled: true }), after: null })).summary).toBe("reset to the default");
     const mine = describeFlagChange(row("feature_flag.set", { scope: "user", userId: 7, before: null, after: setting({ scope: "user", userId: 7, enabled: false, allowUserOverride: null }) }));
-    expect(mine.summary).toBe("turned off for one person");
+    expect(mine.summary).toBe("turned off");
+    expect(mine.scope).toBe("user");
     expect(mine.userId).toBe(7);
-    expect(describeFlagChange(row("feature_flag.unset", { scope: "user", userId: 7, before: setting({}), after: null })).summary).toBe("removed a personal choice for one person");
-    expect(describeFlagChange(row("feature_flag.user_adopt", { scope: "user", userId: 7, before: null, after: null })).summary).toBe("adopted a personal choice for one person");
+    expect(describeFlagChange(row("feature_flag.unset", { scope: "user", userId: 7, before: setting({}), after: null })).summary).toBe("removed a personal choice");
+    expect(describeFlagChange(row("feature_flag.user_adopt", { scope: "user", userId: 7, before: null, after: null })).summary).toBe("adopted a personal choice");
   });
   it("reads the feature key from details or the target, and never throws on a bare row", () => {
     expect(describeFlagChange(row("feature_flag.set", { featureKey: "a.b", before: null, after: setting({ enabled: true }) }, "feature:x.y")).featureKey).toBe("a.b");

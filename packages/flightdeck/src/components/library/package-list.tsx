@@ -40,7 +40,7 @@ export function PackagesTab({ query, profile, onOpen, onAdd, onDropped }: {
 }) {
   const { data: packages, isLoading, isError, error, refetch, isFetching } = usePackages();
   const admin = Boolean(profile?.isAdmin);
-  const workers = useWorkerPackageState(admin);
+  const workers = useWorkerPackageState(admin, packages);
   const [filter, setFilter] = React.useState<Filter>("all");
   const [over, setOver] = React.useState(false);
   const q = query.trim().toLowerCase();

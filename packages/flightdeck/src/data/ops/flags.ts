@@ -1,9 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useSource } from "@/data/source";
-import { useOpQuery } from "./use-op";
+import { useOpQuery, useOpRequest, type OpRequest } from "./use-op";
 import type { Worker } from "@/data/types";
 import { describeFlagChange, type FlagChangeView } from "./contracts";
+export { changeSentence } from "./contracts";
 
 // Feature flags have three layers: the code-defined default, the cluster policy an admin sets
 // (on/off, and whether people may choose for themselves), and each person's own choice. The API
@@ -72,12 +73,14 @@ export function useFeatureUsers(query: string) {
 }
 
 /** Recent changes, newest first, read from the authz audit. Rows are normalised into one sentence each. */
+export const flagChangesRequest: OpRequest<FlagChange[]> = {
+  key: flagKeys.changes,
+  op: "listFeatureFlagChanges",
+  params: { limit: 100 },
+  select: (raw) => (Array.isArray(raw) ? raw : raw?.changes || []).map(describeFlagChange),
+};
 export function useFlagChanges(enabled = true) {
-  return useOpQuery<FlagChange[]>(flagKeys.changes, "listFeatureFlagChanges", { limit: 100 }, {
-    enabled,
-    staleTime: 10_000,
-    select: (raw) => (Array.isArray(raw) ? raw : raw?.changes || []).map(describeFlagChange),
-  });
+  return useOpRequest(flagChangesRequest, { enabled, staleTime: 10_000 });
 }
 
 export type FlagTarget = { kind: "cluster" } | { kind: "me" } | { kind: "user"; userId: number };
@@ -139,4 +142,18 @@ export function flagWriteCall(m: Mutation, id: string): { op: string; params: Re
   if (target.kind === "cluster") return m.clear ? { op: "resetClusterFeatureFlag", params: base } : { op: "setClusterFeatureFlag", params: { ...base, enabled: m.enabled, allowUserOverride: m.allowUserOverride } };
   if (target.kind === "me") return m.clear ? { op: "unsetMyFeatureFlag", params: base } : { op: "setMyFeatureFlag", params: { ...base, enabled: m.enabled } };
   return m.clear ? { op: "unsetUserFeatureFlag", params: { ...base, userId: target.userId } } : { op: "setUserFeatureFlag", params: { ...base, userId: target.userId, enabled: m.enabled } };
+}
+
+/** A lookup from user id to a display name, from the people the admin has already looked up plus the directory. */
+export function usePersonNames(): (userId: number) => string | null {
+  const qc = useQueryClient();
+  const directory = useFeatureUsers("");
+  return (userId) => {
+    const lists = [directory.data, ...qc.getQueriesData<FlagUser[]>({ queryKey: ["featureFlags", "users"] }).map(([, v]) => v)];
+    for (const list of lists) {
+      const u = (list || []).find((x) => x.userId === userId);
+      if (u) return u.displayName || u.email || null;
+    }
+    return null;
+  };
 }

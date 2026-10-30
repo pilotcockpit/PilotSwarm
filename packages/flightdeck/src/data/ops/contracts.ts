@@ -34,7 +34,26 @@ export function normalizePackageFile(raw: any): PackageFileView {
 }
 
 // ── listFeatureFlagChanges ── migrations/feature-flags-0077.ts: audit rows with details.before/after
-export interface FlagChangeView { auditId?: string; at?: string; actor: string; action: string; featureKey: string; userId: number | null; summary: string }
+export interface FlagChangeView {
+  auditId?: string; at?: string; actor: string; action: string; featureKey: string;
+  scope: string;
+  /** The person a personal change was for, when the change names one. */
+  userId: number | null;
+  /** The audit row's own name for that person, if it carried one. */
+  person: string | null;
+  /** What changed, without the person: "turned off", "reset to the default". */
+  summary: string;
+}
+
+/** Who a personal change was for: the row's own name, else a name from a user list, else a short id. */
+export function personLabel(c: Pick<FlagChangeView, "userId" | "person">, nameOf?: (userId: number) => string | null | undefined): string {
+  if (c.person) return c.person;
+  if (c.userId != null) return nameOf?.(c.userId) || `user ${c.userId}`;
+  return "one person";
+}
+
+/** The change as one sentence, naming the person for a personal change. */
+export const changeSentence = (c: FlagChangeView, nameOf?: (userId: number) => string | null | undefined) => (c.scope === "user" ? `${c.summary} for ${personLabel(c, nameOf)}` : c.summary);
 
 export function describeFlagChange(row: any): FlagChangeView {
   const d = row?.details && typeof row.details === "object" ? row.details : {};
@@ -56,6 +75,7 @@ export function describeFlagChange(row: any): FlagChangeView {
     }
     summary = parts.length ? parts.join(", ") : "changed";
   }
-  if (scope === "user") summary += " for one person";
-  return { auditId: row?.audit_id ?? row?.auditId, at: row?.occurred_at ?? row?.occurredAt, actor: String(row?.actor_subject ?? row?.actorSubject ?? "An admin"), action, featureKey, userId, summary };
+  const owner = d.owner ?? after?.owner ?? before?.owner ?? null;
+  const person = typeof owner?.displayName === "string" && owner.displayName ? owner.displayName : typeof owner?.email === "string" && owner.email ? owner.email : null;
+  return { auditId: row?.audit_id ?? row?.auditId, at: row?.occurred_at ?? row?.occurredAt, actor: String(row?.actor_subject ?? row?.actorSubject ?? "An admin"), action, featureKey, scope, userId, person, summary };
 }

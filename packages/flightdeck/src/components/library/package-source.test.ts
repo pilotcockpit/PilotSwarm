@@ -107,11 +107,30 @@ describe("assertSafePath", () => {
 });
 
 describe("readZip limits", () => {
-  it("refuses a zip bomb while inflating, long before it is all in memory", async () => {
-    // 64 MB of zeros deflates to a few hundred KB: well under the 4 MB input cap, far over the 2 MB output cap.
+  it("STOPS inflating at the cap when the header lies about the size", async () => {
+    // 64 MB of zeros deflates to a few hundred KB: well under the 4 MB input cap, far over the 2 MB output
+    // cap, and the header claims 10 bytes, so only the streaming cap can stop it. Count what the inflater
+    // actually produced: a cap applied after the fact (reject the finished result) would let all 64 MB through.
     const bomb = await zipOf([{ name: "plugin.json", data: zeros(64 * 1024 * 1024), method: 8, claimed: 10 }]);
     expect(bomb.size).toBeLessThan(MAX_ZIP_BYTES);
-    await expect(readZip(bomb)).rejects.toThrow(/2 MB limit/);
+    const Real = globalThis.DecompressionStream;
+    let produced = 0;
+    (globalThis as any).DecompressionStream = class {
+      readable: ReadableStream<Uint8Array>;
+      writable: WritableStream<Uint8Array>;
+      constructor(format: string) {
+        const real = new Real(format as any);
+        this.writable = real.writable as WritableStream<Uint8Array>;
+        this.readable = (real.readable as ReadableStream<Uint8Array>).pipeThrough(new TransformStream<Uint8Array, Uint8Array>({ transform(chunk, controller) { produced += chunk.length; controller.enqueue(chunk); } }));
+      }
+    };
+    try {
+      await expect(readZip(bomb)).rejects.toThrow(/2 MB limit/);
+    } finally {
+      (globalThis as any).DecompressionStream = Real;
+    }
+    expect(produced).toBeGreaterThan(MAX_BYTES);              // it did hit the cap...
+    expect(produced).toBeLessThan(MAX_BYTES + 2 * 1024 * 1024); // ...and stopped there, nowhere near 64 MB
   });
   it("refuses an entry whose header declares more than the limit, without reading it", async () => {
     await expect(readZip(await zipOf([{ name: "big.bin", data: zeros(10), claimed: MAX_BYTES + 1 }]))).rejects.toThrow(/2 MB limit/);

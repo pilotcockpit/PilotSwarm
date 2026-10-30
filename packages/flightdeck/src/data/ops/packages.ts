@@ -1,7 +1,8 @@
+import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizePackageFile, type PackageFileView } from "./contracts";
 import { useSource } from "@/data/source";
-import { useOpMutation, useOpQuery } from "@/data/ops/use-op";
+import { useOpMutation, useOpQuery, useOpRequest, type OpRequest } from "@/data/ops/use-op";
 import type { Profile } from "@/data/types";
 
 // Agent packages through the Web API. A NAME is not a package: one name can be a shared package
@@ -103,17 +104,50 @@ export function usePackageTree(pkg: PackageSummary | null, semver: string | unde
   });
 }
 
+export const packageFileRequest = (pkg: PackageSummary | null, semver: string | undefined, filePath: string | null, profile?: Profile | null): OpRequest<PackageFile> => ({
+  key: ["packages", "file", pkg ? packageKey(pkg) : "", semver || "active", filePath || ""],
+  op: "getAgentPackageFile",
+  params: pkg && filePath ? { ...packageSelector(pkg, profile), ...(semver ? { semver } : {}), filePath } : {},
+  select: normalizePackageFile,
+});
 export function usePackageFile(pkg: PackageSummary | null, semver: string | undefined, filePath: string | null, profile?: Profile | null) {
-  return useOpQuery<PackageFile>(["packages", "file", pkg ? packageKey(pkg) : "", semver || "active", filePath || ""], "getAgentPackageFile", pkg && filePath ? { ...packageSelector(pkg, profile), ...(semver ? { semver } : {}), filePath } : {}, {
-    enabled: Boolean(pkg && filePath),
-    staleTime: 60_000,
-    select: normalizePackageFile,
+  return useOpRequest(packageFileRequest(pkg, semver, filePath, profile), { enabled: Boolean(pkg && filePath), staleTime: 60_000 });
+}
+
+/** How often to look again while workers are still picking up a new version. */
+export const ADOPTION_POLL_MS = 5_000;
+
+/** True while some worker still runs another version of a package (and has not failed): adoption is under way. */
+export function adoptionInProgress(packages: PackageSummary[] | undefined, states: WorkerPackageState[] | undefined): boolean {
+  if (!packages?.length || !states?.length) return false;
+  return packages.some((p) => {
+    const a = adoption(p, states);
+    return Boolean(a && a.on + a.failed < a.total);
   });
 }
 
-/** Admin only: what each worker has installed, for the adoption meter. */
-export function useWorkerPackageState(enabled: boolean) {
-  return useOpQuery<WorkerPackageState[]>(["packages", "workers"], "listAgentWorkerState", {}, { enabled, staleTime: 15_000, select: (raw) => list<WorkerPackageState>(raw, "workers").concat(Array.isArray(raw) ? [] : list<WorkerPackageState>(raw, "rows")).map((r) => ({ ...r, installed: (r.installed || {}) as WorkerPackageState["installed"] })) });
+/**
+ * Admin only: what each worker has installed, for the adoption meter. While a new version is still
+ * being picked up it looks again every few seconds; when the last worker has it, the agent catalog is
+ * refreshed too, because a new version can add or change agents.
+ */
+export function useWorkerPackageState(enabled: boolean, packages?: PackageSummary[]) {
+  const qc = useQueryClient();
+  const packagesRef = React.useRef(packages);
+  packagesRef.current = packages;
+  const query = useOpQuery<WorkerPackageState[]>(["packages", "workers"], "listAgentWorkerState", {}, {
+    enabled,
+    staleTime: 15_000,
+    refetchInterval: (q) => (adoptionInProgress(packagesRef.current, q.state.data) ? ADOPTION_POLL_MS : false),
+    select: (raw) => list<WorkerPackageState>(raw, "workers").concat(Array.isArray(raw) ? [] : list<WorkerPackageState>(raw, "rows")).map((r) => ({ ...r, installed: (r.installed || {}) as WorkerPackageState["installed"] })),
+  });
+  const inProgress = adoptionInProgress(packages, query.data);
+  const was = React.useRef(false);
+  React.useEffect(() => {
+    if (was.current && !inProgress) void qc.invalidateQueries({ queryKey: ["agents"] });
+    was.current = inProgress;
+  }, [inProgress, qc]);
+  return query;
 }
 
 export function useKnownUsers(enabled = true) {

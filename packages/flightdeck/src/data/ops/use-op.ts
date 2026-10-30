@@ -6,7 +6,7 @@ import { useSource } from "@/data/source";
  * Read through any Web API operation. `key` is the cache key (start it with the area, e.g.
  * ["providers", "limits"]); the same key is what a mutation invalidates.
  */
-export function useOpQuery<T = any>(key: QueryKey, op: string, params?: Record<string, unknown>, opts?: { enabled?: boolean; staleTime?: number; select?: (raw: any) => T }) {
+export function useOpQuery<T = any>(key: QueryKey, op: string, params?: Record<string, unknown>, opts?: { enabled?: boolean; staleTime?: number; select?: (raw: any) => T; refetchInterval?: number | false | ((query: any) => number | false) }) {
   const { source } = useSource();
   return useQuery({
     queryKey: key,
@@ -16,6 +16,7 @@ export function useOpQuery<T = any>(key: QueryKey, op: string, params?: Record<s
     },
     enabled: opts?.enabled,
     staleTime: opts?.staleTime,
+    refetchInterval: opts?.refetchInterval,
   });
 }
 
@@ -36,4 +37,21 @@ export function useOpMutation<V = any, R = any>(op: string | ((v: V) => string),
     },
     onError: (e: any) => toast.error(opts.failure || "That didn't work", { description: e?.message }),
   });
+}
+
+/**
+ * A read described as data: where it caches, which operation, with what parameters, and how its wire
+ * answer becomes what a screen reads. Hooks run it with useOpRequest; tests run the same object with
+ * runRequest and a stubbed `call`, so the mapping that ships is the mapping that is tested.
+ */
+export interface OpRequest<T> { key: QueryKey; op: string; params?: Record<string, unknown>; select?: (raw: any) => T }
+
+export async function runRequest<T>(source: { call: (op: string, params?: Record<string, unknown>) => Promise<any> }, req: OpRequest<T>): Promise<T> {
+  const raw = await source.call(req.op, req.params);
+  return (req.select ? req.select(raw) : raw) as T;
+}
+
+export function useOpRequest<T>(req: OpRequest<T>, opts?: { enabled?: boolean; staleTime?: number; refetchInterval?: number | false | ((query: any) => number | false) }) {
+  const { source } = useSource();
+  return useQuery({ queryKey: req.key, queryFn: () => runRequest(source, req), enabled: opts?.enabled, staleTime: opts?.staleTime, refetchInterval: opts?.refetchInterval });
 }

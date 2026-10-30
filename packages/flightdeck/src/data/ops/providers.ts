@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSource } from "@/data/source";
-import { useOpMutation, useOpQuery } from "@/data/ops/use-op";
+import { useOpMutation, useOpQuery, useOpRequest, type OpRequest } from "@/data/ops/use-op";
 import type { Model, Provider } from "@/data/types";
 import { normalizeUsageReport, type UsageReport } from "./contracts";
 
@@ -112,13 +112,13 @@ export const useProviderTypes = () =>
 
 export const useModelDefaults = () => useOpQuery<DefaultsView>(["providers", "defaults"], "getModelDefaults");
 
-export const useProviderUsage = (provider: string, days = 14) =>
-  useOpQuery<UsageReport>(
-    ["providers", "usage", provider, days],
-    "getProviderUsage",
-    { provider, days, dimension: "model" },
-    { staleTime: 30_000, select: normalizeUsageReport },
-  );
+export const providerUsageRequest = (provider: string, days = 14): OpRequest<UsageReport> => ({
+  key: ["providers", "usage", provider, days],
+  op: "getProviderUsage",
+  params: { provider, days, dimension: "model" },
+  select: normalizeUsageReport,
+});
+export const useProviderUsage = (provider: string, days = 14) => useOpRequest(providerUsageRequest(provider, days), { staleTime: 30_000 });
 
 /** Paused sessions with the exact reason. Live reads the API; demo reads the pauseState on its fixture sessions. */
 export function usePausedSessions() {
@@ -228,6 +228,8 @@ const UNITS: Record<string, number> = { k: 1e3, m: 1e6, b: 1e9 };
 /** "5M", "250k", "1.5m", "2,000,000" → whole tokens, or null when it is not a number. */
 /** The exact integer for an edit box: never the rounded display form (1,234,567 is not 1.2M). */
 export const editableTokens = (n: number): string => String(Math.trunc(n));
+/** What the limit editor shows when it opens: the saved limit exactly, or nothing. */
+export const initialLimitText = (quota: number | null | undefined): string => (quota != null ? editableTokens(quota) : "");
 
 export function parseTokens(input: string): number | null {
   const m = input.trim().toLowerCase().replace(/[, _]/g, "").match(/^(\d+(?:\.\d+)?)([kmb])?(?:tokens?)?$/);

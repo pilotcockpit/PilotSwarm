@@ -75,11 +75,9 @@ export function ShareCanvasDialog({ sessionId, slot, name, open, onOpenChange }:
   const sessionUrl = `${window.location.origin}/s/${encodeURIComponent(sessionId)}?view=canvas&slot=${slot}`;
   const make = async () => {
     const mine = generation.current;
-    const r = await mint.mutateAsync();
-    // The token is only ever in this variable and in `fresh`: drop the mutation's own copy right away.
+    // The token reaches this component through the callback only: it is not in the mutation's data or cache.
+    await mint.mutateAsync({ onToken: (token) => { if (generation.current === mine) setFresh(`${publicShareOrigin()}/?canvasShare=${encodeURIComponent(token)}`); } });
     mint.reset();
-    if (generation.current !== mine) return;
-    setFresh(`${publicShareOrigin()}/?canvasShare=${encodeURIComponent(r.token)}`);
   };
   const policy = kv.data?.policy ?? "owner";
   const canSetAccess = canManage;

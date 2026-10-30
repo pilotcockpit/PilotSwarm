@@ -7,6 +7,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton, Tag } from "@/components/ui/misc";
 import { cardVariants } from "@/components/ui/card";
+import { baselineOf, isDirty as formIsDirty, planSave, type Baseline } from "./working-folder-form";
 import { errorCode, useRetryWorkspace, useSetWorkspace, useWorkspaceFolders, useWorkspaceView, type WorkspaceRecord } from "@/data/ops/workspace";
 import { cn, plural } from "@/lib/utils";
 
@@ -59,6 +60,11 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
   const [problem, setProblem] = React.useState<string | null>(null);
   const [confirmClear, setConfirmClear] = React.useState(false);
   const loadedRevision = React.useRef<number | null>(null);
+  // What the form was loaded from: its revision and values, frozen until it is loaded again.
+  const [baseline, setBaseline] = React.useState<Baseline | null>(null);
+  const [conflict, setConflict] = React.useState(false);
+  // With no record yet there are no baseline values, but the revision still has to be frozen.
+  const [baselineRevision, setBaselineRevision] = React.useState<number | null>(null);
   // Set when the record changed on the server while the form holds unsaved edits: the edits stay, and
   // the person decides whether to load the new version.
   const [remoteRevision, setRemoteRevision] = React.useState<number | null>(null);
@@ -68,9 +74,14 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
     if (!w) return;
     loadedRevision.current = w.revision;
     setRemoteRevision(null);
+    setConflict(false);
     setProblem(null);
-    setRoot(record?.root ?? w.defaults?.workingFolder?.root ?? "");
-    setFolder(record?.folder ?? w.defaults?.workingFolder?.folder ?? "");
+    const r0 = record?.root ?? w.defaults?.workingFolder?.root ?? "";
+    const f0 = record?.folder ?? w.defaults?.workingFolder?.folder ?? "";
+    setBaseline(record ? baselineOf(w.revision, record.root, record.folder ?? "") : null);
+    setBaselineRevision(w.revision);
+    setRoot(r0);
+    setFolder(f0);
     const ex = Object.entries(record?.extra ?? {}).map(([name, e]) => ({ name, root: e.root, folder: e.folder ?? "" }));
     setExtras(ex);
     setExtrasTouched(false);
@@ -83,7 +94,7 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
     if (loadedRevision.current != null && dirtyRef.current) { setRemoteRevision(w.revision); return; }
     load();
   }, [open, w, load]);
-  React.useEffect(() => { if (!open) { loadedRevision.current = null; setRemoteRevision(null); setProblem(null); } }, [open]);
+  React.useEffect(() => { if (!open) { loadedRevision.current = null; setRemoteRevision(null); setConflict(false); setBaseline(null); setBaselineRevision(null); setProblem(null); } }, [open]);
 
   const knownRoots = React.useMemo(() => {
     const set = new Set<string>(folders.data?.roots ?? []);
@@ -101,25 +112,37 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
     : !e.root.trim() ? "Pick a root."
     : folderPathError(e.folder),
   );
-  const dirty = !record
-    ? Boolean(root.trim())
-    : root.trim() !== record.root || folder.trim() !== (record.folder ?? "") || extrasTouched;
+  const dirty = formIsDirty({ root, folder, extrasTouched }, baseline);
   const valid = root.trim().length > 0 && !folderError && extraErrors.every((e) => !e);
   dirtyRef.current = dirty;
 
-  const apply = () => {
+  /** The baseline the save is checked against: the loaded record, or just its revision when there is no record yet. */
+  const frozen = (): Baseline | null => baseline ?? (baselineRevision != null ? { revision: baselineRevision, root: "", folder: "" } : null);
+
+  const send = (choice: "normal" | "keep") => {
     if (!w) return;
     setProblem(null);
+    const plan = planSave(frozen(), w.revision, choice);
+    if (plan.action === "conflict") { setConflict(true); return; }
+    setConflict(false);
     const next: WorkspaceRecord = { root: root.trim(), ...(folder.trim() ? { folder: folder.trim().replace(/\/+$/, "") } : {}) };
     if (extrasTouched) next.extra = Object.fromEntries(extras.filter((e) => e.name).map((e) => [e.name, { root: e.root.trim(), ...(e.folder.trim() ? { folder: e.folder.trim().replace(/\/+$/, "") } : {}) }]));
-    save.mutate({ expectedRevision: w.revision, workspace: next }, {
+    save.mutate({ expectedRevision: plan.expectedRevision, workspace: next }, {
       onSuccess: () => { loadedRevision.current = null; },
-      onError: (e: any) => { setProblem(workspaceProblem(errorCode(e), e?.message)); void view.refetch(); },
+      onError: (e: any) => {
+        // The server is the backstop: if it moved between our last read and this save, ask, don't overwrite.
+        if (errorCode(e) === "WORKSPACE_REVISION_CONFLICT") setConflict(true);
+        else setProblem(workspaceProblem(errorCode(e), e?.message));
+        void view.refetch();
+      },
     });
   };
+  const apply = () => send("normal");
   const clear = async () => {
     if (!w) return;
-    await save.mutateAsync({ expectedRevision: w.revision, workspace: null }).catch((e: any) => { throw new Error(workspaceProblem(errorCode(e), e?.message)); });
+    const plan = planSave(frozen(), w.revision);
+    if (plan.action === "conflict") { setConflict(true); throw new Error("The working folder changed since you opened this. Review it first."); }
+    await save.mutateAsync({ expectedRevision: plan.expectedRevision, workspace: null }).catch((e: any) => { throw new Error(workspaceProblem(errorCode(e), e?.message)); });
     loadedRevision.current = null;
   };
 
@@ -194,7 +217,16 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
                   ) : null}
                 </div>
 
-                {remoteRevision != null ? (
+                {conflict ? (
+                  <div role="alert" className={cn(cardVariants({ tone: "waiting" }), "flex flex-col gap-2 px-3 py-2 text-sm")}>
+                    <p><strong>The working folder changed while you were editing.</strong> Your edits are still here. Saving now would replace their change.</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => send("keep")} disabled={save.isPending}>Keep my edits and save</Button>
+                      <Button size="sm" onClick={load} disabled={save.isPending}>Take theirs and discard mine</Button>
+                    </div>
+                  </div>
+                ) : null}
+                {remoteRevision != null && !conflict ? (
                   <div role="status" className={cn(cardVariants({ tone: "waiting" }), "flex flex-col gap-2 px-3 py-2 text-sm")}>
                     <p>The working folder was changed elsewhere. Your edits here are kept.</p>
                     <div><Button size="sm" onClick={load}>Load their version and discard my edits</Button></div>

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Chip } from "@/components/ui/misc";
 import { cardVariants } from "@/components/ui/card";
 import { Meter, Select, monthProjection, plural } from "@/components/providers/shared";
-import { PERIODS, PERIOD_LABEL, PERIOD_WORD, editableTokens, parseTokens, untilWords, useRemoveLimit, useSetAllowance, useSetHold, useSetLimit, type GridCell, type GridRow, type Period } from "@/data/ops/providers";
+import { PERIODS, PERIOD_LABEL, PERIOD_WORD, initialLimitText, parseTokens, untilWords, useRemoveLimit, useSetAllowance, useSetHold, useSetLimit, type GridCell, type GridRow, type Period } from "@/data/ops/providers";
 import type { Provider } from "@/data/types";
 import { cn, tokens } from "@/lib/utils";
 
@@ -30,7 +30,7 @@ function LimitRow({ provider, period, model, cell, manageable, usingCount, allow
   const resets = untilWords(cell?.resetsAtUtc);
   const over = parsed != null && used >= parsed;
 
-  const open = () => { setText(quota != null ? editableTokens(quota) : ""); setEditing(true); };
+  const open = () => { setText(initialLimitText(quota)); setEditing(true); };
   const save = async () => {
     if (parsed == null) return;
     try {

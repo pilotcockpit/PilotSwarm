@@ -9,7 +9,7 @@ import { Skeleton, Switch, Tag } from "@/components/ui/misc";
 import { Segmented } from "@/components/ui/tabs";
 import { PersonalFlagList } from "@/components/settings/personal-flags";
 import { useWorkers } from "@/data/source";
-import { clusterPolicy, defaultPolicy, flagDelivery, groupFlags, policySentence, samePolicy, useClusterFlags, useFeatureUsers, useFlagChanges, useFlagMutation, useUserFlags, type FlagChange, type FlagUser, type FlagView, type Policy } from "@/data/ops/flags";
+import { changeSentence, clusterPolicy, defaultPolicy, flagDelivery, groupFlags, policySentence, samePolicy, useClusterFlags, useFeatureUsers, useFlagChanges, useFlagMutation, usePersonNames, useUserFlags, type FlagChange, type FlagUser, type FlagView, type Policy } from "@/data/ops/flags";
 import { ago, cn } from "@/lib/utils";
 
 /**
@@ -47,6 +47,7 @@ const CLUSTER = { kind: "cluster" } as const;
 
 function ClusterFlagRow({ flag, changes }: { flag: FlagView; changes: FlagChange[] }) {
   const mutation = useFlagMutation();
+  const nameOf = usePersonNames();
   const { data: workers } = useWorkers();
   const policy = clusterPolicy(flag);
   const fallback = defaultPolicy(flag);
@@ -118,7 +119,7 @@ function ClusterFlagRow({ flag, changes }: { flag: FlagView; changes: FlagChange
       </div>
       {history ? (
         <ul className="mt-1.5 flex flex-col gap-1 pl-5 text-xs text-muted">
-          {changes.length ? changes.slice(0, 5).map((c, i) => <li key={c.auditId || i}><span className="text-fg">{c.actor}</span> {c.summary} · {ago(c.at)}</li>) : <li>No changes recorded for this flag. It is using its default.</li>}
+          {changes.length ? changes.slice(0, 5).map((c, i) => <li key={c.auditId || i}><span className="text-fg">{c.actor}</span> {changeSentence(c, nameOf)} · {ago(c.at)}</li>) : <li>No changes recorded for this flag. It is using its default.</li>}
         </ul>
       ) : null}
       <ConfirmDialog
@@ -188,6 +189,7 @@ function PersonOverrides() {
 
 function RecentChanges({ flags, changes, loading }: { flags: FlagView[]; changes: FlagChange[]; loading: boolean }) {
   const [open, setOpen] = React.useState(false);
+  const nameOf = usePersonNames();
   const names = new Map(flags.map((f) => [f.featureKey, f.displayName]));
   return (
     <section aria-label="Recent changes">
@@ -199,7 +201,7 @@ function RecentChanges({ flags, changes, loading }: { flags: FlagView[]; changes
           {loading ? <Skeleton className="h-24" /> : changes.length ? changes.slice(0, 20).map((c, i) => (
             <div key={c.auditId || i} className="flex flex-wrap items-baseline gap-x-2 border-t border-line-subtle px-4 py-2 text-sm first:border-t-0">
               <span className="font-medium">{c.actor}</span>
-              <span className="text-muted">{c.summary}</span>
+              <span className="text-muted">{changeSentence(c, nameOf)}</span>
               <span>{names.get(c.featureKey) || c.featureKey}</span>
               <span className="ml-auto text-xs text-faint">{ago(c.at)}</span>
             </div>

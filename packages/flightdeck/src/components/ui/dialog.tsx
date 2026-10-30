@@ -2,6 +2,7 @@ import * as React from "react";
 import { Dialog as D } from "radix-ui";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createFocusReturn } from "./focus-return";
 
 // One dialog primitive: role, label, focus trap, focus return and Esc come
 // from Radix. Sheets are the same primitive anchored to the right edge.
@@ -20,9 +21,9 @@ export function DialogContent({
   ...props
 }: Omit<React.ComponentProps<typeof D.Content>, "title"> & { title: React.ReactNode; description?: React.ReactNode; side?: "center" | "right"; hideClose?: boolean }) {
   // Most dialogs here are opened from code (a menu item, a button's handler), with no Trigger for Radix
-  // to hand focus back to. Remember what had focus when this opened and return it on close.
-  const invoker = React.useRef<Element | null>(null);
-  if (invoker.current === null && typeof document !== "undefined") invoker.current = document.activeElement;
+  // to hand focus back to. The tracker remembers what had focus when the content MOUNTED (the moment the
+  // dialog opens, not when this component first renders closed) and returns it on close.
+  const focusReturn = React.useRef(createFocusReturn(() => (typeof document === "undefined" ? null : document.activeElement)));
   return (
     <D.Portal>
       <D.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim data-[state=open]:animate-fade" />
@@ -39,10 +40,10 @@ export function DialogContent({
         onCloseAutoFocus={(e) => {
           onCloseAutoFocus?.(e);
           if (e.defaultPrevented) return;
-          const el = invoker.current;
-          if (el instanceof HTMLElement && el !== document.body && el.isConnected) { e.preventDefault(); el.focus(); }
+          if (focusReturn.current.restore((el) => el === document.body)) e.preventDefault();
         }}
       >
+        <CaptureInvoker tracker={focusReturn.current} />
         <div className="flex items-start gap-3 px-5 pb-1 pt-4">
           <div className="min-w-0 flex-1">
             <D.Title className="text-lg font-semibold">{title}</D.Title>
@@ -58,6 +59,12 @@ export function DialogContent({
       </D.Content>
     </D.Portal>
   );
+}
+
+/** Mounts with the open dialog and, before Radix moves focus into it, records what had focus. */
+function CaptureInvoker({ tracker }: { tracker: ReturnType<typeof createFocusReturn> }) {
+  tracker.capture();
+  return null;
 }
 
 export function DialogBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

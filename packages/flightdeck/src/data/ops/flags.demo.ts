@@ -23,9 +23,21 @@ const users: Array<{ userId: number; displayName: string; email: string; subject
 ];
 const personal = new Map<string, { enabled: boolean; revision: string }>([["1:debug.enable_model_event_logging", { enabled: true, revision: "2" }]]);
 for (const k of personal.keys()) revisions.set(k, 2);
+/**
+ * The setting snapshot the server writes into the audit row: cms_feature_setting_json
+ * (migrations/feature-flags-0077.ts), field for field.
+ */
+const settingJson = (featureKey: string, scope: "cluster" | "user", userId: number | null, s: { enabled: boolean; allowUserOverride?: boolean | null; revision: string }, by = "demo:sam", settingId = "1") => ({
+  settingId, featureKey, scope, userId, enabled: s.enabled, allowUserOverride: s.allowUserOverride ?? null, revision: s.revision, updatedBy: by, updatedAt: new Date().toISOString(),
+});
+/** The audit row as cms_feature_changes returns it: identity and time at the top, the write in details. */
+const auditRow = (id: string, action: string, featureKey: string, actorSubject: string, at: string, d: { scope: "cluster" | "user"; userId: number | null; before: any; after: any; revision: string }) => ({
+  audit_id: id, occurred_at: at, actor_provider: "demo", actor_subject: actorSubject, action, target: featureKey, decision: "allow",
+  details: { actorKey: `demo:${actorSubject}`, requestId: `req-${id}`, requestHash: `hash-${id}`, scope: d.scope, userId: d.userId, featureKey, before: d.before, after: d.after, revision: d.revision, result: { featureKey, scope: d.scope, userId: d.userId, revision: d.revision, setting: d.after } },
+});
 const changes: any[] = [
-  { audit_id: "3", occurred_at: new Date(Date.now() - 3 * 3600_000).toISOString(), actor_subject: "Sam Lee", action: "feature_flag.set", target: "feature:sessions.steering", details: { featureKey: "sessions.steering", scope: "cluster", userId: null, before: null, after: { featureKey: "sessions.steering", scope: "cluster", userId: null, enabled: true, allowUserOverride: false, revision: "2" } } },
-  { audit_id: "2", occurred_at: new Date(Date.now() - 26 * 3600_000).toISOString(), actor_subject: "Priya Nair", action: "feature_flag.set", target: "feature:copilot.native_tasks", details: { featureKey: "copilot.native_tasks", scope: "cluster", userId: null, before: null, after: { featureKey: "copilot.native_tasks", scope: "cluster", userId: null, enabled: true, allowUserOverride: true, revision: "2" } } },
+  auditRow("3", "feature_flag.set", "sessions.steering", "Sam Lee", new Date(Date.now() - 3 * 3600_000).toISOString(), { scope: "cluster", userId: null, before: null, after: settingJson("sessions.steering", "cluster", null, { enabled: true, allowUserOverride: false, revision: "2" }), revision: "2" }),
+  auditRow("2", "feature_flag.set", "copilot.native_tasks", "Priya Nair", new Date(Date.now() - 26 * 3600_000).toISOString(), { scope: "cluster", userId: null, before: null, after: settingJson("copilot.native_tasks", "cluster", null, { enabled: true, allowUserOverride: true, revision: "2" }, "demo:priya", "2"), revision: "2" }),
 ];
 let audit = 3;
 
@@ -61,9 +73,9 @@ function view(userId: number | null, forUser: boolean) {
   };
 }
 
-const record = (action: string, featureKey: string, details: Record<string, unknown>, actor = "Sam Lee") => {
+const record = (action: string, featureKey: string, d: { scope: "cluster" | "user"; userId: number | null; before: any; after: any; revision: string }, actor = "Sam Lee") => {
   audit += 1;
-  changes.unshift({ audit_id: String(audit), occurred_at: new Date().toISOString(), actor_subject: actor, action, target: `feature:${featureKey}`, details: { featureKey, ...details } });
+  changes.unshift(auditRow(String(audit), action, featureKey, actor, new Date().toISOString(), d));
 };
 
 registerDemoOps(import.meta.url, {
@@ -82,7 +94,7 @@ registerDemoOps(import.meta.url, {
     const revision = next(featureKey);
     const setting = { enabled: Boolean(enabled), allowUserOverride: Boolean(allowUserOverride), revision };
     cluster.set(featureKey, setting);
-    record("feature_flag.set", featureKey, { scope: "cluster", userId: null, before, after: { featureKey, scope: "cluster", userId: null, ...setting } });
+    record("feature_flag.set", featureKey, { scope: "cluster", userId: null, before: before && settingJson(featureKey, "cluster", null, before), after: settingJson(featureKey, "cluster", null, setting), revision });
     return { featureKey, scope: "cluster", userId: null, revision, setting };
   },
   resetClusterFeatureFlag: ({ featureKey, expectedRevision }) => {
@@ -90,7 +102,7 @@ registerDemoOps(import.meta.url, {
     const before = cluster.get(featureKey) || null;
     const revision = next(featureKey);
     cluster.delete(featureKey);
-    record("feature_flag.unset", featureKey, { scope: "cluster", userId: null, before, after: null });
+    record("feature_flag.unset", featureKey, { scope: "cluster", userId: null, before: before && settingJson(featureKey, "cluster", null, before), after: null, revision });
     return { featureKey, scope: "cluster", userId: null, revision, setting: null };
   },
   setMyFeatureFlag: ({ featureKey, enabled, expectedRevision }) => setPersonal(1, featureKey, enabled, expectedRevision),
@@ -105,7 +117,7 @@ function setPersonal(userId: number, featureKey: string, enabled: unknown, expec
   const revision = next(featureKey);
   const setting = { enabled: Boolean(enabled), revision };
   personal.set(`${userId}:${featureKey}`, setting);
-  record("feature_flag.set", featureKey, { scope: "user", userId, before, after: { featureKey, scope: "user", userId, enabled: setting.enabled, allowUserOverride: null, revision } });
+  record("feature_flag.set", featureKey, { scope: "user", userId, before: before && settingJson(featureKey, "user", userId, before), after: settingJson(featureKey, "user", userId, setting), revision });
   return { featureKey, scope: "user", userId, revision, setting: { ...setting, allowUserOverride: null } };
 }
 function unsetPersonal(userId: number, featureKey: string, expectedRevision: unknown) {
@@ -113,6 +125,6 @@ function unsetPersonal(userId: number, featureKey: string, expectedRevision: unk
   const before = personal.get(`${userId}:${featureKey}`) || null;
   const revision = next(featureKey);
   personal.delete(`${userId}:${featureKey}`);
-  record("feature_flag.unset", featureKey, { scope: "user", userId, before, after: null });
+  record("feature_flag.unset", featureKey, { scope: "user", userId, before: before && settingJson(featureKey, "user", userId, before), after: null, revision });
   return { featureKey, scope: "user", userId, revision, setting: null };
 }
