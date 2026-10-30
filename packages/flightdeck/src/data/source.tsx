@@ -109,8 +109,9 @@ export function useTranscript(id: string | undefined) {
     setError(null);
     const unsubscribe = source.subscribe(id, (event) => {
       if (!active) return;
-      if (!model) { pending.push(event); return; }
+      // Before buffering: a refusal that lands while the history is still loading is news too.
       announceAnswerRejected(id, event);
+      if (!model) { pending.push(event); return; }
       if (event.seq && model.lastSeq && event.seq <= model.lastSeq) return;
       model = appendEventToHistory(model, event);
       setHistory(model);

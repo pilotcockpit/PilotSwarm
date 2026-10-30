@@ -1,4 +1,5 @@
 import { ApiClient } from "pilotswarm-sdk/api";
+import { subscribeToSession } from "./session-stream";
 import type { Artifact, ConnectionState, DataSource, LogEntry, Session, SessionEvent } from "./types";
 
 // The live data source: the SDK's ApiClient over the same-origin /api/v1 Web
@@ -124,10 +125,7 @@ export function createLiveSource(): DataSource {
     },
     subscribe(id, onEvent) {
       ensureStarted();
-      return api.subscribeSession(id, (message: any) => {
-        const event = message?.event || message;
-        if (event?.eventType) onEvent(event as SessionEvent);
-      });
+      return subscribeToSession(api as any, id, onEvent);
     },
     async sendMessage(id, prompt, opts) {
       await api.call("sendMessage", { sessionId: id, prompt, options: { clientMessageIds: [opts?.clientMessageId || requestId()], ...(opts?.enqueueOnly ? { enqueueOnly: true } : {}) } });
