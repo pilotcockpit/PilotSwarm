@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cardVariants } from "@/components/ui/card";
+import { toast } from "sonner";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { Bot, Check, ChevronRight, CircleSlash, GitBranch, LayoutPanelLeft, Loader2, MessageSquareQuote, Wrench, X } from "lucide-react";
@@ -11,6 +12,8 @@ import { Tag } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StructuredErrorCard } from "@/components/structured-error";
+import { AnswerChoices } from "@/components/answer-choices";
+import { questionKey } from "@/data/state";
 import { clock, cn, dayLabel } from "@/lib/utils";
 
 marked.setOptions({ gfm: true, breaks: false });
@@ -259,54 +262,35 @@ function NativeTasks({ item }: { item: ChatItem }) {
   );
 }
 
-/** Choices whose wording undoes or destroys something ask once more before they are sent. */
-const DESTRUCTIVE = /\b(roll\s?back|rollback|delete|drop|force|kill|purge|reset|revert|overwrite|wipe|destroy|discard|terminate|remove)\b/i;
-export const isDestructiveChoice = (choice: string) => DESTRUCTIVE.test(choice);
-
-/** The choice an agent marked as its default, if it marked one. Nothing is primary otherwise. */
-function recommendedChoice(question: PendingQuestion, choices: string[]): string | null {
-  const mark = question.recommended ?? question.recommendedChoice ?? question.defaultChoice ?? question.default;
-  if (typeof mark === "string") return choices.find((c) => c === mark) ?? null;
-  if (typeof mark === "number") return choices[mark] ?? null;
-  return null;
-}
-
 /**
  * An agent's question as an accent-tinted card with its choices as buttons and "Reply in chat…"
  * as the escape hatch. Only a choice the agent marked recommended is styled as primary.
  * A choice that sounds destructive asks "Send it?" first, in the same place.
  */
-export function QuestionCard({ question, agentName, onAnswer, busy }: { question: PendingQuestion; agentName: string; onAnswer: (answer: string) => void; busy?: boolean }) {
+export function QuestionCard({ sessionId, question, agentName, onAnswer, busy }: { sessionId: string; question: PendingQuestion; agentName: string; onAnswer: (answer: string, question: PendingQuestion) => void | Promise<void>; busy?: boolean }) {
+  return <QuestionCardBody key={questionKey(sessionId, question)} sessionId={sessionId} question={question} agentName={agentName} onAnswer={onAnswer} busy={busy} />;
+}
+
+function QuestionCardBody({ sessionId, question, agentName, onAnswer, busy }: { sessionId: string; question: PendingQuestion; agentName: string; onAnswer: (answer: string, question: PendingQuestion) => void | Promise<void>; busy?: boolean }) {
   const [free, setFree] = React.useState(false);
   const [text, setText] = React.useState("");
-  const [confirming, setConfirming] = React.useState<string | null>(null);
-  const choices = Array.isArray(question.choices) ? question.choices : [];
-  const recommended = recommendedChoice(question, choices);
-  const pick = (c: string) => (isDestructiveChoice(c) ? setConfirming(c) : onAnswer(c));
   return (
     <section aria-label="Question from the agent" className={cn(cardVariants({ tone: "accent", enter: true }), "p-4")}>
       <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-accent">
         <MessageSquareQuote className="size-4" aria-hidden /> <span className="font-mono">{agentName}</span> is asking
       </div>
       <p className="text-base font-medium text-fg">{question.question}</p>
-      {confirming ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Confirm your answer">
-          <p className="min-w-0 flex-1 text-sm text-fg">Send “{confirming}”? The agent acts on it right away.</p>
-          <Button variant="danger" disabled={busy} onClick={() => onAnswer(confirming)}>Send “{confirming}”</Button>
-          <Button variant="quiet" onClick={() => setConfirming(null)}>Back</Button>
-        </div>
-      ) : (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {choices.map((c) => (
-            <Button key={c} variant={c === recommended ? "primary" : "default"} disabled={busy} onClick={() => pick(c)}>{c}{c === recommended ? <span className="sr-only"> (recommended)</span> : null}</Button>
-          ))}
-          {question.allowFreeform !== false ? (
-            free ? null : <Button variant="quiet" disabled={busy} onClick={() => setFree(true)}>Reply in chat…</Button>
-          ) : null}
-        </div>
-      )}
+      <AnswerChoices
+        sessionId={sessionId}
+        question={question}
+        size="md"
+        busy={busy}
+        onAnswer={onAnswer}
+        className="mt-3"
+        extra={question.allowFreeform !== false && !free ? <Button variant="quiet" disabled={busy} onClick={() => setFree(true)}>Reply in chat…</Button> : null}
+      />
       {free ? (
-        <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) onAnswer(text.trim()); }}>
+        <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) Promise.resolve(onAnswer(text.trim(), question)).catch((err: any) => toast.error("Couldn't send your answer", { description: err?.message })); }}>
           <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Your answer" aria-label="Your answer" />
           <Button type="submit" variant="primary" disabled={!text.trim() || busy}>Send</Button>
         </form>

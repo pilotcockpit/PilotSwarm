@@ -2,15 +2,16 @@ import * as React from "react";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { ArrowUp, LayoutGrid, Maximize2, MessagesSquare, Minimize2, Plus, LayoutPanelLeft, X } from "lucide-react";
 import { TopBar } from "@/shell/AppShell";
-import { useRefresh, useSessions, useSource, useTranscript } from "@/data/source";
+import { useRefresh, useSession, useSessions, useSource, useTranscript } from "@/data/source";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { rovingKeyDown } from "@/lib/roving";
-import { sessionState } from "@/data/state";
+import { questionKey, sessionState } from "@/data/state";
 import type { PendingQuestion, Session } from "@/data/types";
 import { DurableSpine, StatePill, StateGlyph } from "@/components/state";
 import { EmptyState, Panel } from "@/components/empty";
 import { Markdown } from "@/components/chat";
+import { AnswerChoices } from "@/components/answer-choices";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog";
 import { Segmented } from "@/components/ui/tabs";
@@ -171,12 +172,19 @@ function ChatTile({ session }: { session: Session }) {
   const [answered, setAnswered] = React.useState<string | null>(null);
   const items = (history?.chat || []).filter((i) => i.role === "user" || i.role === "assistant").slice(-8);
   const st = sessionState(session);
-  const question = st.key === "needs" && session.pendingQuestion && answered !== session.pendingQuestion.question ? session.pendingQuestion : null;
+  // The session list carries no question; read the session itself while it is waiting on you.
+  const detail = useSession(st.key === "needs" ? session.sessionId : undefined).session;
+  const pending = detail?.pendingQuestion ?? session.pendingQuestion ?? null;
+  const question = st.key === "needs" && pending && answered !== questionKey(session.sessionId, pending) ? pending : null;
   React.useLayoutEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [items.length, question]);
-  const send = async (prompt: string, asAnswer = false) => {
+  const answer = async (choice: string, q: PendingQuestion) => {
+    await source.sendAnswer(session.sessionId, choice, q);
+    setAnswered(questionKey(session.sessionId, q));
+    refresh(session.sessionId);
+  };
+  const send = async (prompt: string) => {
     try {
-      if (asAnswer && session.pendingQuestion) { await source.sendAnswer(session.sessionId, prompt, session.pendingQuestion); setAnswered(session.pendingQuestion.question); }
-      else await source.sendMessage(session.sessionId, prompt, st.key === "running" ? { enqueueOnly: true } : undefined);
+      await source.sendMessage(session.sessionId, prompt, st.key === "running" ? { enqueueOnly: true } : undefined);
       setText("");
       refresh(session.sessionId);
     } catch (e: any) { toast.error("Couldn't send", { description: e?.message }); }
@@ -192,7 +200,7 @@ function ChatTile({ session }: { session: Session }) {
             </li>
           ))}
         </ol>
-        {question ? <TileQuestion question={question} onAnswer={(a) => send(a, true)} /> : null}
+        {question ? <TileQuestion sessionId={session.sessionId} question={question} onAnswer={answer} /> : null}
         {st.key === "running" ? <p className="mt-2 flex items-center gap-1.5 text-xs text-muted"><StateGlyph state="running" /> {session.step || "Working"}…</p> : null}
       </div>
       {closed ? null : (
@@ -237,16 +245,11 @@ function TilePicker({ open, onOpenChange, sessions, onPick }: { open: boolean; o
  * A question inside a tile: the text and its choices, set on a tinted strip rather than a card
  * (a tile is already a card). No choice is pre-styled as the answer; the agent's words decide.
  */
-function TileQuestion({ question, onAnswer }: { question: PendingQuestion; onAnswer: (answer: string) => void }) {
-  const choices = Array.isArray(question.choices) ? question.choices : [];
+function TileQuestion({ sessionId, question, onAnswer }: { sessionId: string; question: PendingQuestion; onAnswer: (answer: string, question: PendingQuestion) => void | Promise<void> }) {
   return (
     <section aria-label="Question from the agent" className="mt-3 rounded-control bg-needs-tint px-3 py-2.5">
       <p className="text-sm font-medium text-fg">{question.question}</p>
-      {choices.length ? (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {choices.map((c) => <Button key={c} size="sm" onClick={() => onAnswer(c)}>{c}</Button>)}
-        </div>
-      ) : null}
+      {question.choices?.length ? <AnswerChoices sessionId={sessionId} question={question} onAnswer={onAnswer} className="mt-2" /> : null}
     </section>
   );
 }

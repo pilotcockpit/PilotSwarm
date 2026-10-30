@@ -91,6 +91,8 @@ export interface Agent {
   skills?: string[];
   source?: string;
   package?: string;
+  packageName?: string;
+  packageTitle?: string;
 }
 
 export interface Provider {
@@ -109,7 +111,7 @@ export interface Provider {
   ruleCount?: number;
   ownerDisplayName?: string | null;
   /** Token use this month and the tightest monthly limit, when the deployment reports them. */
-  usage?: { month?: { used: number; limit?: number | null } };
+  usage?: { month?: { used: number; limit?: number | null; model?: string | null } };
   limits?: Array<{ period: "day" | "week" | "month"; tokens: number; model?: string | null }>;
   [key: string]: unknown;
 }

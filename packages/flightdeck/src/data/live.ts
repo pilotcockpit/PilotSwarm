@@ -21,6 +21,38 @@ function ownerLabel(owner: any, me: { subject?: string; email?: string } | null)
 
 const isoOrNumber = (v: unknown) => (v instanceof Date ? v.getTime() : v);
 
+/**
+ * listProviders returns bare provider rows. Usage and limits live in getProviderUsageGrid: one row
+ * per provider (scope "*") and one per model that has its own limit, each with day, week and month
+ * cells. Join them so screens can read `usage.month` (the provider's tightest monthly limit, model-
+ * scoped ones included, with which model) and `limits` (every capped period, with its model).
+ */
+function withUsage(provider: any, gridRows: any[]) {
+  const rows = gridRows.filter((r) => r.providerName === provider.name);
+  if (!rows.length) return provider;
+  const limits: Array<{ period: "day" | "week" | "month"; tokens: number; model: string | null }> = [];
+  let month: { used: number; limit: number | null; model: string | null } | null = null;
+  let worst = -1;
+  for (const r of rows) {
+    const model = r.rowKind === "model" ? String(r.scope) : null;
+    for (const period of ["day", "week", "month"] as const) {
+      const c = r.periods?.[period];
+      if (!c || c.quotaTokens == null) continue;
+      limits.push({ period, tokens: c.quotaTokens, model });
+      if (period === "month") {
+        const ratio = c.quotaTokens ? c.usedTokens / c.quotaTokens : 0;
+        if (ratio > worst) { worst = ratio; month = { used: c.usedTokens, limit: c.quotaTokens, model }; }
+      }
+    }
+  }
+  // No monthly limit anywhere: still report what was spent on the provider as a whole.
+  if (!month) {
+    const c = rows.find((r) => r.rowKind === "provider")?.periods?.month;
+    if (c) month = { used: c.usedTokens, limit: null, model: null };
+  }
+  return { ...provider, ...(limits.length ? { limits } : {}), ...(month ? { usage: { month } } : {}) };
+}
+
 /** Counts of live children per parent, so a row can say "2 sub-agents" without a per-session read. */
 function withChildCounts(rows: Session[]): Session[] {
   const live = new Map<string, number>();
@@ -158,10 +190,13 @@ export function createLiveSource(): DataSource {
       return list(await api.call("listModels"));
     },
     async listAgents() {
-      return list(await api.call("listCreatableAgents"));
+      // Package agents name their package in packageTitle / packageName; the library groups by `package`.
+      return list<any>(await api.call("listCreatableAgents")).map((a) => (a.package ? a : { ...a, package: a.packageTitle || a.packageName || undefined }));
     },
     async listProviders() {
-      return list(await api.call("listProviders"), "providers");
+      const [providers, grid] = await Promise.all([api.call("listProviders"), api.call("getProviderUsageGrid").catch(() => null)]);
+      const rows = list<any>(grid, "rows");
+      return list<any>(providers, "providers").map((p) => withUsage(p, rows));
     },
     async usageSummary() {
       return (await api.call("getProviderUsageSummary").catch(() => null)) || null;
@@ -219,7 +254,8 @@ export function createLiveSource(): DataSource {
         tokensOut: t.totalTokensOutput,
         tokensCacheRead: t.totalTokensCacheRead,
         cacheHitPct: t.cacheHitRatio == null ? undefined : Math.round(t.cacheHitRatio * 100),
-        agents: Array.isArray(f.byAgent) ? f.byAgent.length : undefined,
+        // byAgent is grouped by agent AND model; count the agents.
+        agents: Array.isArray(f.byAgent) ? new Set(f.byAgent.map((a: any) => a.agentId ?? "(none)")).size : undefined,
         window: { since: f.windowStart, earliest: f.earliestSessionCreatedAt },
         byAgent: f.byAgent,
       };

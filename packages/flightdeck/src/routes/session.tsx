@@ -8,8 +8,8 @@ import { toast } from "sonner";
 import { TopBar, ClassicLink } from "@/shell/AppShell";
 import { useMediaQuery } from "@/shell/prefs";
 import { useArtifacts, useProfile, useRefresh, useSession, useSessions, useSource, useTranscript } from "@/data/source";
-import { describeError, modelShort, sessionState, STATE_TINT, type SessionState } from "@/data/state";
-import type { Session } from "@/data/types";
+import { describeError, modelShort, questionKey, sessionState, STATE_TINT, type SessionState } from "@/data/state";
+import type { PendingQuestion, Session } from "@/data/types";
 import { StateGlyph, StatePill } from "@/components/state";
 import { QuestionCard, Transcript } from "@/components/chat";
 import { StructuredErrorCard } from "@/components/structured-error";
@@ -349,7 +349,7 @@ function SessionDetails({ session, onChangeModel }: { session: Session; onChange
 function StatePillWithSchedule({ state, session, showReason, compact = false }: { state: SessionState; session: Session; showReason: boolean; compact?: boolean }) {
   // Phones: the glyph in its tint, so the title keeps its room. The word stays for screen readers.
   const pill = compact ? (
-    <span className={cn("grid size-7 place-items-center rounded-full", STATE_TINT[state.key])} title={state.word}>
+    <span className={cn("grid size-7 place-items-center rounded-full pointer-coarse:size-11", STATE_TINT[state.key])} title={state.word}>
       <StateGlyph state={state.key} />
       <span className="sr-only">{state.word}{state.reason ? `, ${state.reason}` : ""}</span>
     </span>
@@ -506,18 +506,17 @@ function ChatPane({ session, sessionId, history, onOpenCanvas }: { session?: Ses
     setSpoken(announcement);
   }, [announcement, history]);
 
-  const answer = async (text: string) => {
-    if (!session) return;
+  // The answer carries the question it was given for, so a question that changed meanwhile is never answered by mistake.
+  // Failures throw: the answer controls report them.
+  const answer = async (text: string, q: PendingQuestion) => {
     setAnswering(true);
     try {
-      await source.sendAnswer(sessionId, text, session.pendingQuestion);
-      setAnswered(session.pendingQuestion?.question || "");
+      await source.sendAnswer(sessionId, text, q);
+      setAnswered(questionKey(sessionId, q));
       refresh(sessionId);
       // The card unmounts; put focus somewhere useful instead of <body>.
       window.setTimeout(() => document.querySelector<HTMLTextAreaElement>(".fd-composer textarea")?.focus(), 0);
-    }
-    catch (e: any) { toast.error("Couldn't send your answer", { description: e?.message }); }
-    finally { setAnswering(false); }
+    } finally { setAnswering(false); }
   };
   // There is no "restart this turn" operation in the API. Asking the agent to retry is the honest
   // equivalent, so the message says what it is instead of replaying the user's last message.
@@ -549,8 +548,8 @@ function ChatPane({ session, sessionId, history, onOpenCanvas }: { session?: Ses
           {st.key === "failed" && session?.error && !hasWarning ? (
             <div className="mt-4"><StructuredErrorCard raw={session.error} onRetry={retry} onSwitchModel={() => setModelOpen(true)} /></div>
           ) : null}
-          {st.key === "needs" && session?.pendingQuestion && answered !== session.pendingQuestion.question ? (
-            <div className="mt-4"><QuestionCard question={session.pendingQuestion} agentName={agent} onAnswer={answer} busy={answering} /></div>
+          {st.key === "needs" && session?.pendingQuestion && answered !== questionKey(sessionId, session.pendingQuestion) ? (
+            <div className="mt-4"><QuestionCard sessionId={sessionId} question={session.pendingQuestion} agentName={agent} onAnswer={answer} busy={answering} /></div>
           ) : null}
           {st.key === "running" ? (
             <p className="mt-4 flex items-center gap-2 pl-9 text-sm text-muted" aria-live="polite"><span className="size-1.5 rounded-full bg-live motion-safe:animate-pulse-live" aria-hidden />{session?.step || "Working"}…</p>

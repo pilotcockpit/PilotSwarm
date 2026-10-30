@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tan
 import { appendEventToHistory, buildHistoryModel, type HistoryModel } from "@ps/history";
 import { createLiveSource } from "./live";
 import { createDemoSource } from "./demo";
+import { usePref } from "@/shell/prefs";
 import type { ConnectionState, DataSource, Session } from "./types";
 
 // One owner per resource. Flight Deck has no controller of its own: server
@@ -67,7 +68,9 @@ export function useSource() {
 
 export function useSessions() {
   const { source } = useSource();
-  return useQuery({ queryKey: ["sessions"], queryFn: () => source.listSessions(), refetchInterval: 4_000 });
+  // A hidden tab only keeps polling when it has been asked to notify: that is the one job that needs it.
+  const [notify] = usePref<"on" | "off">("fd.notify", "off");
+  return useQuery({ queryKey: ["sessions"], queryFn: () => source.listSessions(), refetchInterval: 4_000, refetchIntervalInBackground: notify === "on" });
 }
 
 export function useSessionRow(id: string | undefined): Session | undefined {

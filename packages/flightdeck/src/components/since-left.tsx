@@ -77,7 +77,7 @@ export function SinceLeft({ sessions }: { sessions: Session[] }) {
               {p.sessions.slice(0, 3).map((s, i) => (
                 <React.Fragment key={s.sessionId}>
                   {i ? <span className="text-faint" aria-hidden>,</span> : null}
-                  <Link to="/s/$sessionId" params={{ sessionId: s.sessionId }} className="max-w-[24ch] truncate underline-offset-2 hover:underline">{s.title}</Link>
+                  <Link to="/s/$sessionId" params={{ sessionId: s.sessionId }} className="inline-block min-h-6 max-w-[24ch] truncate align-middle leading-6 underline-offset-2 hover:underline pointer-coarse:leading-11">{s.title}</Link>
                 </React.Fragment>
               ))}
               {p.sessions.length > 3 ? <span className="text-faint">+{p.sessions.length - 3} more</span> : null}

@@ -33,6 +33,8 @@ export function ChangeModelDialog({ open, onOpenChange, session }: { open: boole
   }, [models]);
   const selected = choice ?? session.model ?? null;
   const changed = Boolean(choice && choice !== session.model);
+  const firstUsable = ordered.find((m) => m.credentialAvailable !== false);
+  const selectedUsable = ordered.some((m) => m.credentialAvailable !== false && m.qualifiedName === selected);
 
   const apply = async () => {
     if (!choice) return;
@@ -59,6 +61,8 @@ export function ChangeModelDialog({ open, onOpenChange, session }: { open: boole
             <div role="radiogroup" aria-label="Model" onKeyDown={rovingKeyDown("radio")} className="flex flex-col gap-1.5">
               {ordered.map((m) => {
                 const usable = m.credentialAvailable !== false;
+                // The group needs one tab stop: the chosen option, or the first usable one when none is chosen and usable.
+                const stop = (m.qualifiedName === selected && usable) || (!selectedUsable && m === firstUsable);
                 const isCurrent = m.qualifiedName === session.model;
                 const on = m.qualifiedName === selected;
                 return (
@@ -67,7 +71,7 @@ export function ChangeModelDialog({ open, onOpenChange, session }: { open: boole
                     type="button"
                     role="radio"
                     aria-checked={on}
-                    tabIndex={on ? 0 : -1}
+                    tabIndex={stop ? 0 : -1}
                     disabled={!usable}
                     onClick={() => setChoice(m.qualifiedName)}
                     className={cn(cardVariants({ interactive: usable, selected: on }), "flex items-center gap-3 px-3 py-2 text-left", !usable && "opacity-60")}

@@ -132,13 +132,22 @@ export function ProvidersPage() {
  * and you are allowed to. The headline is the first one that fails, so a provider never reads
  * "Set" in one place and "Not set up" in another. The drawer shows all three.
  */
-type ProviderStatus = { key: "ready" | "no-key" | "workers" | "not-shared" | "limit"; word: string; why: string; tone: "ok" | "failed" | "waiting" | "muted" };
+type ProviderStatus = { key: "ready" | "no-key" | "workers" | "not-shared" | "hold" | "limit"; word: string; why: string; tone: "ok" | "failed" | "waiting" | "muted" };
+/** What releases a hold, in words; null when there is no active hold. A hold pauses new turns. */
+function holdRelease(p: Provider): string | null {
+  if (p.holdIndefinite) return "until someone releases it";
+  const until = p.holdUntilUtc ? Date.parse(p.holdUntilUtc) : NaN;
+  return Number.isFinite(until) && until > Date.now() ? `until ${new Date(until).toLocaleString()}` : null;
+}
+
 function providerStatus(p: Provider, broken: boolean): ProviderStatus {
+  const hold = holdRelease(p);
   const month = p.usage?.month;
   const atLimit = Boolean(month?.limit && month.used / month.limit >= 0.9);
   if (!p.hasCredential) return { key: "no-key", word: "No key", why: "No credential is stored for this provider.", tone: "muted" };
   if (broken) return { key: "workers", word: "Not ready on workers", why: "The key is stored, but the workers are missing this provider's workload identity settings, so sessions can't reach it.", tone: "failed" };
   if (p.usableByMe === false) return { key: "not-shared", word: "Not shared with you", why: "The provider works, but you are not allowed to use it.", tone: "muted" };
+  if (hold) return { key: "hold", word: "On hold", why: `New turns are paused ${hold}.`, tone: "waiting" };
   if (atLimit) return { key: "limit", word: "Near its limit", why: "Usage is at or above 90% of the monthly limit; new turns pause when it is reached.", tone: "waiting" };
   return { key: "ready", word: "Ready", why: "The key is stored, the workers can use it, and you can use it.", tone: "ok" };
 }
@@ -148,7 +157,7 @@ const STATUS_TONE = { ok: "text-ok", failed: "text-failed", waiting: "text-waiti
 function KeyStatus({ provider: p, broken }: { provider: Provider; broken: boolean }) {
   const st = providerStatus(p, broken);
   const Icon = STATUS_ICON[st.tone];
-  return <span className={cn("inline-flex items-center gap-1 text-sm font-medium", STATUS_TONE[st.tone])}><Icon className="size-3.5" aria-hidden /> {st.word}</span>;
+  return <span className={cn("inline-flex items-center gap-1 text-sm font-medium", STATUS_TONE[st.tone])}><Icon className="size-3.5" aria-hidden /> {st.word}{st.key === "hold" ? <span className="font-normal text-muted"> {holdRelease(p)}</span> : null}</span>;
 }
 
 /** One divided strip, not three hero tiles: the totals are context, the table is the content. */
@@ -282,7 +291,7 @@ function ProviderDetail({ provider, broken, usage, onClose }: { provider?: Provi
               <dl className="grid grid-cols-[150px_1fr] gap-y-2 text-sm">
                 <dt className="text-muted">Allowance</dt><dd className="tabular-nums">{provider.allowancePct ?? 100}% of each limit per person</dd>
                 <dt className="text-muted">Limits</dt><dd>{provider.ruleCount ? `${provider.ruleCount} active` : "None"}</dd>
-                <dt className="text-muted">Hold</dt><dd>{provider.holdIndefinite ? "On hold until released" : provider.holdUntilUtc ? `Until ${new Date(provider.holdUntilUtc).toLocaleString()}` : "None"}</dd>
+                <dt className="text-muted">Hold</dt><dd>{holdRelease(provider) ? `On hold ${holdRelease(provider)}` : "None"}</dd>
                 <dd className="col-span-2 mt-2 text-xs text-muted">Raising limits, allowances and releasing holds is not ported yet: <ClassicLink>use the classic portal</ClassicLink>.</dd>
               </dl>
             ) : (

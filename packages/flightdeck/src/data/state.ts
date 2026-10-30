@@ -1,5 +1,5 @@
 import { normalizeSessionPause } from "@ps/state";
-import type { Session } from "./types";
+import type { PendingQuestion, Session } from "./types";
 import { clock, toMs, tokens, until } from "@/lib/utils";
 
 // One state map drives every surface (header, list row, board tile,
@@ -65,7 +65,8 @@ export function sessionState(s: Session | null | undefined, now = Date.now()): S
     };
   }
   const children = Number(s.activeChildCount) || 0;
-  if (children > 0) {
+  // Child count is metadata. A parent waits on sub-agents only when the server says it is waiting.
+  if (children > 0 && status === "waiting") {
     return { key: "waiting", word: "Waiting", waitKind: "sub-agents", reason: `on ${children} sub-agent${children === 1 ? "" : "s"}`, next: "resumes when they finish" };
   }
   if (status === "waiting") {
@@ -181,11 +182,42 @@ export function needsYou(s: Session): boolean {
   return st.key === "needs" || st.key === "failed" || st.waitKind === "hold";
 }
 
-/** Two failures with the same key have the same cause and one fix. */
+/**
+ * Two failures with the same key have the same cause and one fix. Known provider causes group by
+ * provider; anything else groups only when the error text is the same once ids, hashes and numbers
+ * are masked, so unrelated failures never merge.
+ */
 export function failureKey(s: Session): string {
-  const e = describeError(s.error);
-  return `${e.headline}|${e.provider || ""}`;
+  const text = String(s.error || "").trim();
+  const e = describeError(text);
+  if (e.provider) return `provider:${e.provider}|${e.headline}`;
+  const masked = text
+    .toLowerCase()
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "#")
+    .replace(/\b[0-9a-f]{7,}\b/g, "#")
+    .replace(/\d+/g, "#")
+    .replace(/\s+/g, " ")
+    .slice(0, 200);
+  return `raw:${masked}`;
 }
 
-/** A choice that changes or removes something asks once more before it is sent. */
-export const DESTRUCTIVE_CHOICE = /\b(roll ?back|revert|delete|drop|force|kill|purge|reset|overwrite|wipe|destroy|discard|terminate)\b/i;
+/**
+ * One policy for every surface that answers a question (Home, Boards, chat): a choice whose
+ * wording changes or removes something asks once more before it is sent.
+ */
+export const DESTRUCTIVE_CHOICE = /\b(roll\s?back|rollback|revert|delete|drop|force|kill|purge|reset|overwrite|wipe|destroy|discard|terminate|remove)\b/i;
+export const isDestructiveChoice = (choice: string) => DESTRUCTIVE_CHOICE.test(choice);
+
+/** The choice an agent marked as its default, if it marked one. Nothing is primary otherwise. */
+export function recommendedChoice(question: PendingQuestion, choices: string[]): string | null {
+  const mark = question.recommended ?? question.recommendedChoice ?? question.defaultChoice ?? question.default;
+  if (typeof mark === "string") return choices.find((c) => c === mark) ?? null;
+  if (typeof mark === "number") return choices[mark] ?? null;
+  return null;
+}
+
+/** Identity of a question: session, iteration, wording and choices. A new one is a new key. */
+export function questionKey(sessionId: string, q: PendingQuestion | null | undefined): string {
+  if (!q) return `${sessionId}|none`;
+  return `${sessionId}|${q.iteration ?? ""}|${q.question}|${(q.choices || []).join("\u001f")}`;
+}

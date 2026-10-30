@@ -37,7 +37,7 @@ export function CapacityLine() {
       const runsOut = left < daysInMonth - day ? new Date(now.getTime() + left * 86_400_000) : null;
       out.push(
         <Link key="prov" to="/providers" search={{ provider: tight.p.name }} className="underline-offset-2 hover:text-fg hover:underline">
-          {tight.p.name} at <span className="tabular-nums text-fg">{Math.round(tight.pct as number)}%</span> of its monthly limit ({tokens(tight.m.used)} of {tokens(tight.m.limit)})
+          {tight.p.name}{tight.m.model ? ` (${tight.m.model.split(":").pop()})` : ""} at <span className="tabular-nums text-fg">{Math.round(tight.pct as number)}%</span> of its monthly limit ({tokens(tight.m.used)} of {tokens(tight.m.limit)})
           {runsOut ? `, runs out ${runsOut.toLocaleDateString(undefined, { month: "short", day: "numeric" })} at this pace` : ""}
         </Link>,
       );
