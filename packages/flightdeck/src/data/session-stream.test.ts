@@ -9,7 +9,12 @@ function fakeApi(rows: Record<string, any[]> = {}) {
   const calls: Array<{ name: string; params: any }> = [];
   const api: SessionStreamApi = {
     subscribeSession: (_id, h, r) => { handler = h; resubscribe = r || (() => {}); return () => { handler = () => {}; }; },
-    call: async (name, params) => { calls.push({ name, params }); return rows[name] ?? []; },
+    call: async (name, params) => {
+      calls.push({ name, params });
+      const all = rows[name] ?? [];
+      if (name === "getSessionEvents") return all.filter((e: any) => e.seq > (params.afterSeq as number)).slice(0, params.limit as number);
+      return all;
+    },
   };
   return { api, calls, push: (e: any) => handler(e), reconnect: async () => { resubscribe(); await new Promise((r) => setTimeout(r, 0)); } };
 }
@@ -43,15 +48,21 @@ describe("subscribeToSession", () => {
     expect(got).toEqual([2, 3]);
   });
 
-  it("a failed catch-up does not break the live stream", async () => {
+  it("a failed catch-up does not break the stream: held events are delivered once a read succeeds", async () => {
     const f = fakeApi();
-    f.api.call = async () => { throw new Error("offline"); };
+    const ok = f.api.call;
     const got: number[] = [];
     subscribeToSession(f.api, "s", (e) => got.push(e.seq));
     f.push(ev(1));
+    f.api.call = async () => { throw new Error("offline"); };
     await f.reconnect();
     f.push(ev(2));
-    expect(got).toEqual([1, 2]);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(got).toEqual([1]);
+    f.api.call = ok;
+    f.push(ev(3));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(got).toEqual([1, 2, 3]);
   });
 
   it("nothing is delivered after unsubscribe, even from a catch-up still in flight", async () => {
@@ -63,6 +74,77 @@ describe("subscribeToSession", () => {
     off();
     await pending;
     expect(got).toEqual([1]);
+  });
+});
+
+describe("catch-up never loses an event", () => {
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  const make = (rows: Record<string, any[]>) => {
+    const f = fakeApi(rows);
+    const got: Array<[number, string]> = [];
+    const off = subscribeToSession(f.api, "s", (e) => got.push([e.seq, e.eventType]));
+    return { f, got, off };
+  };
+
+  it("(a) a live event that lands while catching up does not swallow the missed ones", async () => {
+    const { f, got } = make({ getSessionEvents: [ev(7, "session.answer_rejected"), ev(8)] });
+    f.push(ev(5)); f.push(ev(6));
+    let release: () => void = () => {};
+    const slow = f.api.call;
+    f.api.call = (name, params) => new Promise((resolve) => { release = () => resolve(slow(name, params)); });
+    f.reconnect();              // catch-up starts and waits
+    f.push(ev(9));              // a live event arrives meanwhile
+    expect(got.map(([s]) => s)).toEqual([5, 6]);
+    release(); await tick();
+    expect(got.map(([s]) => s)).toEqual([5, 6, 7, 8, 9]);
+    expect(got[2]).toEqual([7, "session.answer_rejected"]);
+    f.push(ev(10));             // and the stream carries on live
+    expect(got.map(([s]) => s)).toEqual([5, 6, 7, 8, 9, 10]);
+  });
+
+  it("(b) a gap of more than one page is read to the end before live delivery moves on", async () => {
+    const missed = Array.from({ length: 450 }, (_, i) => ev(7 + i));        // 7 .. 456
+    const { f, got } = make({ getSessionEvents: missed });
+    f.push(ev(6));
+    await f.reconnect(); await tick();
+    expect(f.calls.filter((c) => c.name === "getSessionEvents").map((c) => c.params.afterSeq)).toEqual([6, 206, 406]);
+    expect(got.map(([s]) => s)).toEqual([6, ...missed.map((e) => e.seq)]);
+    f.push(ev(457));
+    expect(got.at(-1)![0]).toBe(457);
+  });
+
+  it("(c) a failed catch-up holds live events and never advances the cursor past the gap", async () => {
+    const rows: Record<string, any[]> = { getSessionEvents: [ev(7, "session.answer_rejected"), ev(8)] };
+    const { f, got, off } = make(rows);
+    f.push(ev(6));
+    const ok = f.api.call;
+    f.api.call = async () => { throw new Error("offline"); };
+    await f.reconnect(); await tick();
+    f.push(ev(12));             // live resumes before the gap was read
+    await tick();
+    expect(got.map(([s]) => s)).toEqual([6]);
+    f.api.call = ok;            // the network is back; the next live event retries
+    f.push(ev(13));
+    await tick();
+    expect(got.map(([s]) => s)).toEqual([6, 7, 8, 12, 13]);
+    expect(got[1]).toEqual([7, "session.answer_rejected"]);
+    off();
+  });
+
+  it("a failure with no further live event is retried after a pause", async () => {
+    vi.useFakeTimers();
+    try {
+      const { f, got, off } = make({ getSessionEvents: [ev(7, "session.answer_rejected")] });
+      f.push(ev(6));
+      const ok = f.api.call;
+      f.api.call = async () => { throw new Error("offline"); };
+      f.reconnect();
+      await vi.advanceTimersByTimeAsync(0);
+      f.api.call = ok;
+      await vi.advanceTimersByTimeAsync(2_100);
+      expect(got.map(([s]) => s)).toEqual([6, 7]);
+      off();
+    } finally { vi.useRealTimers(); }
   });
 });
 
