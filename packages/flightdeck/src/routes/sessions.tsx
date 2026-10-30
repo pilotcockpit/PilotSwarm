@@ -1,0 +1,261 @@
+import * as React from "react";
+import { getRouteApi } from "@tanstack/react-router";
+import { ArrowDownUp, Check, ChevronRight, ListChecks, Plus, Search, X } from "lucide-react";
+import { toast } from "sonner";
+import { TopBar } from "@/shell/AppShell";
+import { useUi } from "@/shell/ui-state";
+import { useGroups, useProfile, useRefresh, useSessions, useSource } from "@/data/source";
+import { sessionState } from "@/data/state";
+import type { Session } from "@/data/types";
+import { SessionColumnsHeader, SessionRow } from "@/components/session-row";
+import { EmptyState, Panel } from "@/components/empty";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox, Chip, Skeleton } from "@/components/ui/misc";
+import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
+import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
+import { cn, plural } from "@/lib/utils";
+import { STATE_FILTERS } from "@/router";
+
+const route = getRouteApi("/sessions");
+
+const STATE_LABEL: Record<(typeof STATE_FILTERS)[number], string> = {
+  any: "Any state", running: "Running", needs: "Needs you", waiting: "Waiting", scheduled: "Scheduled", failed: "Failed", idle: "Idle", closed: "Completed or cancelled",
+};
+
+type Sort = "activity" | "created" | "title";
+
+function matchesState(s: Session, f: string | undefined) {
+  if (!f || f === "any") return true;
+  const st = sessionState(s);
+  if (f === "scheduled") return st.waitKind === "schedule";
+  if (f === "closed") return st.key === "completed" || st.key === "cancelled";
+  return st.key === f;
+}
+
+export function SessionsPage() {
+  const search = route.useSearch();
+  const navigate = route.useNavigate();
+  const { data: sessions, isLoading } = useSessions();
+  const { data: profile } = useProfile();
+  const { openNewSession } = useUi();
+  const [sort, setSort] = React.useState<Sort>("activity");
+  const [selecting, setSelecting] = React.useState(false);
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [systemOpen, setSystemOpen] = React.useState(false);
+  const [agentFilter, setAgentFilter] = React.useState<string | null>(null);
+  const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
+  const { data: groups } = useGroups();
+  const agentIds = React.useMemo(() => [...new Set((sessions || []).filter((s) => !s.isSystem).map((s) => s.agentId || "generic"))].sort(), [sessions]);
+  const q = (search.q || "").trim().toLowerCase();
+  const who = search.who || "all";
+
+  const tree = React.useMemo(() => {
+    const all = sessions || [];
+    const filtered = all.filter((s) => {
+      if (who === "mine" && s.visibility && s.visibility !== "private") return false;
+      if (who === "shared" && (!s.visibility || s.visibility === "private")) return false;
+      if (!matchesState(s, search.state)) return false;
+      if (agentFilter && s.agentId !== agentFilter) return false;
+      if (q && !`${s.title} ${s.agentId} ${s.sessionId}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    const ids = new Set(filtered.map((s) => s.sessionId));
+    const childrenOf = new Map<string, Session[]>();
+    for (const s of all) if (s.parentSessionId) childrenOf.set(s.parentSessionId, [...(childrenOf.get(s.parentSessionId) || []), s]);
+    const cmp = (a: Session, b: Session) =>
+      sort === "title" ? String(a.title).localeCompare(String(b.title)) : sort === "created" ? (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0) : (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0);
+    // A child shows under its parent when the parent is listed; otherwise at top level so filters never hide it.
+    const roots = filtered.filter((s) => !s.parentSessionId || !ids.has(s.parentSessionId)).sort(cmp);
+    const regular = roots.filter((s) => !s.isSystem);
+    const groupOf = (s: Session) => String(s.groupId ?? (s as any).viewerGroupId ?? "") || null;
+    const grouped = (groups || []).map((g) => ({ group: g, rows: regular.filter((s) => !s.pinned && groupOf(s) === g.id) })).filter((g) => g.rows.length);
+    const known = new Set((groups || []).map((g) => g.id));
+    return {
+      pinned: regular.filter((s) => s.pinned),
+      grouped,
+      rest: regular.filter((s) => !s.pinned && !(groupOf(s) && known.has(groupOf(s)!))),
+      system: roots.filter((s) => s.isSystem),
+      childrenOf: (id: string) => (childrenOf.get(id) || []).filter((c) => ids.has(c.sessionId)).sort(cmp),
+      count: filtered.filter((s) => !s.isSystem).length,
+    };
+  }, [sessions, groups, who, search.state, agentFilter, q, sort]);
+
+  const setSearch = (patch: Record<string, unknown>) => navigate({ search: (prev: any) => ({ ...prev, ...patch }), replace: true });
+  const toggle = (id: string) => setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const renderRow = (s: Session, depth = 0): React.ReactNode => {
+    const kids = tree.childrenOf(s.sessionId);
+    return (
+      <React.Fragment key={s.sessionId}>
+        <SessionRow
+          session={s}
+          columns
+          depth={depth}
+          childCount={depth === 0 ? kids.length : 0}
+          leading={selecting ? (
+            <span onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(s.sessionId); }}>
+              <Checkbox checked={selected.has(s.sessionId)} aria-label={`Select ${s.title}`} />
+            </span>
+          ) : undefined}
+        />
+        {kids.map((k) => renderRow(k, depth + 1))}
+      </React.Fragment>
+    );
+  };
+
+  return (
+    <>
+      <TopBar crumbs={[{ label: "Sessions" }]} actions={<Button variant="default" size="md" className="hidden sm:inline-flex" onClick={() => openNewSession()}><Plus /> New session</Button>} />
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-2.5 md:px-5">
+        <div className="relative w-full sm:w-[280px]">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-faint" aria-hidden />
+          <Input value={search.q || ""} onChange={(e) => setSearch({ q: e.target.value || undefined })} placeholder="Find a session" className="pl-8" aria-label="Find a session" />
+        </div>
+        <div className="flex items-center gap-1" role="group" aria-label="Whose sessions">
+          {([["mine", "Mine"], ["shared", "Shared with me"], ["all", "All"]] as const).map(([v, label]) => (
+            <Chip key={v} active={who === v} onClick={() => setSearch({ who: v === "all" ? undefined : v })}>{label}</Chip>
+          ))}
+        </div>
+        <Menu>
+          <MenuTrigger asChild>
+            <Chip active={Boolean(search.state && search.state !== "any")}>{STATE_LABEL[search.state || "any"]} <ChevronRight className="size-3 rotate-90" /></Chip>
+          </MenuTrigger>
+          <MenuContent align="start">
+            <MenuLabel>State</MenuLabel>
+            {STATE_FILTERS.map((f) => (
+              <MenuItem key={f} icon={search.state === f || (!search.state && f === "any") ? <Check /> : <span className="size-4" />} onSelect={() => setSearch({ state: f === "any" ? undefined : f })}>
+                {STATE_LABEL[f]}
+              </MenuItem>
+            ))}
+          </MenuContent>
+        </Menu>
+        <Menu>
+          <MenuTrigger asChild>
+            <Chip active={Boolean(agentFilter)}>{agentFilter ? <span className="font-mono">{agentFilter}</span> : "Any agent"} <ChevronRight className="size-3 rotate-90" /></Chip>
+          </MenuTrigger>
+          <MenuContent align="start">
+            <MenuLabel>Agent</MenuLabel>
+            <MenuItem icon={!agentFilter ? <Check /> : <span className="size-4" />} onSelect={() => setAgentFilter(null)}>Any agent</MenuItem>
+            {agentIds.map((a) => (
+              <MenuItem key={a} icon={agentFilter === a ? <Check /> : <span className="size-4" />} onSelect={() => setAgentFilter(a)}><span className="font-mono">{a}</span></MenuItem>
+            ))}
+          </MenuContent>
+        </Menu>
+        <div className="ml-auto flex items-center gap-1">
+          <Menu>
+            <MenuTrigger asChild>
+              <Button variant="quiet" size="sm"><ArrowDownUp /> {sort === "activity" ? "Recent activity" : sort === "created" ? "Newest first" : "Title"}</Button>
+            </MenuTrigger>
+            <MenuContent>
+              <MenuLabel>Sort by</MenuLabel>
+              {([["activity", "Recent activity"], ["created", "Newest first"], ["title", "Title"]] as const).map(([v, l]) => (
+                <MenuItem key={v} icon={sort === v ? <Check /> : <span className="size-4" />} onSelect={() => setSort(v)}>{l}</MenuItem>
+              ))}
+            </MenuContent>
+          </Menu>
+          <Button variant={selecting ? "default" : "quiet"} size="sm" aria-pressed={selecting} onClick={() => { setSelecting((v) => !v); setSelected(new Set()); }}>
+            <ListChecks /> {selecting ? "Done" : "Select"}
+          </Button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-[1180px] px-4 py-4 md:px-5">
+          {isLoading ? (
+            <div className="flex flex-col gap-2">{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-[46px]" />)}</div>
+          ) : tree.count === 0 && !tree.system.length ? (
+            <Panel>
+              <EmptyState icon={<Search />} title={q || search.state || who !== "all" ? "No sessions match" : "No sessions yet"} action={q || search.state || who !== "all" ? <Button onClick={() => navigate({ search: {} as any })}>Clear filters</Button> : <Button variant="primary" onClick={() => openNewSession()}><Plus /> New session</Button>}>
+                {q || search.state || who !== "all" ? "Try another word or clear the filters." : "Start one and it shows up here, with what it is doing and what it waits on."}
+              </EmptyState>
+            </Panel>
+          ) : (
+            <div className="flex flex-col gap-5">
+              {tree.pinned.length ? <Group title="Pinned" count={tree.pinned.length}>{tree.pinned.map((s) => renderRow(s))}</Group> : null}
+              {tree.grouped.map(({ group, rows }) => (
+                <Group key={group.id} title={group.name} count={rows.length} open={!collapsed.has(group.id)} onToggle={() => setCollapsed((c) => { const n = new Set(c); n.has(group.id) ? n.delete(group.id) : n.add(group.id); return n; })}>
+                  {rows.map((s) => renderRow(s))}
+                </Group>
+              ))}
+              {tree.rest.length ? <Group title={tree.pinned.length || tree.grouped.length ? "Ungrouped" : undefined} count={tree.rest.length}>{tree.rest.map((s) => renderRow(s))}</Group> : null}
+              {profile?.isAdmin && tree.system.length ? (
+                <section>
+                  <button type="button" aria-expanded={systemOpen} onClick={() => setSystemOpen((v) => !v)} className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-fg pointer-coarse:min-h-11">
+                    <ChevronRight className={cn("size-4 transition-transform", systemOpen && "rotate-90")} /> System <span className="font-mono font-normal text-faint">{tree.system.length}</span>
+                  </button>
+                  {systemOpen ? <Panel>{tree.system.map((s) => renderRow(s))}</Panel> : null}
+                </section>
+              ) : null}
+            </div>
+          )}
+        </div>
+      </div>
+      {selecting && selected.size ? <BulkBar ids={[...selected]} onDone={() => { setSelected(new Set()); setSelecting(false); }} /> : null}
+    </>
+  );
+}
+
+function Group({ title, count, children, open = true, onToggle }: { title?: string; count?: number; children: React.ReactNode; open?: boolean; onToggle?: () => void }) {
+  return (
+    <section>
+      {title ? (
+        onToggle ? (
+          <h2 className="mb-2">
+            <button type="button" aria-expanded={open} onClick={onToggle} className="flex items-center gap-1.5 rounded-chip text-sm font-semibold text-muted hover:text-fg pointer-coarse:min-h-11">
+              <ChevronRight className={cn("size-4 transition-transform", open && "rotate-90")} aria-hidden /> {title} <span className="font-mono font-normal text-faint">{count}</span>
+            </button>
+          </h2>
+        ) : <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-muted">{title} {count != null ? <span className="font-mono font-normal text-faint">{count}</span> : null}</h2>
+      ) : null}
+      {open ? <Panel><SessionColumnsHeader />{children}</Panel> : null}
+    </section>
+  );
+}
+
+function BulkBar({ ids, onDone }: { ids: string[]; onDone: () => void }) {
+  const { source } = useSource();
+  const refresh = useRefresh();
+  const [confirm, setConfirm] = React.useState<null | "complete" | "cancel" | "delete">(null);
+  const act = async (kind: "complete" | "cancel" | "delete") => {
+    const fn = kind === "complete" ? source.completeSession : kind === "cancel" ? source.cancelSession : source.deleteSession;
+    const results = await Promise.allSettled(ids.map((id) => fn.call(source, id)));
+    const failed = results.filter((r) => r.status === "rejected").length;
+    refresh();
+    setConfirm(null);
+    onDone();
+    const verb = kind === "complete" ? "Completed" : kind === "cancel" ? "Cancelled" : "Deleted";
+    failed ? toast.error(`${verb} ${ids.length - failed} of ${ids.length}`, { description: "Some sessions refused the change." }) : toast.success(`${verb} ${plural(ids.length, "session")}`);
+  };
+  return (
+    <>
+      <div role="toolbar" aria-label="Selected sessions" className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-line bg-overlay px-4 py-2.5 shadow-pop md:px-5">
+        <span className="text-sm font-medium">{plural(ids.length, "session")} selected</span>
+        <div className="ml-auto flex flex-wrap gap-2">
+          <Button size="sm" onClick={() => setConfirm("complete")}>Complete</Button>
+          <Button size="sm" onClick={() => setConfirm("cancel")}>Cancel sessions</Button>
+          <Button size="sm" variant="danger" onClick={() => setConfirm("delete")}>Delete</Button>
+          <Button size="icon-sm" variant="quiet" aria-label="Clear selection" onClick={onDone}><X /></Button>
+        </div>
+      </div>
+      <Dialog open={Boolean(confirm)} onOpenChange={(o) => !o && setConfirm(null)}>
+        {confirm ? (
+          <DialogContent title={`${confirm === "complete" ? "Complete" : confirm === "cancel" ? "Cancel" : "Delete"} ${plural(ids.length, "session")}?`}>
+            <DialogBody>
+              <p className="text-sm text-muted">
+                {confirm === "complete" && "They close as done. Their transcripts, canvases and outputs stay."}
+                {confirm === "cancel" && "They close as abandoned and stop any running turn. Their sub-agents are cancelled too."}
+                {confirm === "delete" && "They disappear from every list and stop, with their sub-agents. Session facts are removed; a deleted summary is kept until an admin prunes it."}
+              </p>
+            </DialogBody>
+            <DialogFooter>
+              <Button onClick={() => setConfirm(null)}>Keep them</Button>
+              <Button variant={confirm === "delete" ? "danger" : "primary"} onClick={() => act(confirm)}>
+                {confirm === "complete" ? "Complete" : confirm === "cancel" ? "Cancel sessions" : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        ) : null}
+      </Dialog>
+    </>
+  );
+}
