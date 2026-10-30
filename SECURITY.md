@@ -1,14 +1,26 @@
-<!-- BEGIN MICROSOFT SECURITY.MD V1.0.0 BLOCK -->
+# Security Policy
 
-## Security
+## Reporting a vulnerability
 
-Microsoft takes the security of our software products and services seriously, which
-includes all source code repositories in our GitHub organizations.
+Please do not report security vulnerabilities through public GitHub issues,
+discussions or pull requests.
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+Report them privately through
+[GitHub private vulnerability reporting](https://github.com/pilotcockpit/PilotSwarm/security/advisories/new).
+We aim to acknowledge reports within 5 working days.
 
-For security reporting information, locations, contact information, and policies,
-please review the latest guidance for Microsoft repositories at
-[https://aka.ms/SECURITY.md](https://aka.ms/SECURITY.md).
+## Scope
 
-<!-- END MICROSOFT SECURITY.MD BLOCK -->
+This repository is a community fork of
+[microsoft/pilotswarm](https://github.com/microsoft/pilotswarm) that focuses on
+user-experience improvements. Vulnerabilities in code that exists only in this
+fork should be reported here.
+
+Vulnerabilities in the upstream runtime that are also present in
+`microsoft/pilotswarm` should be reported to Microsoft following
+[https://aka.ms/SECURITY.md](https://aka.ms/SECURITY.md). If you are unsure,
+report here and we will coordinate with upstream.
+
+## Supported versions
+
+Only the latest commit on `main` is supported.

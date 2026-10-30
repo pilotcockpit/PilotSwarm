@@ -1,0 +1,41 @@
+name: UX problem
+description: Something in the TUI, portal or CLI is confusing, slow, inaccessible or visually broken.
+labels: [ux]
+body:
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options: [TUI, Portal, CLI, Docs, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is the problem?
+      description: What did you try to do, what did you expect, and what happened?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ...\n3. ..."
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots or recordings
+      description: Remove any secrets, connection strings or personal data first.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: macOS 15 / iTerm2 / Node 24

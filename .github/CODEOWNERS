@@ -1,0 +1,7 @@
+# Default owner for everything. Replace with a team (e.g. @pilotcockpit/maintainers)
+# once the organization has more than one maintainer.
+* @atifgul99
+
+# Release, CI and deployment changes always need an owner review.
+/.github/ @atifgul99
+/deploy/ @atifgul99

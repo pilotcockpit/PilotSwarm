@@ -1,0 +1,40 @@
+name: Bug report
+description: Something in this fork does not work as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Remove any secrets, connection strings or personal data first.
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: OS / Node version / PostgreSQL version
+  - type: checkboxes
+    id: upstream
+    attributes:
+      label: Upstream check
+      options:
+        - label: I checked whether this also happens on microsoft/pilotswarm `main`.

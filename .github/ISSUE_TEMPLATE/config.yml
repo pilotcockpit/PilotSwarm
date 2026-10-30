@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/pilotcockpit/PilotSwarm/discussions
+    about: Ask questions and share ideas in Discussions.
+  - name: Report a security vulnerability
+    url: https://github.com/pilotcockpit/PilotSwarm/security/advisories/new
+    about: Report privately. Do not open a public issue for vulnerabilities.
+  - name: Runtime or orchestration bug (not UX)
+    url: https://github.com/microsoft/pilotswarm/issues
+    about: Problems in the upstream runtime itself are best reported to microsoft/pilotswarm.

@@ -1,5 +1,7 @@
 # PilotSwarm
 
+> **Community fork.** This is [pilotcockpit/PilotSwarm](https://github.com/pilotcockpit/PilotSwarm), an independent fork of [microsoft/pilotswarm](https://github.com/microsoft/pilotswarm) focused on user-experience improvements. It is not affiliated with or endorsed by Microsoft. Licensed under MIT; see [LICENSE](LICENSE).
+
 > **Experimental** — This project is under active development and not yet ready for production use. APIs may change without notice.
 
 An open-source durable execution runtime for [GitHub Copilot SDK](https://github.com/github/copilot-sdk) agents. Crash recovery, durable timers, session dehydration, and multi-node scaling — powered by [duroxide](https://github.com/microsoft/duroxide). Just add a connection string.
