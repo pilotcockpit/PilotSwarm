@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useIntent } from "@/shell/intents";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { FolderUp, Search } from "lucide-react";
 import { TopBar } from "@/shell/AppShell";
@@ -50,6 +51,7 @@ export function LibraryPage() {
     setSelected(packageKey(hit));
   };
   const startAdd = (files: ReadResult | null = null) => { setDropped(files); setAdding(true); };
+  useIntent("add-package", () => startAdd());
 
   return (
     <>

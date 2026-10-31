@@ -197,6 +197,9 @@ function BottomTabs() {
   const { top, bottom } = useNav();
   const [more, setMore] = React.useState(false);
   const { openNewSession } = useUi();
+  const [theme, setTheme] = useTheme();
+  const systemDark = useMediaQuery("(prefers-color-scheme: dark)");
+  const isDark = theme === "dark" || (theme === "system" && systemDark);
   const { data: profile } = useProfile();
   const tabs = top.slice(0, 4);
   const moreActive = !tabs.some((t) => t.match(path));
@@ -244,7 +247,10 @@ function BottomTabs() {
               <span className="grid size-8 shrink-0 place-items-center rounded-full bg-raised text-xs font-semibold" aria-hidden>{initials(profile?.displayName)}</span>
               <div className="min-w-0"><p className="truncate text-sm font-medium">{profile?.displayName || "Signed-in person"}</p><p className="text-xs text-muted">{profile?.isAdmin ? "Admin" : "Member"}</p></div>
             </div>
-            <div className="mt-3 border-t border-line pt-3"><ConnectionStatus collapsed={false} /></div>
+            <div className="mt-3 flex flex-col gap-1 border-t border-line pt-3">
+              <Button variant="quiet" className="justify-start" onClick={() => setTheme(isDark ? "light" : "dark")}>{isDark ? <Sun /> : <Moon />} {isDark ? "Switch to light theme" : "Switch to dark theme"}</Button>
+              <ConnectionStatus collapsed={false} />
+            </div>
           </DialogBody>
         </DialogContent>
       </Dialog>
@@ -262,9 +268,11 @@ export function TopBar({ crumbs, actions, titleIsHeading = true }: { crumbs: Arr
   const phone = useMediaQuery("(max-width: 767px)");
   const systemDark = useMediaQuery("(prefers-color-scheme: dark)");
   const isDark = theme === "dark" || (theme === "system" && systemDark);
+  // Deep pages (a session) and pages with actions give the title the room: the Home tab and the More sheet carry the logo and the theme switch on a phone.
+  const compact = phone && (crumbs.length > 1 || Boolean(actions));
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-surface px-4 md:gap-3 md:px-6">
-      {phone ? <Link to="/" aria-label="PilotSwarm overview" className="grid size-8 shrink-0 place-items-center rounded-control pointer-coarse:size-11"><Logo /></Link> : null}
+      {phone && !compact ? <Link to="/" aria-label="PilotSwarm overview" className="grid size-8 shrink-0 place-items-center rounded-control pointer-coarse:size-11"><Logo /></Link> : null}
       <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
         <ol className="flex min-w-0 items-center gap-1.5 text-sm">
           {crumbs.map((c, i) => (
@@ -296,11 +304,11 @@ export function TopBar({ crumbs, actions, titleIsHeading = true }: { crumbs: Arr
           <span className="hidden min-w-0 flex-1 items-center gap-3 xl:flex"><span className="flex-1 truncate text-left">Search or jump to…</span><Kbd>⌘K</Kbd></span>
         )}
       </Button>
-      <Tooltip content={isDark ? "Switch to light" : "Switch to dark"}>
+      {compact ? null : <Tooltip content={isDark ? "Switch to light" : "Switch to dark"}>
         <Button variant="quiet" size="icon" aria-label="Toggle light and dark theme" onClick={() => setTheme(isDark ? "light" : "dark")}>
           {isDark ? <Sun /> : <Moon />}
         </Button>
-      </Tooltip>
+      </Tooltip>}
     </header>
   );
 }

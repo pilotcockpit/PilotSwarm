@@ -223,6 +223,7 @@ const flags: FeatureFlag[] = [
 ];
 
 import { callDemoOp } from "./ops";
+import { demoGroupList, effectiveGroupId, setDemoSessionRows } from "./demo-groups";
 export function createDemoSource(): DataSource {
   const byId = new Map(sessions.map((s) => [s.sessionId, { ...s }]));
   const events = new Map<string, SessionEvent[]>();
@@ -250,13 +251,14 @@ export function createDemoSource(): DataSource {
       if (cur && cur.status === "running") cur.status = "idle";
     }, delay);
   };
+  setDemoSessionRows(() => [...byId.values()]);
   const wait = <T,>(value: T, ms = 120) => new Promise<T>((r) => window.setTimeout(() => r(value), ms));
 
   return {
     kind: "demo",
     label: "Demo data",
-    listSessions: () => wait([...byId.values()].filter((s) => s.status !== "deleted").map((s) => ({ ...s }))),
-    getSession: (id) => wait(byId.get(id) ? { ...byId.get(id)! } : null),
+    listSessions: () => wait([...byId.values()].filter((s) => s.status !== "deleted").map((s) => ({ ...s, groupId: effectiveGroupId(s) }))),
+    getSession: (id) => wait(byId.get(id) ? { ...byId.get(id)!, groupId: effectiveGroupId(byId.get(id)!) } : null),
     getEvents: (id) => wait([...(events.get(id) || [])], 160),
     subscribe(id, onEvent) {
       if (!listeners.has(id)) listeners.set(id, new Set());
@@ -319,7 +321,7 @@ export function createDemoSource(): DataSource {
     usageSummary: () => wait(usage),
     listWorkers: () => wait(workers),
     listFlags: () => wait(flags),
-    listGroups: () => wait([{ id: "g-release", name: "Release 0.8.8" }, { id: "g-ops", name: "Ops" }]),
+    listGroups: () => wait(demoGroupList.map((g) => ({ id: g.groupId, name: g.title }))),
     profile: () => wait({ displayName: "Sam Lee", email: "sam.lee@contoso.com", isAdmin: true, provider: "entra" }),
     authzAudit: () =>
       wait([

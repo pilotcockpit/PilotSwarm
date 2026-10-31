@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useIntent } from "@/shell/intents";
 import { getRouteApi } from "@tanstack/react-router";
 import { KeyRound, Plus } from "lucide-react";
 import { TopBar } from "@/shell/AppShell";
@@ -35,6 +36,8 @@ export function ProvidersPage() {
   const selected = providers?.find((p) => p.name === search.provider);
   const [sheetTab, setSheetTab] = React.useState<SheetTab>("overview");
   const [add, setAdd] = React.useState<{ open: boolean; type?: string }>({ open: false });
+
+  useIntent("add-provider", () => setAdd({ open: true }));
 
   // Old links to the Copilot tab land in the add flow with GitHub Copilot chosen: it is a provider type like the rest.
   React.useEffect(() => {

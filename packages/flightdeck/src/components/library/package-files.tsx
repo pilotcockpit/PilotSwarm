@@ -59,7 +59,7 @@ export function PackageFiles({ pkg, semver, profile }: { pkg: PackageSummary; se
   if (tree.isError) return <p role="alert" className="text-sm text-failed">The files could not be read: {(tree.error as Error)?.message}</p>;
   return (
     <div className="grid gap-3 md:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]">
-      <ul aria-label="Package files" className="max-h-72 overflow-y-auto rounded-pane border border-line p-1">{nodes.map((n) => row(n, 0))}</ul>
+      <ul aria-label="Package files" className="rounded-pane border border-line p-1 md:max-h-72 md:overflow-y-auto">{nodes.map((n) => row(n, 0))}</ul>
       <div className="min-w-0 rounded-pane border border-line">
         <p className="truncate border-b border-line px-3 py-1.5 font-mono text-xs text-muted">{file ?? "No file selected"}</p>
         <div className="max-h-72 overflow-auto p-3">

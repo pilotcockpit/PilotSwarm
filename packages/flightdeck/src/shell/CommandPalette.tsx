@@ -1,8 +1,9 @@
 import * as React from "react";
 import { Command } from "cmdk";
 import { Dialog as D } from "radix-ui";
-import { useNavigate } from "@tanstack/react-router";
-import { Bot, FolderOutput, Search, House, KeyRound, Keyboard, LayoutGrid, MessagesSquare, Moon, Plus, Rows3, ShieldCheck, SlidersHorizontal, Sun, ToggleLeft } from "lucide-react";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { Bot, Brain, Copy, FileSearch, FolderInput, FolderOutput, Flag, Package, Paperclip, Search, House, KeyRound, Keyboard, LayoutGrid, MessagesSquare, Moon, Plus, RotateCcw, Rows3, Share2, ShieldCheck, SlidersHorizontal, Sun, ToggleLeft, Wrench } from "lucide-react";
 import { useAgents, useProfile, useSessions, useSource } from "@/data/source";
 import { STATE_TONE, sessionState } from "@/data/state";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,7 @@ import { StateGlyph } from "@/components/state";
 import { Kbd } from "@/components/ui/kbd";
 import { useUi } from "./ui-state";
 import { useDensity, useTheme } from "./prefs";
+import { requestIntent, type Intent } from "./intents";
 
 /** ⌘K finds anything: sessions, agents, areas, and actions. */
 export function CommandPalette() {
@@ -23,6 +25,11 @@ export function CommandPalette() {
   const { mode, setMode } = useSource();
   const run = (fn: () => void) => () => { setPaletteOpen(false); fn(); };
   const go = (to: string, search?: Record<string, unknown>) => run(() => navigate({ to, search: search as any }));
+  // A page-owned action: go where it lives, then ask that page to do it.
+  const act = (intent: Intent, to: string, search?: Record<string, unknown>) => run(() => { void navigate({ to, search: search as any }); requestIntent(intent); });
+  const sessionId = useRouterState({ select: (s) => /^\/s\/([^/]+)/.exec(s.location.pathname)?.[1] ?? null });
+  const here = sessionId ? `/s/${sessionId}` : null;
+  const isAdmin = Boolean(profile?.isAdmin);
 
   const rows = React.useMemo(
     () => (sessions || []).slice().sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0)),
@@ -46,8 +53,20 @@ export function CommandPalette() {
             </div>
             <Command.List className="min-h-0 flex-1 overflow-y-auto p-1.5 [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-faint">
               <Command.Empty className="px-3 py-8 text-center text-sm text-muted">No matches. Try a session title, an agent or an area.</Command.Empty>
+              {here ? (
+                <Command.Group heading="This session">
+                  <Item icon={<Share2 />} onSelect={act("share-session", here)} keywords={["access", "people", "visibility", "invite"]}>Share session…</Item>
+                  <Item icon={<FolderInput />} onSelect={act("move-to-group", here)} keywords={["group", "organise"]}>Move session to group…</Item>
+                  <Item icon={<Copy />} onSelect={run(() => { void navigator.clipboard?.writeText(`${window.location.origin}${here}`); toast.success("Link copied", { description: "People still need access to open it." }); })} keywords={["url", "link"]}>Copy session link</Item>
+                  <Item icon={<Paperclip />} onSelect={act("attach-file", here, { view: "chat" })} keywords={["upload", "attachment", "image"]}>Attach file…</Item>
+                  <Item icon={<FileSearch />} onSelect={act("find-file", here, { view: "files", files: "folders" })} keywords={["file", "folder", "workspace", "find"]}>Go to file…</Item>
+                  <Item icon={<Share2 />} onSelect={act("share-canvas", here, { view: "canvas" })} keywords={["canvas", "public", "link"]}>Share canvas…</Item>
+                </Command.Group>
+              ) : null}
               <Command.Group heading="Actions">
                 <Item icon={<Plus />} onSelect={run(() => openNewSession())} shortcut="N">New session</Item>
+                <Item icon={<KeyRound />} onSelect={act("add-provider", "/providers", { tab: "providers" })} keywords={["model", "key", "openai", "anthropic", "copilot", "azure"]}>Add provider…</Item>
+                <Item icon={<Package />} onSelect={act("add-package", "/library", { tab: "packages" })} keywords={["agent", "upload", "install"]}>Add a package…</Item>
                 <Item icon={<Keyboard />} onSelect={run(() => setShortcutsOpen(true))} shortcut="?">Keyboard shortcuts</Item>
                 {document.documentElement.classList.contains("dark")
                   ? <Item icon={<Sun />} onSelect={run(() => setTheme("light"))} keywords={["theme", "appearance"]}>Change theme: Light</Item>
@@ -83,8 +102,15 @@ export function CommandPalette() {
                 <Item icon={<LayoutGrid />} onSelect={go("/boards")} shortcut="G B">Boards</Item>
                 <Item icon={<FolderOutput />} onSelect={go("/outputs")} shortcut="G O">Outputs</Item>
                 <Item icon={<Bot />} onSelect={go("/library")} shortcut="G L">Agent library</Item>
-                <Item icon={<KeyRound />} onSelect={go("/providers")} shortcut="G P">Providers</Item>
-                {profile?.isAdmin ? <Item icon={<ShieldCheck />} onSelect={go("/admin")} shortcut="G A">Admin</Item> : null}
+                <Item icon={<KeyRound />} onSelect={go("/providers", { tab: "providers" })} shortcut="G P" keywords={["providers", "spend", "limits", "usage"]}>Models &amp; spend</Item>
+                <Item icon={<SlidersHorizontal />} onSelect={go("/providers", { tab: "defaults" })} keywords={["model", "default"]}>Default models</Item>
+                <Item icon={<Package />} onSelect={go("/library", { tab: "packages" })} keywords={["packages", "versions"]}>Packages</Item>
+                {isAdmin ? <Item icon={<ShieldCheck />} onSelect={go("/admin")} shortcut="G A">Admin</Item> : null}
+                {isAdmin ? <Item icon={<Flag />} onSelect={go("/admin", { tab: "flags" })} keywords={["feature", "flags", "rollout"]}>Feature flags</Item> : null}
+                {isAdmin ? <Item icon={<Brain />} onSelect={go("/admin", { tab: "knowledge" })} keywords={["facts", "graph", "embedder", "purge"]}>Knowledge health</Item> : null}
+                {isAdmin ? <Item icon={<Wrench />} onSelect={go("/admin", { tab: "maintenance" })} keywords={["prune", "housekeeping", "clean"]}>Run maintenance…</Item> : null}
+                {isAdmin ? <Item icon={<RotateCcw />} onSelect={go("/admin", { tab: "system" })} keywords={["restart", "system", "agent"]}>Restart system session…</Item> : null}
+                <Item icon={<Flag />} onSelect={go("/settings", { tab: "flags" })} keywords={["feature", "preferences", "flags"]}>My feature preferences</Item>
                 <Item icon={<SlidersHorizontal />} onSelect={go("/settings")}>Settings</Item>
               </Command.Group>
               {agents?.length ? (

@@ -23,7 +23,7 @@ export function MenuItem({ className, danger, icon, hint, children, ...props }: 
   return (
     <M.Item
       className={cn(
-        "flex min-h-[30px] items-center gap-2.5 rounded-control px-2 py-1 outline-none select-none data-[highlighted]:bg-accent-tint data-[highlighted]:shadow-[inset_2px_0_0_var(--accent)] data-[disabled]:opacity-45 [&_svg]:size-4 [&_svg]:text-muted",
+        "flex min-h-[30px] items-center gap-2.5 rounded-control px-2 py-1 outline-none select-none pointer-coarse:min-h-11 data-[highlighted]:bg-accent-tint data-[highlighted]:shadow-[inset_2px_0_0_var(--accent)] data-[disabled]:opacity-45 [&_svg]:size-4 [&_svg]:text-muted",
         danger && "text-failed data-[highlighted]:bg-failed-tint data-[highlighted]:shadow-[inset_2px_0_0_var(--failed)] [&_svg]:text-failed",
         className,
       )}

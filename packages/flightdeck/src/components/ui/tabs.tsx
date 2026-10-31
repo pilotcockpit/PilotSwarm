@@ -38,7 +38,7 @@ export function Segmented<T extends string>({ value, onChange, options, classNam
           value={o.value}
           disabled={o.disabled}
           title={o.title}
-          className="inline-flex h-full items-center gap-1 rounded-chip px-2.5 text-xs font-medium text-muted focus-inset hover:text-fg data-[state=on]:bg-raised data-[state=on]:text-fg data-[state=on]:shadow-[inset_0_0_0_1px_var(--line-strong)] disabled:opacity-45"
+          className="inline-flex h-full items-center gap-1 rounded-chip px-2.5 text-xs font-medium text-muted pointer-coarse:min-w-11 pointer-coarse:justify-center focus-inset hover:text-fg data-[state=on]:bg-raised data-[state=on]:text-fg data-[state=on]:shadow-[inset_0_0_0_1px_var(--line-strong)] disabled:opacity-45"
         >
           {o.label}
         </ToggleGroup.Item>

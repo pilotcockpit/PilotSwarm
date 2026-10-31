@@ -76,20 +76,61 @@ accessibility **sign off with changes** (no WCAG 2.2 AA failures; the
 remaining items were touch targets, since closed, and the view-only composer
 state, unverified because no demo session is view-only).
 
-## What is in, what links back
+## What is in
 
-In: app shell (labeled rail, phone tab bar, ⌘K, `?` shortcuts, connection and
-data-source status), Home, Sessions (filters, tree, select + bulk actions),
-Session (header with state pill and reason, schedule popover, Share, ⋯ menu
-with cascade notes; Chat with tool-call blocks, spawn blocks, question cards,
-structured errors, Stop · Steer · Queue; Canvas host with tabs, zoom, focus and
-host-mediated links; Files → Outputs with preview; Delegation; Activity with
-question shortcuts), New session sheet, Boards, Outputs, Agent library,
-Providers (summary, table, detail with "not set up on workers"), Admin (flags,
-workers, system sessions, audit, cluster usage), Settings (appearance, density,
-shortcuts, data source).
+Everything the classic portal does has a Flight Deck screen. App shell (labeled
+rail, phone tab bar, ⌘K with page actions, `?` shortcuts, connection status),
+Home (inline answers, failure groups, since-you-left), Sessions, Session (Chat
+with attachments, Share, Move to group, Switch model, schedule actions; Canvas
+with a public-link sheet; Files over outputs and working folders with edit,
+search and git changes; Delegation; Activity), New session, Boards and Fleet,
+Outputs, Agent library (agents and package management), Models & spend
+(providers, limits, holds, defaults), Admin (overview, workers, system
+sessions, access, feature flags, knowledge, maintenance) and Settings
+(appearance, shortcuts, personal feature preferences, notifications).
 
-Links to the classic portal (not ported yet): working-folder editing, file
-attach, share/visibility changes, model switch, packages, provider and flag
-writes, knowledge, maintenance, canvas share links, canvas live data plane
-(Flight Deck re-reads a canvas when it changes instead of patching it live).
+Not here, because the Web API has no operation for it: browsing published
+canvas apps, and pausing, resuming or firing a schedule from outside a turn
+(Flight Deck asks the agent instead). Boards are stored in the browser.
+
+## Extending Flight Deck
+
+- **Tokens first.** Components read the semantic tokens in `src/styles.css` and
+  nothing else; `npm run tokens:check` (also part of `build`) enforces it. See
+  `DESIGN.md`.
+- **Reuse the primitives.** `Card`/`Panel` for any boxed surface, `Tag`,
+  `StatePill`, `Button` (two heights), `DisclosureButton`, `RadioCards` (one
+  choice among a few explained options), `Field` (label, hint, error),
+  `ConfirmDialog` (state the consequence; typed confirmation for removals that
+  cannot be undone), `Dialog` with `side="right"` for sheets.
+- **Any Web API operation.** `source.call(op, params)` reaches the API in live
+  mode. Wrap an area's operations in `src/data/ops/<area>.ts` with
+  `useOpQuery` / `useOpMutation` (`use-op.ts`): they own cache keys, invalidation
+  and failure toasts. Read the wire shape in `contracts.ts`-style pure
+  normalisers, so a test can pin it.
+- **Demo data.** Each area registers its fixtures in
+  `src/data/ops/<area>.demo.ts` with `registerDemoOps(import.meta.url, {...})`.
+  `index.ts` loads every `*.demo.ts`; one file owns each operation (a second
+  claim throws in development). Fixtures must return the real wire shapes.
+- **Page actions from ⌘K.** A page that owns an action calls
+  `useIntent("name", handler)` (`src/shell/intents.ts`); the palette navigates
+  and requests the intent.
+- **State that must survive navigation** (unsaved file edits, upload plans,
+  package adoption) lives in small module stores (`session/files/drafts.ts`,
+  `data/ops/adoption.ts`) with explicit expiry, not in component state.
+- **Tests.** `npm test` runs vitest (pure functions, wrappers, a tiny
+  `react-reconciler` renderer for hooks and editors) and node:test for the
+  access/composer helpers.
+
+## Operations Flight Deck uses
+
+| Area | Web API operations |
+|---|---|
+| Sessions | listSessions, getSession, getSessionEventsBefore, sendMessage, sendAnswer (strict: requireQuestionMatch), stopSessionTurn, steerSessionTurn, createSession(ForAgent), renameSession, completeSession, cancelSession, deleteSession, setSessionModel, exportExecutionHistory |
+| Sharing and groups | getSessionAccess, setSessionVisibility, grantSessionShare, revokeSessionShare, listSessionShares, listKnownUsers, listSessionGroups, createSessionGroup, placeSessionsInGroup |
+| Files | listArtifacts, downloadArtifact, uploadArtifact, deleteArtifact, getSessionWorkspace, setSessionWorkspace, retrySessionWorkspace, listSessionWorkspaceFolders, sessionWorkspaceFiles |
+| Canvas | getCanvasLive, readCanvasKv, setCanvasKvAccess, getCanvasShareLink, resetCanvasShareLink, removeCanvasShareLink |
+| Providers and spend | listProviders, getProviderUsageGrid, getProviderUsage, getModelsByProvider, listModels, createMyProvider, createProvider, update*ProviderCredential, delete*Provider, clearProviderRoutingDependencies, setProviderLimit, removeProviderLimit, setProviderAllowance, setProviderHold, getModelDefaults, setModelDefault, setMyDefault, setSystemModelDefault, setSystemSessionModel, clearSystemSessionModel, listPausedSessions |
+| Library | listCreatableAgents, listAgentPackages, getAgentPackage(Tree/File), uploadAgentPackage, setAgentPackageScope, setAgentPackageEnabled, pinAgentPackageVersion, deleteAgentPackage, grant/revoke/listAgentPackageEditors, republishAgentPackageVersion, listAgentWorkerState |
+| Admin | listWorkers, getFleetStats, listAuthzAudit, listFeatureFlags, getClusterFeatureFlags, setClusterFeatureFlag, resetClusterFeatureFlag, listFeatureFlagChanges, listFeatureFlagUsers, get/set/unsetUserFeatureFlag, restartSystemSession, pruneDeletedSummaries, factsCapabilities, getSharedFactsStats, getFactsTombstoneStats, get/start/stopEmbedder, forcePurgeFacts, searchFacts, list/upsert/deleteGraphNamespace, graphStats |
+| Settings | getCurrentUserProfile, getMyFeatureFlags, setMyFeatureFlag, unsetMyFeatureFlag |

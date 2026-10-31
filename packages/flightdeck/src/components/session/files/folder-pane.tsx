@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useIntent } from "@/shell/intents";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUp, ChevronRight, Download, File as FileIcon, FilePlus, Folder as FolderIcon, FolderPlus, Link2, Loader2, MoreHorizontal, Pencil, RefreshCw, Search, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
@@ -34,6 +35,9 @@ export function FolderPane({ session, info, folder, openWorkingFolder }: { sessi
   const [openPath, setOpenPath] = React.useState<string | null>(null);
   const [view, setView] = React.useState<"files" | "changes">("files");
   const [query, setQuery] = React.useState("");
+  const queryInput = React.useRef<HTMLInputElement>(null);
+  // The palette hands focus back to where it was opened when it closes; take it after that.
+  useIntent("find-file", () => { window.setTimeout(() => queryInput.current?.focus(), 300); });
   const [debounced, setDebounced] = React.useState("");
   const [adding, setAdding] = React.useState<Add>(null);
   const [renaming, setRenaming] = React.useState<string | null>(null);
@@ -180,7 +184,7 @@ export function FolderPane({ session, info, folder, openWorkingFolder }: { sessi
       <div className={cn("flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-1.5", openPath && view === "files" && "max-sm:hidden")}>
         <div className="relative min-w-32 flex-1">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" aria-hidden />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a file or folder by name" aria-label="Find a file or folder by name" className="pl-7 pr-7" />
+          <Input ref={queryInput} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a file or folder by name" aria-label="Find a file or folder by name" className="pl-7 pr-7" />
           {query ? <button type="button" aria-label="Clear search" onClick={() => setQuery("")} className="absolute right-1 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-chip text-muted hover:text-fg"><X className="size-3.5" /></button> : null}
         </div>
         {info.git ? <Segmented label="Show" value={view} onChange={(v) => guard(() => setView(v))} options={[{ value: "files", label: "Files" }, { value: "changes", label: "Changes" }]} /> : null}

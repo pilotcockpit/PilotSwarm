@@ -212,3 +212,11 @@ Text 4.5:1; large text and control borders 3:1. Visible 2px accent focus ring on
 - Do put state in glyph + word + colour. Don't colour a decoration with a state hue.
 - Do use `Card` for any boxed surface. Don't re-spell its classes.
 - Do keep one primary button per screen. Don't use the accent for emphasis.
+
+## 11. Extending Flight Deck
+
+New screens follow the same recipe: read tokens only; build from `Card`, `Tag`, `StatePill`, `Button`, `DisclosureButton`, `RadioCards`, `Field` and `ConfirmDialog`; sheets are `Dialog side="right"` (full width on phones, 44px targets); reach the API with `source.call` through `useOpQuery` / `useOpMutation`; register demo fixtures in `src/data/ops/<area>.demo.ts` using the real wire shapes; hold anything that must survive navigation (drafts, upload plans, adoption) in a small module store with its own expiry; and expose page actions to ⌘K with `useIntent`. The package `README.md` lists the operations each area uses.
+
+**Confirmations.** Reversible changes apply at once with an Undo toast. Anything that widens access, spends, or cannot be undone asks first with `ConfirmDialog` and states the consequence in numbers; removals of whole datasets or agents ask for the name to be typed.
+
+**Secrets.** Credential inputs are `type="password"` with autocomplete off, cleared after saving, never put in toasts, query keys or logs. A one-time value (a public link token) is shown once and held only in component state.

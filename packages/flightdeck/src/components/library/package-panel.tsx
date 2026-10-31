@@ -102,7 +102,7 @@ export function PackagePanel({ pkg, onClose, profile, ownerName }: { pkg: Packag
 
           {provides.readme ? (
             <Section title="About">
-              {readme.isLoading ? <Skeleton className="h-20" /> : <div className="max-h-64 overflow-y-auto rounded-pane border border-line p-3"><Markdown text={readme.data?.text ?? ""} /></div>}
+              {readme.isLoading ? <Skeleton className="h-20" /> : <div className="rounded-pane border border-line p-3 md:max-h-64 md:overflow-y-auto"><Markdown text={readme.data?.text ?? ""} /></div>}
             </Section>
           ) : null}
 

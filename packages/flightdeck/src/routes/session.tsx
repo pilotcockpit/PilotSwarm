@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useIntent } from "@/shell/intents";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { Group, Panel as SplitPanel, Separator, useDefaultLayout } from "react-resizable-panels";
 import {
@@ -307,6 +308,8 @@ function SessionBarActions({ session, childCount }: { session: Session; childCou
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const [shareOpen, setShareOpen] = React.useState(false);
   const [groupOpen, setGroupOpen] = React.useState(false);
+  useIntent("share-session", () => setShareOpen(true));
+  useIntent("move-to-group", () => setGroupOpen(true));
   const [folderOpen, setFolderOpen] = React.useState(false);
   const ctx = contextPercent(session);
   const stalled = isStalled(session);
@@ -641,6 +644,7 @@ function Composer({ session }: { session: Session }) {
   const ref = React.useRef<HTMLTextAreaElement>(null);
   const att = useAttachments(session.sessionId);
   const fileInput = React.useRef<HTMLInputElement>(null);
+  useIntent("attach-file", () => fileInput.current?.click(), !readOnly);
   const [dragging, setDragging] = React.useState(false);
   const hasAttachments = att.ready.length > 0;
   const canSend = (Boolean(text.trim()) || hasAttachments) && !att.uploading;

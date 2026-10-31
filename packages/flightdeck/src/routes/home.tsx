@@ -69,7 +69,7 @@ export function HomePage() {
                 <h1 className="text-xl font-semibold tracking-tight">{nothingYet ? `Welcome to PilotSwarm${name ? `, ${name}` : ""}` : "Your workspace"}</h1>
                 <p className="mt-1 text-sm text-muted">Decisions, progress and results from your agents.</p>
               </div>
-              {!nothingYet && !isLoading && !unavailable ? <Link to="/sessions" className="inline-flex min-h-8 items-center gap-1.5 text-sm text-accent hover:underline">View all sessions <ArrowRight className="size-3.5" aria-hidden /></Link> : null}
+              {!nothingYet && !isLoading && !unavailable ? <Link to="/sessions" className="inline-flex min-h-8 items-center gap-1.5 text-sm text-accent hover:underline pointer-coarse:min-h-11">View all sessions <ArrowRight className="size-3.5" aria-hidden /></Link> : null}
             </div>
             <div className="mt-4 border-t border-line pt-3"><CapacityLine /></div>
             {!nothingYet && !isLoading && !unavailable ? <StateFacets className="mt-4" counts={groups.counts} onChange={(k) => navigate({ to: "/sessions", search: { state: k === "completed" ? "closed" : (k as Facet) } as any })} /> : null}

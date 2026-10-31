@@ -233,6 +233,7 @@ export async function sendWithAttachments(source: DataSource, sessionId: string,
     await source.call("sendMessage", { sessionId, prompt: built.prompt, options: { clientMessageIds: [newId()], ...(opts?.enqueueOnly ? { enqueueOnly: true } : {}), ...(built.attachments.length ? { attachments: built.attachments } : {}) } });
     return;
   }
-  const names = built.attachments.map((a) => a.filename).join(", ");
-  await source.sendMessage(sessionId, built.prompt + (names ? `\n[${built.attachments.length} image${built.attachments.length === 1 ? "" : "s"} attached: ${names}]` : ""), opts);
+  // Demo has no model to look at images, so show them the way the classic portal writes every attachment: one marker line each.
+  const markers = built.attachments.map((a) => `[Attached file: ${a.filename} — artifact://${sessionId}/${a.filename}]`);
+  await source.sendMessage(sessionId, markers.length ? `${markers.join("\n")}\n\n${built.prompt}` : built.prompt, opts);
 }

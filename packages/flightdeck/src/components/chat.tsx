@@ -15,6 +15,8 @@ import { StructuredErrorCard } from "@/components/structured-error";
 import { AnswerChoices, QuestionChangedError, useGuardedAnswer } from "@/components/answer-choices";
 import { questionKey } from "@/data/state";
 import { clock, cn, dayLabel } from "@/lib/utils";
+import { splitAttachmentMarkers } from "@/lib/attachment-marker";
+import { ChatAttachments } from "@/components/chat-attachments";
 
 marked.setOptions({ gfm: true, breaks: false });
 
@@ -129,7 +131,7 @@ function TranscriptItem({ item, agentName, onOpenCanvas, errorActions }: { item:
     return (
       <li className="ml-auto max-w-[85%] rounded-pane bg-raised px-3.5 py-2.5">
         <div className="mb-0.5 text-xs text-muted">{item.sender?.displayName && item.sender?.relation !== "self" ? item.sender.displayName : "You"}</div>
-        <div className="whitespace-pre-wrap text-base text-fg">{item.text}</div>
+        <UserText text={String(item.text ?? "")} />
       </li>
     );
   }
@@ -296,5 +298,16 @@ function QuestionCardBody({ sessionId, question, agentName, onAnswer, busy }: { 
         </form>
       ) : null}
     </section>
+  );
+}
+
+/** A person's message: attached files as chips, then what they wrote. */
+function UserText({ text }: { text: string }) {
+  const { markers, rest } = React.useMemo(() => splitAttachmentMarkers(text), [text]);
+  return (
+    <>
+      <ChatAttachments markers={markers} />
+      {rest ? <div className="whitespace-pre-wrap text-base text-fg">{rest}</div> : null}
+    </>
   );
 }
