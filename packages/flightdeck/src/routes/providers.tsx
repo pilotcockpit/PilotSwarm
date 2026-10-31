@@ -37,7 +37,7 @@ export function ProvidersPage() {
   const [sheetTab, setSheetTab] = React.useState<SheetTab>("overview");
   const [add, setAdd] = React.useState<{ open: boolean; type?: string }>({ open: false });
 
-  useIntent("add-provider", () => setAdd({ open: true }));
+  useIntent("add-provider", "/providers", () => setAdd({ open: true }));
 
   // Old links to the Copilot tab land in the add flow with GitHub Copilot chosen: it is a provider type like the rest.
   React.useEffect(() => {

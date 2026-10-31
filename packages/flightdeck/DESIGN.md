@@ -215,7 +215,7 @@ Text 4.5:1; large text and control borders 3:1. Visible 2px accent focus ring on
 
 ## 11. Extending Flight Deck
 
-New screens follow the same recipe: read tokens only; build from `Card`, `Tag`, `StatePill`, `Button`, `DisclosureButton`, `RadioCards`, `Field` and `ConfirmDialog`; sheets are `Dialog side="right"` (full width on phones, 44px targets); reach the API with `source.call` through `useOpQuery` / `useOpMutation`; register demo fixtures in `src/data/ops/<area>.demo.ts` using the real wire shapes; hold anything that must survive navigation (drafts, upload plans, adoption) in a small module store with its own expiry; and expose page actions to ⌘K with `useIntent`. The package `README.md` lists the operations each area uses.
+New screens follow the same recipe: read tokens only; build from `Card`, `Tag`, `StatePill`, `Button`, `DisclosureButton`, `RadioCards`, `Field` and `ConfirmDialog`; sheets are `Dialog side="right"` (full width on phones, 44px targets); reach the API with `source.call` through `useOpQuery` / `useOpMutation`; register demo fixtures in `src/data/ops/<area>.demo.ts` using the real wire shapes; hold anything that must survive navigation (drafts, upload plans, adoption) in a small module store with its own expiry; and expose page actions to ⌘K with `useIntent(name, pathname, handler)`, which only the screen at that pathname can take. The package `README.md` lists the operations each area uses.
 
 **Confirmations.** Reversible changes apply at once with an Undo toast. Anything that widens access, spends, or cannot be undone asks first with `ConfirmDialog` and states the consequence in numbers; removals of whole datasets or agents ask for the name to be typed.
 

@@ -113,8 +113,10 @@ canvas apps, and pausing, resuming or firing a schedule from outside a turn
   `index.ts` loads every `*.demo.ts`; one file owns each operation (a second
   claim throws in development). Fixtures must return the real wire shapes.
 - **Page actions from ⌘K.** A page that owns an action calls
-  `useIntent("name", handler)` (`src/shell/intents.ts`); the palette navigates
-  and requests the intent.
+  `useIntent("name", "/its/pathname", handler)` (`src/shell/intents.ts`); the palette
+  navigates and requests the intent for that exact pathname (a session action
+  names `/s/<id>`), so no other screen can take it. One intent is pending at a
+  time and it expires after two seconds.
 - **State that must survive navigation** (unsaved file edits, upload plans,
   package adoption) lives in small module stores (`session/files/drafts.ts`,
   `data/ops/adoption.ts`) with explicit expiry, not in component state.
@@ -126,11 +128,11 @@ canvas apps, and pausing, resuming or firing a schedule from outside a turn
 
 | Area | Web API operations |
 |---|---|
-| Sessions | listSessions, getSession, getSessionEventsBefore, sendMessage, sendAnswer (strict: requireQuestionMatch), stopSessionTurn, steerSessionTurn, createSession(ForAgent), renameSession, completeSession, cancelSession, deleteSession, setSessionModel, exportExecutionHistory |
+| Sessions | listSessions, getSession, getSessionEventsBefore, sendMessage, sendAnswer (strict: requireQuestionMatch), stopSessionTurn, steerSessionTurn, createSession, createSessionForAgent, renameSession, completeSession, cancelSession, deleteSession, setSessionModel, exportExecutionHistory |
 | Sharing and groups | getSessionAccess, setSessionVisibility, grantSessionShare, revokeSessionShare, listSessionShares, listKnownUsers, listSessionGroups, createSessionGroup, placeSessionsInGroup |
 | Files | listArtifacts, downloadArtifact, uploadArtifact, deleteArtifact, getSessionWorkspace, setSessionWorkspace, retrySessionWorkspace, listSessionWorkspaceFolders, sessionWorkspaceFiles |
 | Canvas | getCanvasLive, readCanvasKv, setCanvasKvAccess, getCanvasShareLink, resetCanvasShareLink, removeCanvasShareLink |
-| Providers and spend | listProviders, getProviderUsageGrid, getProviderUsage, getModelsByProvider, listModels, createMyProvider, createProvider, update*ProviderCredential, delete*Provider, clearProviderRoutingDependencies, setProviderLimit, removeProviderLimit, setProviderAllowance, setProviderHold, getModelDefaults, setModelDefault, setMyDefault, setSystemModelDefault, setSystemSessionModel, clearSystemSessionModel, listPausedSessions |
-| Library | listCreatableAgents, listAgentPackages, getAgentPackage(Tree/File), uploadAgentPackage, setAgentPackageScope, setAgentPackageEnabled, pinAgentPackageVersion, deleteAgentPackage, grant/revoke/listAgentPackageEditors, republishAgentPackageVersion, listAgentWorkerState |
-| Admin | listWorkers, getFleetStats, listAuthzAudit, listFeatureFlags, getClusterFeatureFlags, setClusterFeatureFlag, resetClusterFeatureFlag, listFeatureFlagChanges, listFeatureFlagUsers, get/set/unsetUserFeatureFlag, restartSystemSession, pruneDeletedSummaries, factsCapabilities, getSharedFactsStats, getFactsTombstoneStats, get/start/stopEmbedder, forcePurgeFacts, searchFacts, list/upsert/deleteGraphNamespace, graphStats |
+| Providers and spend | listProviders, getProviderUsageGrid, getProviderUsage, getModelsByProvider, listModels, createMyProvider, createProvider, updateSharedProviderCredential, updateMyProviderCredential, deleteProvider, deleteMyProvider, clearProviderRoutingDependencies, setProviderLimit, removeProviderLimit, setProviderAllowance, setProviderHold, getModelDefaults, setModelDefault, setMyDefault, setSystemModelDefault, setSystemSessionModel, clearSystemSessionModel, listPausedSessions |
+| Library | listCreatableAgents, listAgentPackages, getAgentPackage, getAgentPackageTree, getAgentPackageFile, uploadAgentPackage, setAgentPackageScope, setAgentPackageEnabled, pinAgentPackageVersion, deleteAgentPackage, grantAgentPackageEditor, revokeAgentPackageEditor, listAgentPackageEditors, republishAgentPackageVersion, listAgentWorkerState |
+| Admin | listWorkers, getFleetStats, listAuthzAudit, listFeatureFlags, getClusterFeatureFlags, setClusterFeatureFlag, resetClusterFeatureFlag, listFeatureFlagChanges, listFeatureFlagUsers, getUserFeatureFlags, setUserFeatureFlag, unsetUserFeatureFlag, restartSystemSession, pruneDeletedSummaries, factsCapabilities, getSharedFactsStats, getFactsTombstoneStats, getEmbedderStatus, startFactsEmbedder, stopFactsEmbedder, forcePurgeFacts, searchFacts, listGraphNamespaces, upsertGraphNamespace, deleteGraphNamespace, graphStats |
 | Settings | getCurrentUserProfile, getMyFeatureFlags, setMyFeatureFlag, unsetMyFeatureFlag |

@@ -59,7 +59,7 @@ const itemAt = (g: Group) => (g.kind === "item" ? Number(g.item.createdAt) || 0 
  * updates are quiet log rows between them, so twenty calls do not become twenty boxes.
  * `lastSeenAt` (ms) puts a "New since you were here" divider before the first newer item.
  */
-export function Transcript({ items, agentName, onOpenCanvas, errorActions, lastSeenAt }: { items: ChatItem[]; sessionId: string; agentName: string; onOpenCanvas: (slot?: number) => void; errorActions?: { onRetry: () => void; onSwitchModel: () => void }; lastSeenAt?: number }) {
+export function Transcript({ items, sessionId, agentName, onOpenCanvas, errorActions, lastSeenAt }: { items: ChatItem[]; sessionId: string; agentName: string; onOpenCanvas: (slot?: number) => void; errorActions?: { onRetry: () => void; onSwitchModel: () => void }; lastSeenAt?: number }) {
   // Fixes belong to the latest failure only; older ones are history.
   const lastWarningId = [...items].reverse().find((i) => i.kind === "session-warning")?.id;
   const groups = React.useMemo(() => groupCalls(items), [items]);
@@ -92,14 +92,14 @@ export function Transcript({ items, agentName, onOpenCanvas, errorActions, lastS
           ? <CallRun key={`run-${g.items[0].id}`} items={g.items} />
           : g.kind === "spawns"
           ? <li key={`sp-${g.items[0].id}`}><SpawnRow items={g.items} /></li>
-          : <TranscriptItem key={g.item.id || index} item={g.item} agentName={agentName} onOpenCanvas={onOpenCanvas} errorActions={g.item.id === lastWarningId ? errorActions : undefined} />;
+          : <TranscriptItem key={g.item.id || index} item={g.item} sessionId={sessionId} agentName={agentName} onOpenCanvas={onOpenCanvas} errorActions={g.item.id === lastWarningId ? errorActions : undefined} />;
         return <React.Fragment key={`g-${index}`}>{divider}{sep}{node}</React.Fragment>;
       })}
     </ol>
   );
 }
 
-function TranscriptItem({ item, agentName, onOpenCanvas, errorActions }: { item: ChatItem; agentName: string; onOpenCanvas: (slot?: number) => void; errorActions?: { onRetry: () => void; onSwitchModel: () => void } }) {
+function TranscriptItem({ item, sessionId, agentName, onOpenCanvas, errorActions }: { item: ChatItem; sessionId: string; agentName: string; onOpenCanvas: (slot?: number) => void; errorActions?: { onRetry: () => void; onSwitchModel: () => void } }) {
   if (item.kind === "chat-call") return <li><ToolRow item={item} /></li>;
   if (item.kind === "native-task-group") return <li><NativeTasks item={item} /></li>;
   if (item.kind === "session-warning") {
@@ -131,7 +131,7 @@ function TranscriptItem({ item, agentName, onOpenCanvas, errorActions }: { item:
     return (
       <li className="ml-auto max-w-[85%] rounded-pane bg-raised px-3.5 py-2.5">
         <div className="mb-0.5 text-xs text-muted">{item.sender?.displayName && item.sender?.relation !== "self" ? item.sender.displayName : "You"}</div>
-        <UserText text={String(item.text ?? "")} />
+        <UserText text={String(item.text ?? "")} sessionId={sessionId} />
       </li>
     );
   }
@@ -302,11 +302,11 @@ function QuestionCardBody({ sessionId, question, agentName, onAnswer, busy }: { 
 }
 
 /** A person's message: attached files as chips, then what they wrote. */
-function UserText({ text }: { text: string }) {
+function UserText({ text, sessionId }: { text: string; sessionId: string }) {
   const { markers, rest } = React.useMemo(() => splitAttachmentMarkers(text), [text]);
   return (
     <>
-      <ChatAttachments markers={markers} />
+      <ChatAttachments markers={markers} sessionId={sessionId} />
       {rest ? <div className="whitespace-pre-wrap text-base text-fg">{rest}</div> : null}
     </>
   );

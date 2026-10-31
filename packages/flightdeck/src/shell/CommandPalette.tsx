@@ -11,7 +11,8 @@ import { StateGlyph } from "@/components/state";
 import { Kbd } from "@/components/ui/kbd";
 import { useUi } from "./ui-state";
 import { useDensity, useTheme } from "./prefs";
-import { requestIntent, type Intent } from "./intents";
+import { requestIntent, useIntentNavigationGuard, type Intent } from "./intents";
+import { sessionIsViewOnly } from "@/lib/session-access";
 
 /** ⌘K finds anything: sessions, agents, areas, and actions. */
 export function CommandPalette() {
@@ -26,9 +27,14 @@ export function CommandPalette() {
   const run = (fn: () => void) => () => { setPaletteOpen(false); fn(); };
   const go = (to: string, search?: Record<string, unknown>) => run(() => navigate({ to, search: search as any }));
   // A page-owned action: go where it lives, then ask that page to do it.
-  const act = (intent: Intent, to: string, search?: Record<string, unknown>) => run(() => { void navigate({ to, search: search as any }); requestIntent(intent); });
+  // The intent is bound to the pathname it was asked of, so only that screen can take it.
+  const act = (intent: Intent, to: string, search?: Record<string, unknown>) => run(() => { void navigate({ to, search: search as any }); requestIntent(intent, to); });
+  useIntentNavigationGuard();
   const sessionId = useRouterState({ select: (s) => /^\/s\/([^/]+)/.exec(s.location.pathname)?.[1] ?? null });
-  const here = sessionId ? `/s/${sessionId}` : null;
+  // Session actions need a session that has loaded and that you can open, not just a pathname that looks like one.
+  const current = sessionId ? (sessions || []).find((s) => s.sessionId === sessionId && s.status !== "deleted") : undefined;
+  const here = current ? `/s/${current.sessionId}` : null;
+  const canReply = Boolean(current) && !sessionIsViewOnly(current!);
   const isAdmin = Boolean(profile?.isAdmin);
 
   const rows = React.useMemo(
@@ -58,7 +64,7 @@ export function CommandPalette() {
                   <Item icon={<Share2 />} onSelect={act("share-session", here)} keywords={["access", "people", "visibility", "invite"]}>Share session…</Item>
                   <Item icon={<FolderInput />} onSelect={act("move-to-group", here)} keywords={["group", "organise"]}>Move session to group…</Item>
                   <Item icon={<Copy />} onSelect={run(() => { void navigator.clipboard?.writeText(`${window.location.origin}${here}`); toast.success("Link copied", { description: "People still need access to open it." }); })} keywords={["url", "link"]}>Copy session link</Item>
-                  <Item icon={<Paperclip />} onSelect={act("attach-file", here, { view: "chat" })} keywords={["upload", "attachment", "image"]}>Attach file…</Item>
+                  {canReply ? <Item icon={<Paperclip />} onSelect={act("attach-file", here, { view: "chat" })} keywords={["upload", "attachment", "image"]}>Attach file…</Item> : null}
                   <Item icon={<FileSearch />} onSelect={act("find-file", here, { view: "files", files: "folders" })} keywords={["file", "folder", "workspace", "find"]}>Go to file…</Item>
                   <Item icon={<Share2 />} onSelect={act("share-canvas", here, { view: "canvas" })} keywords={["canvas", "public", "link"]}>Share canvas…</Item>
                 </Command.Group>

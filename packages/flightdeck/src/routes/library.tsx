@@ -51,7 +51,7 @@ export function LibraryPage() {
     setSelected(packageKey(hit));
   };
   const startAdd = (files: ReadResult | null = null) => { setDropped(files); setAdding(true); };
-  useIntent("add-package", () => startAdd());
+  useIntent("add-package", "/library", () => startAdd());
 
   return (
     <>

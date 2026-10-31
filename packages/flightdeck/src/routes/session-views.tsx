@@ -56,7 +56,7 @@ export function CanvasView({ session, slot, focus, onSlot, onFocus, phone, onUse
   const { canvases, loading } = useCanvases(session.sessionId);
   const [zoom, setZoom] = React.useState(1);
   const [shareOpen, setShareOpen] = React.useState(false);
-  useIntent("share-canvas", () => setShareOpen(true));
+  useIntent("share-canvas", `/s/${session.sessionId}`, () => setShareOpen(true));
   const current = canvases.find((c) => c.slot === slot) || canvases[0];
   if (loading) return <div className="p-4"><Skeleton className="h-full min-h-[300px] w-full" /></div>;
   if (!current) {

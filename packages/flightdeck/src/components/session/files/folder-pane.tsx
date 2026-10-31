@@ -37,7 +37,7 @@ export function FolderPane({ session, info, folder, openWorkingFolder }: { sessi
   const [query, setQuery] = React.useState("");
   const queryInput = React.useRef<HTMLInputElement>(null);
   // The palette hands focus back to where it was opened when it closes; take it after that.
-  useIntent("find-file", () => { window.setTimeout(() => queryInput.current?.focus(), 300); });
+  useIntent("find-file", `/s/${sessionId}`, () => { window.setTimeout(() => queryInput.current?.focus(), 300); });
   const [debounced, setDebounced] = React.useState("");
   const [adding, setAdding] = React.useState<Add>(null);
   const [renaming, setRenaming] = React.useState<string | null>(null);
