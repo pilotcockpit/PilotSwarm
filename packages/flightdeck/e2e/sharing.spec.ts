@@ -50,7 +50,8 @@ test("Share: the button says who has access; adding a person changes it, with Un
   const status = sheet.dialog.getByRole("status").filter({ hasText: "Mo Said can view this session" });
   await expect(status).toBeVisible();
   await status.getByRole("button", { name: "Undo" }).click();
-  expect(await demoCalls(page, "revokeSessionShare")).toHaveLength(1);
+  // Undo first re-reads the shares (it refuses when they changed meanwhile), so the revoke follows a read.
+  await expect.poll(async () => (await demoCalls(page, "revokeSessionShare")).length).toBe(1);
   await expect(people.getByRole("button", { name: /^Mo Said:/ })).toHaveCount(0);
   await sheet.close();
   if (!isPhone(info)) await expect(shareButton(page)).toHaveAttribute("aria-label", "Share. Now: 1 person");
@@ -223,20 +224,53 @@ test("canvas Share: the public link is shown once, rotate and remove ask first",
   await expect(reopened.getByRole("textbox", { name: "Public link" })).toHaveCount(0);
   expect(await page.evaluate((u) => document.body.innerHTML.includes(u), first)).toBe(false);
 
-  // Rotate asks, names the consequence, and gives a different address once.
+  // Rotate asks, names the consequence, and gives a different address once. Asking is not doing: the
+  // demo operations change nothing visible when they run early, so count what was really sent.
+  const pinDialog = async (pg: Page) => {
+    const top = pg.getByRole("dialog").last();
+    await expect(top).toBeVisible();
+    const id = await top.getAttribute("id");
+    return id ? pg.locator(`[id="${id}"]`) : top;
+  };
+  const resets = async () => await demoCalls(page, "resetCanvasShareLink");
+  const removes = async () => await demoCalls(page, "removeCanvasShareLink");
+  expect(await resets()).toHaveLength(1);               // the one that created the link
+  expect(await removes()).toHaveLength(0);
   await reopened.getByRole("button", { name: "Rotate link" }).click();
-  const rotate = page.getByRole("dialog").last();
+  const rotate = await pinDialog(page);          // pinned by id: `.last()` would point at the sheet underneath once this closes
   await expect(rotate).toContainText(/stops working|old link/i);
-  await rotate.getByRole("button", { name: /^Rotate/ }).click();
+  expect(await resets(), "nothing is rotated before the confirmation").toHaveLength(1);
+  await rotate.getByRole("button", { name: "Cancel" }).click();
+  await expect(rotate).toBeHidden();
+  expect(await resets(), "nothing is rotated after Cancel").toHaveLength(1);
+  await expect(reopened.getByRole("textbox", { name: "Public link" })).toHaveCount(0);   // and no new address was shown
+
+  await reopened.getByRole("button", { name: "Rotate link" }).click();
+  const confirmRotate = page.getByRole("dialog").last();
+  await confirmRotate.getByRole("button", { name: /^Rotate/ }).click();
   const second = await reopened.getByRole("textbox", { name: "Public link" }).inputValue();
   expect(second).not.toBe(first);
+  const afterRotate = await resets();
+  expect(afterRotate, "exactly one rotation after the confirmation").toHaveLength(2);
+  expect(afterRotate[1].params).toMatchObject({ sessionId: IDS.release, slot: 1 });
 
   // Remove asks, then the link is off.
   await reopened.getByRole("button", { name: "Remove link" }).click();
-  const remove = page.getByRole("dialog").last();
+  const remove = await pinDialog(page);
   await expect(remove).toContainText(/stops working|no longer|removed/i);
-  await remove.getByRole("button", { name: /^Remove/ }).click();
+  expect(await removes(), "nothing is removed before the confirmation").toHaveLength(0);
+  await remove.getByRole("button", { name: "Cancel" }).click();
+  await expect(remove).toBeHidden();
+  expect(await removes(), "nothing is removed after Cancel").toHaveLength(0);
+  await expect(reopened).toContainText(/Link active/);
+
+  await reopened.getByRole("button", { name: "Remove link" }).click();
+  const confirmRemove = page.getByRole("dialog").last();
+  await confirmRemove.getByRole("button", { name: /^Remove/ }).click();
   await expect(reopened).toContainText("Off");
+  const removed = await removes();
+  expect(removed, "exactly one removal after the confirmation").toHaveLength(1);
+  expect(removed[0].params).toMatchObject({ sessionId: IDS.release, slot: 1 });
 });
 
 test("Working folder: a save after someone else changed it offers Keep my edits or Take theirs", async ({ page }, info) => {

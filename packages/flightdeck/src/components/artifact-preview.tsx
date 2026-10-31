@@ -2,6 +2,7 @@ import * as React from "react";
 import createDOMPurify from "dompurify";
 import { FileText } from "lucide-react";
 import { wrapSandboxedDocument } from "@ps/sandbox";
+import { INSPECTOR_PREVIEW_BYTES } from "@/lib/preview-limits";
 
 const scriptedHead = wrapSandboxedDocument("");
 // This is trusted wrapper markup, not a regex sanitizer for agent HTML. Keep
@@ -9,17 +10,47 @@ const scriptedHead = wrapSandboxedDocument("");
 // in a scriptless reading frame and would only produce blocked-script warnings.
 const staticHead = scriptedHead.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
 
-function readOnlyDocument(html: string) {
-  if (typeof window === "undefined") return staticHead;
+/** Past this many characters a document is not parsed at all: UTF-8 text of at most the inspector's byte limit. */
+const MAX_SANITIZE_CHARS = INSPECTOR_PREVIEW_BYTES;
+/** Anything that can leave the frame, move it, or run something: gone, whatever the CSP would also say. */
+const FORBIDDEN_TAGS = ["script", "iframe", "frame", "frameset", "object", "embed", "portal", "form", "meta", "link", "base",
+  "map", "area", // image maps are navigation in disguise
+  "animate", "set", "animateMotion", "animateTransform"]; // SMIL can write an href onto a link after sanitising
+const FORBIDDEN_ATTRS = ["usemap", "action", "formaction", "ping", "srcdoc", "target", "autofocus", "contenteditable", "tabindex"];
+
+/**
+ * CSS that can reach out: an @import, or a url() that is not inline data. The frame's CSP already refuses
+ * these, but a refused request is still a request the browser starts (it shows in the network log and tells
+ * the agent's server a document was read), so the reference is removed before it is ever parsed.
+ */
+export function scrubCss(css: string): string {
+  return css.replace(/@import\b[^;{}]*;?/gi, "").replace(/url\(\s*(['"]?)(?!data:)[^)]*\)/gi, "url()");
+}
+
+/**
+ * The agent's HTML, made reading-only: a document with nothing to follow, submit, or edit. Pure given a DOM
+ * (`window`), so a browser test can run the real thing on hostile payloads. Never called on the server.
+ */
+export function sanitizeArtifactHtml(html: string): string {
+  if (html.length > MAX_SANITIZE_CHARS) return "<!doctype html><body><p>Too large to preview.</p></body>";
   const purifier = createDOMPurify(window);
   purifier.addHook("afterSanitizeAttributes", (node) => {
     const name = node.nodeName.toUpperCase();
     if (/^(INPUT|BUTTON|SELECT|TEXTAREA|OPTION|OPTGROUP)$/.test(name)) node.setAttribute("disabled", "");
     if (/\b(checkbox|radio|switch|button|link|textbox|combobox|slider|spinbutton|menuitem)\b/.test(node.getAttribute("role") || "")) node.setAttribute("aria-disabled", "true");
-    node.removeAttribute("contenteditable"); node.removeAttribute("tabindex"); node.removeAttribute("autofocus");
-    if (name === "A") { node.removeAttribute("href"); node.removeAttribute("xlink:href"); node.removeAttribute("target"); }
+    for (const attr of FORBIDDEN_ATTRS) node.removeAttribute(attr);
+    if (name === "STYLE") node.textContent = scrubCss(node.textContent || "");
+    const inline = node.getAttribute("style");
+    if (inline) node.setAttribute("style", scrubCss(inline));
+    // Only links navigate. Other elements keep their references (an SVG <use href="#id"> is not navigation).
+    if (name === "A") { node.removeAttribute("href"); node.removeAttribute("xlink:href"); }
   });
-  const clean = purifier.sanitize(html, { WHOLE_DOCUMENT: true, FORBID_TAGS: ["script", "iframe", "object", "embed", "portal", "form", "meta", "link", "base"] });
+  return purifier.sanitize(html, { WHOLE_DOCUMENT: true, FORBID_TAGS: FORBIDDEN_TAGS, FORBID_ATTR: FORBIDDEN_ATTRS });
+}
+
+function readOnlyDocument(html: string) {
+  if (typeof window === "undefined") return staticHead;
+  const clean = sanitizeArtifactHtml(html);
   // Retain the shared wrapper's shadow-root disarming of the sanitized body.
   return staticHead + wrapSandboxedDocument(clean).slice(scriptedHead.length);
 }
@@ -27,7 +58,7 @@ function readOnlyDocument(html: string) {
 /** Authentic document preview: same no-network wrapper, with scripting disabled.
  * Inert and unfocusable: the containing card owns the single navigation target.
  */
-export function ArtifactPreview({ html, filename, loading, failed }: { html?: string; filename: string; loading?: boolean; failed?: boolean }) {
+export function ArtifactPreview({ html, filename, loading, failed, note }: { html?: string; filename: string; loading?: boolean; failed?: boolean; note?: string }) {
   const srcDoc = React.useMemo(() => html ? readOnlyDocument(html) : undefined, [html]);
   return <div aria-hidden inert className="relative aspect-video overflow-hidden border-b border-line-subtle bg-raised">
     {srcDoc ? <div className="fd-preview-sheet absolute inset-0"><iframe title="" tabIndex={-1} sandbox="" referrerPolicy="no-referrer" loading="lazy" srcDoc={srcDoc}
@@ -35,7 +66,7 @@ export function ArtifactPreview({ html, filename, loading, failed }: { html?: st
       style={{ width: "100%", height: "300%" }} /></div> :
       <div className="flex h-full flex-col justify-between p-5">
         <FileText className="size-6 text-muted" />
-        <div><p className="line-clamp-2 break-words text-lg font-medium text-fg">{filename}</p><p className="mt-1 text-xs text-muted">{loading ? "Loading preview…" : failed ? "Preview unavailable" : "Published file"}</p></div>
+        <div><p className="line-clamp-2 break-words text-lg font-medium text-fg">{filename}</p><p className="mt-1 text-xs text-muted">{loading ? "Loading preview…" : failed ? "Preview unavailable" : note || "Published file"}</p></div>
       </div>}
   </div>;
 }

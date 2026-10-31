@@ -208,13 +208,29 @@ test("New file, rename and delete (with confirm) work", async ({ page }, info) =
   await expect(row(page, "e2e-renamed.txt")).toBeVisible();
   await expect(row(page, "e2e-note.txt")).toHaveCount(0);
 
+  // Delete asks first. The demo store changes nothing visible if it ran early, so count what was really sent:
+  // none before the confirmation and after Cancel, exactly one (with this path) after it.
+  const deletes = async () => (await demoCalls(page, "sessionWorkspaceFiles")).filter((c) => c.params?.call?.op === "delete");
+  expect(await deletes()).toHaveLength(0);
   await page.getByRole("button", { name: "Actions for e2e-renamed.txt" }).click();
   await page.getByRole("menuitem", { name: /Delete/ }).click();
   const confirm = page.getByRole("dialog").last();
   await expect(confirm).toBeVisible();
+  expect(await deletes(), "nothing is deleted before the confirmation").toHaveLength(0);
   await expectNoSeriousAxe(page, confirm, "delete confirm");
-  await confirm.getByRole("button", { name: /^Delete/ }).click();
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirm).toBeHidden();
+  expect(await deletes(), "nothing is deleted after Cancel").toHaveLength(0);
+  await expect(row(page, "e2e-renamed.txt")).toBeVisible();
+
+  await page.getByRole("button", { name: "Actions for e2e-renamed.txt" }).click();
+  await page.getByRole("menuitem", { name: /Delete/ }).click();
+  const second = page.getByRole("dialog").last();
+  await second.getByRole("button", { name: /^Delete/ }).click();
   await expect(row(page, "e2e-renamed.txt")).toHaveCount(0);
+  const sent = await deletes();
+  expect(sent, "exactly one delete after the confirmation").toHaveLength(1);
+  expect(sent[0].params.call).toMatchObject({ op: "delete", path: "e2e-renamed.txt" });
 });
 
 test("New folder creates a folder", async ({ page }, info) => {

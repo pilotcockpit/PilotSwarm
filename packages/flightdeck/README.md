@@ -138,6 +138,16 @@ Writing a spec:
   `scripts/check-dist.mjs`, which fails if the production bundle contains `__fdDemo`, `writeBehind`,
   `bumpRevision` or `clearCalls` (`npm run test:dist`; its own tests are `scripts/check-dist.test.mjs`).
   Register a new area's helpers with `extendDemoHook(area, {...})` inside an `if (import.meta.env.DEV)` block.
+- **Hostile and oversized documents.** `window.__fdDemo.artifacts.publish(sessionId, { filename, content, size })`
+  puts a document into a session as its newest output (`size: null` means the size is unknown, so the bounded read
+  decides); then `invalidate(["artifacts"])` re-reads. `artifact-preview.spec.ts` uses it to run a hostile canvas (image
+  map, form, meta refresh, `@import`, frames, links) through the real sanitiser and the sandboxed frames, and asserts
+  that nothing navigates and no request leaves, and that a document over the preview limits is never downloaded.
+  Playwright's own locators log "Blocked script execution" inside a sandboxed frame: filter that message, nothing else.
+- **A read that fails.** `window.__fdDemo.failOps(["listFlags"])` makes a typed demo read reject until
+  `clearFailures()`; `admin-overview.spec.ts` uses it to check the page says "unavailable" and offers Retry.
+- **Layout shift.** `layout-shift.spec.ts` runs only in the `desktop-light-motion` project (real motion) and fails when
+  Home or Fleet shifts by 0.01 or more after arriving.
 - **Undo while a sheet is open lives in the sheet.** A modal traps focus, so a toast outside it cannot be
   reached by keyboard. Call `notifyUndo(message, onUndo)` (`src/lib/undo.tsx`) instead of `toast` for any Undo:
   with a modal open it renders in the dialog's status region (Tab-reachable, 8 seconds, paused on hover or

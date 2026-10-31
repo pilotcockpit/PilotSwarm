@@ -161,6 +161,9 @@ const timelines: Record<string, DemoEvent[]> = {
   [RESMGR]: [assistant(m(0), "Rebalancing 2 sessions from worker chk-w3.")],
 };
 
+/** Test-published documents (dev only, see the `artifacts` demo hook), shared by every copy of the demo source. */
+const published = new Map<string, Array<Artifact & { content?: string }>>();
+
 const artifacts: Record<string, Array<Artifact & { content?: string }>> = {
   [RELEASE]: [
     { filename: "canvas.html", size: 6100, contentType: "text/html", updatedAt: m(2), content: RELEASE_CHECKLIST_HTML },
@@ -224,7 +227,7 @@ const flags: FeatureFlag[] = [
 ];
 
 import { callDemoOp } from "./ops";
-import { installDemoHook } from "./ops/demo-hook";
+import { demoShouldFail, extendDemoHook, installDemoHook, recordDemoCall } from "./ops/demo-hook";
 import { demoGroupList, effectiveGroupId, setDemoSessionRows } from "./demo-groups";
 export function createDemoSource(): DataSource {
   installDemoHook();
@@ -235,6 +238,21 @@ export function createDemoSource(): DataSource {
   }
   const files = new Map(Object.entries(artifacts).map(([id, list]) => [id, list.map((a) => ({ ...a }))]));
   const listeners = new Map<string, Set<(e: SessionEvent) => void>>();
+  published.clear();
+  extendDemoHook("artifacts", {
+    /** Publish a document into a session as its newest output. `size` overrides the metadata (null: unknown). */
+    publish(sessionId: string, doc: { filename: string; content: string; size?: number | null }) {
+      const list = (published.get(sessionId) || []).filter((f) => f.filename !== doc.filename);
+      const size = doc.size === null ? undefined : doc.size ?? new TextEncoder().encode(doc.content).length;
+      list.push({ filename: doc.filename, contentType: "text/html", updatedAt: Date.now() + 60_000, content: doc.content, ...(size === undefined ? {} : { size }) });
+      published.set(sessionId, list);
+    },
+  });
+  // Documents published by a test sit over the fixtures, whichever copy of this source the app kept.
+  const filesOf = (id: string) => {
+    const extra = published.get(id) || [];
+    return [...(files.get(id) || []).filter((f) => !extra.some((e) => e.filename === f.filename)), ...extra];
+  };
 
   const push = (id: string, eventType: string, data: Record<string, any>) => {
     const list = events.get(id) || [];
@@ -315,15 +333,21 @@ export function createDemoSource(): DataSource {
     async completeSession(id) { const s = byId.get(id); if (s) { s.status = "completed"; s.pendingQuestion = null; } },
     async cancelSession(id) { const s = byId.get(id); if (s) { s.status = "cancelled"; s.pendingQuestion = null; } },
     async deleteSession(id) { byId.delete(id); for (const s of byId.values()) if (s.parentSessionId === id) byId.delete(s.sessionId); },
-    listArtifacts: (id) => wait((files.get(id) || []).map(({ content: _c, ...a }) => ({ ...a, sessionId: id }))),
-    readArtifact: (id, filename) => wait((files.get(id) || []).find((f) => f.filename === filename)?.content || "", 140),
+    listArtifacts: (id) => wait(filesOf(id).map(({ content: _c, ...a }) => ({ ...a, sessionId: id }))),
+    readArtifact: (id, filename) => (recordDemoCall("readArtifact", { id, filename }), wait(filesOf(id).find((f) => f.filename === filename)?.content || "", 140)),
+    readArtifactPreview: async (id, filename, maxBytes) => {
+      recordDemoCall("readArtifactPreview", { id, filename, maxBytes });
+      const content = filesOf(id).find((f) => f.filename === filename)?.content || "";
+      const bytes = new TextEncoder().encode(content);
+      return wait({ text: bytes.length > maxBytes ? new TextDecoder().decode(bytes.subarray(0, maxBytes)) : content, truncated: bytes.length > maxBytes }, 140);
+    },
     artifactUrl: () => null,
     listModels: () => wait(models),
     listAgents: () => wait([...agents.filter((a) => a.source !== "package"), ...demoPackageAgents().map((a) => ({ ...agents.find((prior) => prior.name === a.name), ...a }))]),
     listProviders: () => wait(providers),
     usageSummary: () => wait(usage),
     listWorkers: () => wait(workers),
-    listFlags: () => wait(flags),
+    listFlags: () => (demoShouldFail("listFlags") ? Promise.reject(new Error("Feature flags are unavailable")) : wait(flags)),
     listGroups: () => wait(demoGroupList.map((g) => ({ id: g.groupId, name: g.title }))),
     profile: () => wait({ displayName: "Sam Lee", email: "sam.lee@contoso.com", isAdmin: true, provider: "entra" }),
     authzAudit: () =>

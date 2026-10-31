@@ -12,6 +12,8 @@ import { PERIODS, PERIOD_LABEL, PERIOD_WORD, initialLimitText, parseTokens, unti
 import type { Provider } from "@/data/types";
 import { cn, tokens } from "@/lib/utils";
 import { notifyUndo } from "@/lib/undo";
+import { allowanceIs, limitIs } from "@/data/ops/undo-guards";
+import { useSource } from "@/data/source";
 
 const PRESETS: Record<Period, number[]> = { day: [250_000, 1_000_000, 5_000_000, 10_000_000], week: [1_000_000, 5_000_000, 25_000_000, 50_000_000], month: [5_000_000, 10_000_000, 50_000_000, 100_000_000] };
 
@@ -26,6 +28,7 @@ const PERIOD_ADVERB = { day: "Daily", week: "Weekly", month: "Monthly" } as cons
 export function LimitRow({ provider, period, model, cell, manageable, usingCount, allowancePct, shared }: { provider: string; period: Period; model?: string | null; cell?: GridCell; manageable: boolean; usingCount: number; allowancePct: number; shared: boolean }) {
   const [editing, setEditing] = React.useState(false);
   const [text, setText] = React.useState("");
+  const { source } = useSource();
   const set = useSetLimit();
   const remove = useRemoveLimit();
   const quota = cell?.quotaTokens ?? null;
@@ -46,7 +49,7 @@ export function LimitRow({ provider, period, model, cell, manageable, usingCount
   const clear = async () => {
     try {
       await remove.mutateAsync({ name: provider, period, model: model ?? null });
-      if (quota != null) notifyUndo(`${PERIOD_LABEL[period]} limit removed.`, () => void set.mutateAsync({ name: provider, period, model: model ?? null, tokens: quota }));
+      if (quota != null) notifyUndo(`${PERIOD_LABEL[period]} limit removed.`, () => void set.mutateAsync({ name: provider, period, model: model ?? null, tokens: quota }), { resource: `limit:${provider}:${period}:${model ?? "*"}`, guard: limitIs(source, provider, period, model ?? null, null) });
       else toast.success(`${PERIOD_LABEL[period]} limit removed.`);
       setEditing(false);
     } catch { /* toasted */ }
@@ -149,6 +152,7 @@ export function AllowanceControl({ provider, isAdmin, monthQuota }: { provider: 
   const current = provider.allowancePct ?? 100;
   const [pct, setPct] = React.useState(current);
   React.useEffect(() => setPct(current), [current]);
+  const { source } = useSource();
   const set = useSetAllowance();
   const dirty = pct !== current;
   const share = monthQuota != null ? Math.round((monthQuota * pct) / 100) : null;
@@ -163,7 +167,7 @@ export function AllowanceControl({ provider, isAdmin, monthQuota }: { provider: 
         </div>
         <p className="text-sm text-muted">{pct === 100 ? "No per-person ceiling: anyone can use the whole limit." : `Each person can use up to ${pct}% of every limit${share != null ? `, about ${tokens(share)} a month` : ""}.`}</p>
         {isAdmin ? (
-          <div><Button variant={dirty ? "primary" : "default"} disabled={!dirty || set.isPending} onClick={async () => { try { const previous = current; await set.mutateAsync({ name: provider.name, pct }); notifyUndo(pct === 100 ? "Allowance removed." : `Each person may now use up to ${pct}%.`, () => void set.mutateAsync({ name: provider.name, pct: previous }).then(() => setPct(previous), () => undefined)); } catch { /* toasted */ } }}>{set.isPending ? <Loader2 className="animate-spin" /> : null} Save allowance</Button></div>
+          <div><Button variant={dirty ? "primary" : "default"} disabled={!dirty || set.isPending} onClick={async () => { try { const previous = current; await set.mutateAsync({ name: provider.name, pct }); notifyUndo(pct === 100 ? "Allowance removed." : `Each person may now use up to ${pct}%.`, () => void set.mutateAsync({ name: provider.name, pct: previous }).then(() => setPct(previous), () => undefined), { resource: `allowance:${provider.name}`, guard: allowanceIs(source, provider.name, pct) }); } catch { /* toasted */ } }}>{set.isPending ? <Loader2 className="animate-spin" /> : null} Save allowance</Button></div>
         ) : <p className="text-xs text-faint">Only an administrator can change this.</p>}
       </div>
     </section>

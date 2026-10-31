@@ -11,6 +11,8 @@ import { useProfile, useSessions } from "@/data/source";
 import type { Model } from "@/data/types";
 import { cn } from "@/lib/utils";
 import { notifyUndo } from "@/lib/undo";
+import { defaultIs } from "@/data/ops/undo-guards";
+import { useSource } from "@/data/source";
 
 const SOURCE_WORD: Record<Effective["source"], string> = {
   user_default: "your default",
@@ -55,6 +57,7 @@ function Chain({ active, steps }: { active: Effective["source"] | undefined; ste
 function DefaultCard({ title, description, slot, scope, canEdit, inheritLabel, models, steps, restartNote }: {
   title: string; description: string; slot: DefaultsSlot; scope: "user" | "cluster" | "system"; canEdit: boolean; inheritLabel: string; models: Model[]; steps: Array<[Effective["source"], string]>; restartNote?: boolean;
 }) {
+  const { source } = useSource();
   const set = useSetDefault();
   const [restart, setRestart] = React.useState(false);
   const configured = slot.configured.model || "";
@@ -66,7 +69,7 @@ function DefaultCard({ title, description, slot, scope, canEdit, inheritLabel, m
     const m = models.find((x) => x.qualifiedName === next.model);
     try {
       await set.mutateAsync({ scope, provider: m?.providerId ?? null, model: next.model || null, reasoningEffort: next.model ? next.reasoning ?? m?.defaultReasoningEffort ?? null : null, contextTier: null, restartSystemSessions: scope === "system" && restart });
-      notifyUndo(message, () => void set.mutateAsync({ scope, provider: prev.provider, model: prev.model, reasoningEffort: prev.reasoning, contextTier: prev.context }));
+      notifyUndo(message, () => void set.mutateAsync({ scope, provider: prev.provider, model: prev.model, reasoningEffort: prev.reasoning, contextTier: prev.context }), { resource: `default:${scope}`, guard: defaultIs(source, scope === "user" ? "userSession" : scope === "cluster" ? "clusterSession" : "system", next.model || null) });
     } catch { /* toasted */ }
   };
 

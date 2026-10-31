@@ -9,11 +9,13 @@ import { notifyUndo } from "@/lib/undo";
  * Every published version, newest first. Switching is one click and says what it does; the toast
  * offers Undo, so rolling back never needs a confirmation dialog.
  */
-export function VersionTimeline({ pkg, versions, canEdit, onPin, busy }: {
+export function VersionTimeline({ pkg, versions, canEdit, onPin, isActive, busy }: {
   pkg: PackageSummary;
   versions: PackageVersion[];
   canEdit: boolean;
   onPin: (semver: string) => Promise<unknown>;
+  /** Re-reads the package: is this version still the active one? Undo refuses when it is not. */
+  isActive?: (semver: string) => Promise<boolean>;
   busy: boolean;
 }) {
   const activeId = pkg.active?.versionId;
@@ -24,7 +26,7 @@ export function VersionTimeline({ pkg, versions, canEdit, onPin, busy }: {
       await onPin(v.semver);
       const message = `${pkg.name} now uses ${v.semver}`;
       const description = "Workers switch within about 20 seconds. Running turns finish first.";
-      if (previous) notifyUndo(message, () => void onPin(previous), { description });
+      if (previous) notifyUndo(message, () => void onPin(previous), { description, resource: `pin:${pkg.scope}:${pkg.owner?.subject ?? "shared"}:${pkg.name}`, guard: isActive ? () => isActive(v.semver) : undefined });
       else toast(message, { description });
     } catch { /* the mutation already reported the failure */ }
     void index;

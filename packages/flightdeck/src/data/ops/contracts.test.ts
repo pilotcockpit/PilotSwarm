@@ -66,3 +66,13 @@ describe("describeFlagChange", () => {
     expect(describeFlagChange({}).summary).toBe("changed");
   });
 });
+
+describe("normalizeArtifactPreview (readArtifactBase64)", () => {
+  it("decodes UTF-8 from the base64 envelope and carries the server's truncated flag", async () => {
+    const { normalizeArtifactPreview } = await import("./contracts");
+    const b64 = btoa(String.fromCharCode(...new TextEncoder().encode("<p>héllo ✓</p>")));
+    expect(normalizeArtifactPreview({ filename: "c.html", base64: b64, truncated: false })).toEqual({ text: "<p>héllo ✓</p>", truncated: false });
+    expect(normalizeArtifactPreview({ base64: b64, truncated: true }).truncated).toBe(true);
+    expect(normalizeArtifactPreview(null)).toEqual({ text: "", truncated: false });
+  });
+});

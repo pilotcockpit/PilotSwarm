@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
 import { TopBar } from "@/shell/AppShell";
 import { ClusterFlags } from "@/components/admin/flags-panel";
+import { Button } from "@/components/ui/button";
 import { KnowledgeHealth } from "@/components/admin/knowledge-panel";
 import { Maintenance } from "@/components/admin/maintenance-panel";
 import { SystemSessions } from "@/components/admin/system-sessions-panel";
@@ -166,7 +167,8 @@ function ClusterUsage() {
 function Overview() {
   const { data: workers, isLoading } = useWorkers();
   const { data: sessions } = useSessions();
-  const { data: flags } = useFlags();
+  const flagsQuery = useFlags();
+  const flags = flagsQuery.data;
   if (isLoading) return <Skeleton className="h-48" />;
   const list = workers || [];
   const ready = list.filter((w) => w.phase === "ready");
@@ -179,7 +181,7 @@ function Overview() {
   const failed = system.filter((s) => sessionState(s).key === "failed");
   const err = failed[0] ? describeError(failed[0].error) : null;
   const on = (flags || []).filter((f) => (f.value ?? f.default) === true).length;
-  const rows: Array<{ key: string; state: "running" | "waiting" | "failed" | "completed"; title: string; detail: React.ReactNode; to: (typeof ADMIN_TABS)[number] }> = [
+  const rows: Array<{ key: string; state: "running" | "waiting" | "failed" | "completed"; title: string; detail: React.ReactNode; to: (typeof ADMIN_TABS)[number]; retry?: () => void }> = [
     {
       key: "workers",
       state: !list.length ? "failed" : unavailable.length ? "waiting" : "running",
@@ -210,24 +212,43 @@ function Overview() {
     },
     {
       key: "flags",
-      state: "completed",
-      title: `${on} of ${(flags || []).length} feature flags on`,
-      detail: "Turn features on or off for everyone, or let people choose.",
+      // A failed or pending read must not look like "0 of 0": say what is known.
+      state: flagsQuery.isError ? "waiting" : "completed",
+      title: flagsQuery.isError ? "Feature flags unavailable" : flagsQuery.isLoading ? "Reading feature flags…" : `${on} of ${(flags || []).length} feature flags on`,
+      detail: flagsQuery.isError ? "The flag settings could not be read, so this count is not shown. Try again, or open Feature flags." : "Turn features on or off for everyone, or let people choose.",
       to: "flags",
+      retry: flagsQuery.isError ? () => void flagsQuery.refetch() : undefined,
     },
   ];
   return (
     <Panel enter>
-      {rows.map((r) => (
-        <Link key={r.key} to="/admin" search={{ tab: r.to }} className="flex items-start gap-3 border-t border-line-subtle px-4 py-3 transition-colors duration-(--duration-fast) first:border-t-0 hover:bg-raised/70 pointer-coarse:min-h-11">
-          <span className="mt-1.5"><StateGlyph state={r.state} pulse={false} /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium">{r.title}</span>
-            <span className="block text-sm text-muted">{r.detail}</span>
-          </span>
-          {r.state === "failed" || r.state === "waiting" ? <Tag tone={r.state}>Check</Tag> : null}
-        </Link>
-      ))}
+      {rows.map((r) => {
+        const body = (
+          <>
+            <span className="mt-1.5"><StateGlyph state={r.state} pulse={false} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">{r.title}</span>
+              <span className="block text-sm text-muted">{r.detail}</span>
+            </span>
+          </>
+        );
+        const rowClass = "flex items-start gap-3 border-t border-line-subtle px-4 py-3 first:border-t-0";
+        // An unreadable row offers Retry. A button cannot live inside a link, so this row is not one.
+        if (r.retry) {
+          return (
+            <div key={r.key} role="status" className={rowClass}>
+              {body}
+              <Button size="sm" onClick={r.retry}>Retry</Button>
+            </div>
+          );
+        }
+        return (
+          <Link key={r.key} to="/admin" search={{ tab: r.to }} className={`${rowClass} transition-colors duration-(--duration-fast) hover:bg-raised/70 pointer-coarse:min-h-11`}>
+            {body}
+            {r.state === "failed" || r.state === "waiting" ? <Tag tone={r.state}>Check</Tag> : null}
+          </Link>
+        );
+      })}
     </Panel>
   );
 }

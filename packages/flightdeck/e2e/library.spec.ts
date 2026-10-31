@@ -62,6 +62,6 @@ test("an Undo still pending when the panel closes moves to a toast instead of va
   const toast = page.locator("[data-sonner-toast]").filter({ hasText: "now uses 1.3.2" });
   await expect(toast).toBeVisible(); // handed over with the time it had left
   await toast.getByRole("button", { name: "Undo" }).click();
-  const calls = await demoCalls(page, "pinAgentPackageVersion");
-  expect(calls.at(-1)!.params).toMatchObject({ semver: "1.4.0" });
+  // Undo first re-reads the package (it refuses when the active version moved on), so the restore follows a read.
+  await expect.poll(async () => (await demoCalls(page, "pinAgentPackageVersion")).at(-1)?.params).toMatchObject({ semver: "1.4.0" });
 });

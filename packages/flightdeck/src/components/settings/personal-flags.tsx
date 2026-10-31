@@ -65,7 +65,7 @@ function PersonalRow({ flag, target, who }: { flag: FlagView; target: Target; wh
     const writtenTo = target;
     const revision = await apply(next, flag.revision, writtenTo);
     if (!revision) return;
-    notifyUndo(`${flag.displayName}: ${next === "inherit" ? `back to the default (${onOff(policy.enabled)})` : onOff(next === "on")} for ${who}`, () => void apply(before, revision, writtenTo));
+    notifyUndo(`${flag.displayName}: ${next === "inherit" ? `back to the default (${onOff(policy.enabled)})` : onOff(next === "on")} for ${who}`, () => void apply(before, revision, writtenTo), { resource: `flag:${who}:${flag.featureKey}` });
   };
 
   let status: React.ReactNode;

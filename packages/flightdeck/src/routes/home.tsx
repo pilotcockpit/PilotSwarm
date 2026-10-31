@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { canvasName } from "@/canvas/CanvasFrame";
 import { ArrowRight, ArrowUpRight, CheckCheck, FileText, LayoutPanelLeft, Plus, ServerCrash } from "lucide-react";
 import { TopBar } from "@/shell/AppShell";
@@ -21,6 +21,7 @@ import { OverviewWelcome } from "@/components/overview-welcome";
 import { AgentIdentity, WorkCard, WorkCardBody, WorkCardFooter } from "@/components/ui/work-card";
 import { ArtifactPreview } from "@/components/artifact-preview";
 import { ArtifactInspector } from "@/components/artifact-inspector";
+import { useCanvasPreview } from "@/lib/use-artifact-preview";
 
 type AttentionItem = { kind: "row"; session: Session } | { kind: "group"; key: string; sessions: Session[] };
 
@@ -89,7 +90,7 @@ export function HomePage() {
               </section>
               <section className="min-w-0 lg:col-span-5" aria-labelledby="spotlight-h">
                 <SectionTitle id="spotlight-h" action={<Link to="/outputs" className="text-sm text-accent hover:underline">All outputs <ArrowUpRight className="ml-1 size-3.5" aria-hidden /></Link>}>Recent output</SectionTitle>
-                {recentOutputs.data[0] ? <OutputCard output={recentOutputs.data[0]} preview /> : recentOutputs.isLoading ? <Skeleton className="h-72 w-full rounded-work" /> : <WorkCard><WorkCardBody className="flex min-h-64 flex-col justify-center"><FileText className="mb-4 size-7 text-muted" aria-hidden /><h3 className="text-xl font-semibold">{recentOutputs.errorCount ? "Outputs couldn't be loaded" : "A place for your next result."}</h3><p className="mt-3 text-base text-muted">{recentOutputs.errorCount ? "Try again below, or open a session to see its work." : "Canvases and files from your agents will appear here as they're published."}</p></WorkCardBody></WorkCard>}
+                {recentOutputs.data[0] ? <OutputCard output={recentOutputs.data[0]} preview /> : recentOutputs.isLoading ? <Skeleton className="h-100 w-full rounded-work" /> : <WorkCard><WorkCardBody className="flex min-h-64 flex-col justify-center"><FileText className="mb-4 size-7 text-muted" aria-hidden /><h3 className="text-xl font-semibold">{recentOutputs.errorCount ? "Outputs couldn't be loaded" : "A place for your next result."}</h3><p className="mt-3 text-base text-muted">{recentOutputs.errorCount ? "Try again below, or open a session to see its work." : "Canvases and files from your agents will appear here as they're published."}</p></WorkCardBody></WorkCard>}
               </section>
             </div>
             {groups.items.length > 1 ? <section aria-labelledby="more-needs-h"><SectionTitle id="more-needs-h" count={n - (groups.items[0].kind === "group" ? groups.items[0].sessions.length : 1)}>Also needs attention</SectionTitle><div className="grid items-start gap-4 md:grid-cols-2">{groups.items.slice(1).map((it, i) => renderAttention(it, i + 1))}</div></section> : null}
@@ -106,7 +107,7 @@ export function HomePage() {
               </Panel>
             </section>
           </> : null}
-          {!unavailable ? <aside aria-label="Workspace capacity" className="border-t border-line pt-3"><CapacityLine /></aside> : null}
+          {!unavailable && !isLoading ? <aside aria-label="Workspace capacity" className="border-t border-line pt-3"><CapacityLine /></aside> : null}
         </div>
       </div>
     </>
@@ -252,18 +253,15 @@ function RecentOutputs({ result }: { result: ReturnType<typeof useRecentOutputs>
 export function OutputCard({ output: o, index, preview = false }: { output: Artifact & { session: Session }; index?: number; preview?: boolean }) {
   const canvas = isCanvasFile(o.filename);
   const slot = canvasSlot(o.filename);
-  const { source } = useSource();
-  const { data: html, isLoading: htmlLoading, isError: htmlError } = useQuery({
-    queryKey: ["artifact-text", o.session.sessionId, o.filename, o.updatedAt],
-    queryFn: () => source.readArtifact(o.session.sessionId, o.filename), enabled: canvas, staleTime: 60_000,
-  });
+  // Agent documents are untrusted and can be any size: metadata decides first, a bounded read decides second.
+  const { html, fit, loading: htmlLoading, failed: htmlError } = useCanvasPreview({ sessionId: o.session.sessionId, filename: o.filename, updatedAt: o.updatedAt, size: o.size, canvas });
   const loadingName = canvas && htmlLoading;
   const name = canvas ? canvasName(html, slot) : o.filename;
   const unseen = canvas && slot === 1 && o.session.unseenCanvas;
   const Icon = canvas ? LayoutPanelLeft : FileText;
   return (
     <WorkCard index={index} className="group flex min-h-48 flex-col">
-      {preview ? canvas ? <ArtifactInspector html={html} filename={o.filename} title={name} sessionId={o.session.sessionId} slot={slot} loading={htmlLoading} failed={htmlError} /> : <ArtifactPreview filename={o.filename} /> : null}
+      {preview ? canvas ? <ArtifactInspector html={html} filename={o.filename} title={name} sessionId={o.session.sessionId} slot={slot} loading={htmlLoading} failed={htmlError} fit={canvas ? fit : "none"} updatedAt={o.updatedAt} /> : <ArtifactPreview filename={o.filename} /> : null}
       <WorkCardBody className="flex flex-1 flex-col gap-3">
         <span className="flex items-center gap-2 text-xs text-muted"><Icon className="size-4" aria-hidden />{canvas ? "Canvas" : "File"}{unseen ? <span className="ml-auto inline-flex items-center gap-1.5 text-accent"><span className="size-1.5 rounded-full bg-accent" aria-hidden />Updated</span> : null}</span>
         <h3 className="break-words text-lg font-semibold leading-snug"><Link to="/s/$sessionId" params={{ sessionId: o.session.sessionId }} search={canvas ? { view: "canvas", slot } : { view: "files", files: "outputs", file: o.filename }} className="inline-block min-h-6 underline-offset-2 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">{loadingName ? <span className="block h-5 w-2/3 animate-pulse rounded-chip bg-raised" aria-label="Loading canvas title" /> : name}</Link></h3>

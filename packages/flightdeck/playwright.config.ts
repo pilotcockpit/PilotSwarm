@@ -45,7 +45,7 @@ export default defineConfig({
     // content shows up as a person would see it. Only the smoke spec: the others are about behaviour.
     {
       name: "desktop-light-motion",
-      testMatch: /a11y-smoke\.spec\.ts/,
+      testMatch: /(a11y-smoke|layout-shift)\.spec\.ts/,
       use: { ...desktop, colorScheme: "light", reducedMotion: "no-preference" },
       metadata: { theme: "light", phone: false, motion: true },
     },

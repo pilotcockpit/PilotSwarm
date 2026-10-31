@@ -27,7 +27,7 @@ test("a clean production bundle passes", () => {
   assert.equal(r.status, 0, r.stderr);
 });
 
-for (const word of ["__fdDemo", "writeBehind", "bumpRevision", "clearCalls"]) {
+for (const word of ["__fdDemo", "writeBehind", "bumpRevision", "clearCalls", "failOps", "clearFailures"]) {
   test(`a bundle containing ${word} fails`, () => {
     const r = run({ "assets/index.js": `window.${word}=1` });
     assert.equal(r.status, 1);

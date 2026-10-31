@@ -192,6 +192,8 @@ export interface DataSource {
   deleteSession(id: string): Promise<void>;
   listArtifacts(id: string): Promise<Artifact[]>;
   readArtifact(id: string, filename: string): Promise<string>;
+  /** A bounded read for previews: at most `maxBytes` bytes of the document, and whether it was longer. */
+  readArtifactPreview(id: string, filename: string, maxBytes: number): Promise<{ text: string; truncated: boolean }>;
   artifactUrl(id: string, filename: string): string | null;
   listModels(): Promise<Model[]>;
   listAgents(): Promise<Agent[]>;

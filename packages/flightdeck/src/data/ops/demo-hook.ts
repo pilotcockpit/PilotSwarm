@@ -15,17 +15,29 @@ export function recordDemoCall(op: string, params: unknown) {
 
 /** An area's own test helpers, e.g. `extendDemoHook("workspace", { writeBehind })`. */
 export function extendDemoHook(area: string, api: Record<string, unknown>) {
-  if (import.meta.env.DEV) areas[area] = api;
+  if (!import.meta.env.DEV) return;
+  areas[area] = api;
+  // A source that is already running (its helpers are created with its data) attaches at once.
+  const hook = typeof window !== "undefined" ? (window as any).__fdDemo : undefined;
+  if (hook) hook[area] = api;
 }
+
+const failing = new Set<string>();
+/** True while a test has asked this typed source method to fail (see `failOps`). Dev server only. */
+export const demoShouldFail = (op: string) => Boolean(import.meta.env.DEV) && failing.has(op);
 
 export function installDemoHook() {
   if (import.meta.env.DEV && typeof window !== "undefined") {
     calls.length = 0;
+    failing.clear();
     (window as any).__fdDemo = {
       ...areas,
       /** Operation calls since the demo source started or `clearCalls()`: [{ op, params }]. */
       calls: () => calls.map((c) => ({ ...c })),
       clearCalls: () => { calls.length = 0; },
+      /** Make typed demo reads fail until `clearFailures()`: `failOps(["listFlags"])`, then `invalidate(["flags"])`. */
+      failOps: (ops: string[]) => { for (const op of ops) failing.add(op); },
+      clearFailures: () => { failing.clear(); },
     };
   }
 }

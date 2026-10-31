@@ -79,3 +79,17 @@ export function describeFlagChange(row: any): FlagChangeView {
   const person = typeof owner?.displayName === "string" && owner.displayName ? owner.displayName : typeof owner?.email === "string" && owner.email ? owner.email : null;
   return { auditId: row?.audit_id ?? row?.auditId, at: row?.occurred_at ?? row?.occurredAt, actor: String(row?.actor_subject ?? row?.actorSubject ?? "An admin"), action, featureKey, scope, userId, person, summary };
 }
+
+// ── readArtifactBase64 ── packages/app/tui/src/node-sdk-transport.js: { ...meta, base64, truncated } ──────
+// The server caps `maxBytes` at 1 MiB and reports `truncated` when the document was longer.
+export function normalizeArtifactPreview(raw: any): { text: string; truncated: boolean } {
+  const b64 = typeof raw?.base64 === "string" ? raw.base64 : "";
+  let text = "";
+  if (b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  }
+  return { text, truncated: Boolean(raw?.truncated) };
+}

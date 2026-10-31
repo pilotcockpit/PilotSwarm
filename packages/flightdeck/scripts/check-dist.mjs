@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const dist = fileURLToPath(new URL("../dist", import.meta.url));
-const FORBIDDEN = ["__fdDemo", "writeBehind", "bumpRevision", "clearCalls"];
+const FORBIDDEN = ["__fdDemo", "writeBehind", "bumpRevision", "clearCalls", "failOps", "clearFailures"];
 
 function* walk(dir) {
   for (const name of readdirSync(dir)) {

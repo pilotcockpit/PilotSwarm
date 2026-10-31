@@ -17,6 +17,8 @@ import { Skeleton, Tag } from "@/components/ui/misc";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn, initials } from "@/lib/utils";
 import { notifyUndo } from "@/lib/undo";
+import { notShared, sharedAs, visibilityIs } from "@/data/ops/undo-guards";
+import { useSource } from "@/data/source";
 
 const RANK: Record<Visibility, number> = { private: 0, shared_read: 1, shared_write: 2 };
 const ACCESS_WORD: Record<ShareAccess, string> = { read: "Can view", write: "Can reply" };
@@ -95,10 +97,11 @@ function ViewerPanel({ session }: { session: Session }) {
   );
 }
 
-function ManagePanel({ session }: { session: Session }) {
+export function ManagePanel({ session }: { session: Session }) {
   const id = session.sessionId;
   const { data: access } = useSessionAccess(id);
   const { data: shares, isLoading } = useSessionShares(id, true);
+  const { source } = useSource();
   const grant = useGrantShare(id);
   const revoke = useRevokeShare(id);
   const setVisibility = useSetVisibility(id);
@@ -108,19 +111,19 @@ function ManagePanel({ session }: { session: Session }) {
 
   const addPerson = (user: Person) => {
     grant.mutate({ user, access: "read" }, {
-      onSuccess: () => notifyUndo(`${personName(user)} can view this session`, () => revoke.mutate(user)),
+      onSuccess: () => notifyUndo(`${personName(user)} can view this session`, () => revoke.mutate(user), { resource: `share:${id}:${user.provider}:${user.subject}`, guard: sharedAs(source, id, user, "read") }),
     });
   };
   const changeRole = (share: Share, next: ShareAccess) => {
     if (share.access === next) return;
     const prev = share.access;
     grant.mutate({ user: share, access: next }, {
-      onSuccess: () => notifyUndo(`${personName(share)}: ${ACCESS_WORD[next].toLowerCase()}`, () => grant.mutate({ user: share, access: prev })),
+      onSuccess: () => notifyUndo(`${personName(share)}: ${ACCESS_WORD[next].toLowerCase()}`, () => grant.mutate({ user: share, access: prev }), { resource: `share:${id}:${share.provider}:${share.subject}`, guard: sharedAs(source, id, share, next) }),
     });
   };
   const removePerson = (share: Share) => {
     revoke.mutate(share, {
-      onSuccess: () => notifyUndo(`Removed ${personName(share)}`, () => grant.mutate({ user: share, access: share.access })),
+      onSuccess: () => notifyUndo(`Removed ${personName(share)}`, () => grant.mutate({ user: share, access: share.access }), { resource: `share:${id}:${share.provider}:${share.subject}`, guard: notShared(source, id, share) }),
     });
   };
   const choose = (next: Visibility) => {
@@ -128,7 +131,7 @@ function ManagePanel({ session }: { session: Session }) {
     if (RANK[next] > RANK[visibility]) { setWiden(next); return; }
     const prev = visibility;
     setVisibility.mutate(next, {
-      onSuccess: () => notifyUndo(next === "private" ? "Now only people you add can open it" : "Replies are off for everyone else", () => setVisibility.mutate(prev)),
+      onSuccess: () => notifyUndo(next === "private" ? "Now only people you add can open it" : "Replies are off for everyone else", () => setVisibility.mutate(prev), { resource: `visibility:${id}`, guard: visibilityIs(source, id, next) }),
     });
   };
 

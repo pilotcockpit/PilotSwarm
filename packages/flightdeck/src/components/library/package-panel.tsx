@@ -11,7 +11,9 @@ import { useUi } from "@/shell/ui-state";
 import { useAgents, useSessions } from "@/data/source";
 import { creatablePackageAgents } from "./package-eligibility";
 import { sessionState } from "@/data/state";
-import { describeFiles, isSamePerson, packageRights, usePackageActions, usePackageDetail, usePackageFile, usePackages, usePackageTree, type PackageSummary } from "@/data/ops/packages";
+import { activeVersionIs } from "@/data/ops/undo-guards";
+import { useSource } from "@/data/source";
+import { describeFiles, isSamePerson, packageRights, packageSelector, usePackageActions, usePackageDetail, usePackageFile, usePackages, usePackageTree, type PackageSummary } from "@/data/ops/packages";
 import type { Profile } from "@/data/types";
 import { PackageFiles } from "./package-files";
 import { PackageEditors } from "./package-editors";
@@ -28,6 +30,7 @@ const Section = ({ title, note, children }: { title: string; note?: React.ReactN
 
 /** One package: whether it is on, what it gives agents, its versions, files and editors, and what you can do about it. */
 export function PackagePanel({ pkg, onClose, profile, ownerName }: { pkg: PackageSummary; onClose: () => void; profile?: Profile | null; ownerName: string }) {
+  const { source } = useSource();
   const rights = packageRights(pkg, profile);
   const detail = usePackageDetail(pkg, profile);
   const tree = usePackageTree(pkg, undefined, profile);
@@ -112,7 +115,7 @@ export function PackagePanel({ pkg, onClose, profile, ownerName }: { pkg: Packag
           ) : null}
 
           <Section title="Versions" note={versions.length > 1 ? "Switching is instant for new work. Running turns finish first, and you can undo it." : undefined}>
-            {detail.isLoading ? <Skeleton className="h-24" /> : <VersionTimeline pkg={pkg} versions={versions} canEdit={rights.edit} busy={actions.pin.isPending} onPin={(semver) => actions.pin.mutateAsync({ pkg, semver })} />}
+            {detail.isLoading ? <Skeleton className="h-24" /> : <VersionTimeline pkg={pkg} versions={versions} canEdit={rights.edit} busy={actions.pin.isPending} onPin={(semver) => actions.pin.mutateAsync({ pkg, semver })} isActive={(semver) => activeVersionIs(source, packageSelector(pkg, profile), semver)()} />}
             {!rights.edit ? <p className="text-xs text-muted">{reasonLocked}</p> : null}
           </Section>
 

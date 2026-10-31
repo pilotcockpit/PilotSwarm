@@ -36,7 +36,7 @@ export function PackageEditors({ editors, owner, canManage, onGrant, onRevoke }:
   const remove = async (u: Principal) => {
     try {
       await onRevoke(u);
-      notifyUndo(`${label(u)} can no longer publish`, () => void onGrant(u));
+      notifyUndo(`${label(u)} can no longer publish`, () => void onGrant(u), { resource: `editor:${u.provider}:${u.subject}` });
     } catch { /* reported */ }
   };
 

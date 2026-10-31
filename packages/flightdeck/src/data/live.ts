@@ -1,6 +1,7 @@
 import { ApiClient } from "pilotswarm-sdk/api";
 import { subscribeToSession } from "./session-stream";
 import { removeDemoHook } from "./ops/demo-hook";
+import { normalizeArtifactPreview } from "./ops/contracts";
 import { normalizeFeatureFlags, normalizeSessionGroups } from "./live-normalizers";
 import type { Artifact, ConnectionState, DataSource, LogEntry, Session, SessionEvent } from "./types";
 
@@ -187,6 +188,9 @@ export function createLiveSource(): DataSource {
     async readArtifact(id, filename) {
       const r = await api.call("downloadArtifact", { sessionId: id, filename });
       return typeof r === "string" ? r : String(r?.content ?? r?.text ?? "");
+    },
+    async readArtifactPreview(id, filename, maxBytes) {
+      return normalizeArtifactPreview(await api.call("readArtifactBase64", { sessionId: id, filename, maxBytes }));
     },
     artifactUrl(id, filename) {
       return `/api/v1/sessions/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(filename)}/download`;

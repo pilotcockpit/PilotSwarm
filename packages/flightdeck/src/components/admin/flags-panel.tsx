@@ -62,7 +62,7 @@ function ClusterFlagRow({ flag, changes }: { flag: FlagView; changes: FlagChange
     const r = await mutation.mutateAsync(input).catch(() => null);
     if (!r) return;
     const label = next === "reset" ? `back to the default (${policySentence(fallback)})` : policySentence(next);
-    notifyUndo(`${flag.displayName}: ${label}`, () => void mutation.mutate(before ? { target: CLUSTER, featureKey: flag.featureKey, expectedRevision: r.revision, enabled: before.enabled, allowUserOverride: before.allowUserOverride } : { target: CLUSTER, featureKey: flag.featureKey, expectedRevision: r.revision, clear: true }));
+    notifyUndo(`${flag.displayName}: ${label}`, () => void mutation.mutate(before ? { target: CLUSTER, featureKey: flag.featureKey, expectedRevision: r.revision, enabled: before.enabled, allowUserOverride: before.allowUserOverride } : { target: CLUSTER, featureKey: flag.featureKey, expectedRevision: r.revision, clear: true }), { resource: `flag:cluster:${flag.featureKey}` });
   };
   const request = (next: Policy | "reset") => {
     const target = next === "reset" ? fallback : next;

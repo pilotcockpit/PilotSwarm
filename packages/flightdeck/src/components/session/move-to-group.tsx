@@ -39,7 +39,7 @@ export function MoveToGroupDialog({ session, open, onOpenChange }: { session: Se
       onSuccess: () => {
         qc.setQueryData(["groups", "placement", session.sessionId], groupId);
         onOpenChange(false);
-        notifyUndo(groupId ? `Moved to ${name}` : "Removed from its group", () => place.mutate({ groupId: previous, sessionIds: [session.sessionId] }, { onSuccess: () => qc.setQueryData(["groups", "placement", session.sessionId], previous) }), { description: session.title });
+        notifyUndo(groupId ? `Moved to ${name}` : "Removed from its group", () => place.mutate({ groupId: previous, sessionIds: [session.sessionId] }, { onSuccess: () => qc.setQueryData(["groups", "placement", session.sessionId], previous) }), { description: session.title, resource: `group:${session.sessionId}` });
       },
     });
   };
