@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
-import { expectNoSeriousAxe, gotoDemo, Sheet, shot, watchConsole } from "./helpers";
+import { demoCalls, expectNoSeriousAxe, gotoDemo, Sheet, shot, toastRegion, watchConsole } from "./helpers";
 
 // Providers (Models & spend): hold, allowance, limits, remove, add, paused work. Demo data signs in as admin.
 
@@ -77,7 +77,7 @@ test("hold: custom time and 'until released' say how long", async ({ page }, inf
   await expect(hold.locator("input[type=datetime-local], input[type=time], input[type=date]").first()).toBeVisible();
 });
 
-test("allowance: the slider changes the sentence; saving offers Undo that restores", async ({ page }, info) => {
+test("allowance: the slider changes the sentence; saving sends one call; Undo (pointer) sends the old value back", async ({ page }, info) => {
   await providers(page, info);
   const { sheet } = await openSheet(page);
   await tab(sheet, "Limits & access");
@@ -92,12 +92,45 @@ test("allowance: the slider changes the sentence; saving offers Undo that restor
   await expect(slider).not.toHaveValue("40");
   await expect(save).toBeEnabled();
   const now = await slider.inputValue();
-  await expect(region).toContainText(`${now}%`);
+  await expect(region).toContainText(`up to ${now}%`);
+  expect(await demoCalls(page, "setProviderAllowance")).toHaveLength(0); // moving the slider saves nothing
   await save.click();
-  const undo = page.getByRole("button", { name: "Undo" });
-  await expect(undo).toBeVisible();
-  await undo.click();
+  // The result is announced inside the open sheet (a modal traps focus, so a toast outside would be out of reach).
+  const status = sheet.dialog.getByRole("status").filter({ hasText: "Each person may now use up to" });
+  await expect(status).toContainText(`up to ${now}%`);
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Each person may now use" })).toHaveCount(0); // announced once, not twice
+  let calls = await demoCalls(page, "setProviderAllowance");
+  expect(calls).toHaveLength(1);
+  expect(calls[0].params).toEqual({ name: "anthropic-wif", pct: Number(now) });
+  await status.getByRole("button", { name: "Undo" }).click();
   await expect(slider).toHaveValue("40");
+  calls = await demoCalls(page, "setProviderAllowance");
+  expect(calls).toHaveLength(2);
+  expect(calls[1].params).toEqual({ name: "anthropic-wif", pct: 40 }); // Undo restored the previous value
+});
+
+test("allowance: Undo is reachable by keyboard while the sheet is open (Tab to it, Enter)", async ({ page }, info) => {
+  test.skip(info.project.metadata?.phone === true, "keyboard path is the same on a phone; desktop is enough");
+  await providers(page, info);
+  const { sheet } = await openSheet(page);
+  await tab(sheet, "Limits & access");
+  const region = sheet.dialog.getByRole("region", { name: "Per-person allowance" });
+  const slider = region.getByRole("slider", { name: /Per-person allowance/ });
+  await slider.focus();
+  await page.keyboard.press("ArrowRight");
+  const save = region.getByRole("button", { name: "Save allowance" });
+  await save.focus();
+  await page.keyboard.press("Enter"); // save with the keyboard too
+  const undo = sheet.dialog.getByRole("status").getByRole("button", { name: "Undo" });
+  await expect(undo).toBeVisible();
+  // Tab from the Save button until the Undo button has focus: it is inside the dialog's focus scope.
+  for (let i = 0; i < 40 && !(await undo.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
+  await expect(undo).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(slider).toHaveValue("40");
+  const calls = await demoCalls(page, "setProviderAllowance");
+  expect(calls).toHaveLength(2);
+  expect(calls[1].params.pct).toBe(40);
 });
 
 test("limits: an exact integer stays exact; removing a limit offers Undo", async ({ page }, info) => {
@@ -111,6 +144,10 @@ test("limits: an exact integer stays exact; removing a limit offers Undo", async
   await tokens.fill("1234567");
   await limits.getByRole("button", { name: /^Save/ }).first().click();
   await expect(today).toContainText(/1\.2M|1,234,567/);
+  // What was SENT is the exact integer, whatever the screen rounds it to.
+  const sent = await demoCalls(page, "setProviderLimit");
+  expect(sent).toHaveLength(1);
+  expect(sent[0].params).toMatchObject({ name: "anthropic-wif", period: "day", tokens: 1234567 });
 
   // Opening it again must not round the stored value.
   await today.getByRole("button", { name: "Change" }).click();
@@ -122,20 +159,56 @@ test("limits: an exact integer stays exact; removing a limit offers Undo", async
   await month.getByRole("button", { name: "Change" }).click();
   await month.getByRole("button", { name: "Remove limit" }).click();
   await expect(month.getByRole("button", { name: "Set a limit" })).toBeVisible();
-  await page.getByRole("button", { name: "Undo" }).click();
+  const removed = await demoCalls(page, "removeProviderLimit");
+  expect(removed).toHaveLength(1);
+  expect(removed[0].params).toMatchObject({ name: "anthropic-wif", period: "month" });
+  // The Undo is in the sheet, and it sends the old limit back.
+  await sheet.dialog.getByRole("status").getByRole("button", { name: "Undo" }).click();
+  await expect(month).toContainText("9.7M of 10M");
+  const restored = (await demoCalls(page, "setProviderLimit")).at(-1)!;
+  expect(restored.params).toMatchObject({ name: "anthropic-wif", period: "month", tokens: 10_000_000 });
+});
+
+test("limits: removing a limit, Undo by keyboard (Tab to it, Enter)", async ({ page }, info) => {
+  test.skip(info.project.metadata?.phone === true, "keyboard path is the same on a phone; desktop is enough");
+  await providers(page, info);
+  const { sheet } = await openSheet(page);
+  await tab(sheet, "Limits & access");
+  const limits = sheet.dialog.getByRole("region", { name: "Limits" });
+  const month = limits.getByRole("listitem").filter({ hasText: "This month" });
+  await month.getByRole("button", { name: "Change" }).click();
+  const remove = month.getByRole("button", { name: "Remove limit" });
+  await remove.focus();
+  await page.keyboard.press("Enter");
+  await expect(month.getByRole("button", { name: "Set a limit" })).toBeVisible();
+  const undo = sheet.dialog.getByRole("status").getByRole("button", { name: "Undo" });
+  await expect(undo).toBeVisible();
+  for (let i = 0; i < 60 && !(await undo.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
+  await expect(undo).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(month).toContainText("9.7M of 10M");
 });
 
-test("Remove provider: the confirm states how many sessions will wait", async ({ page }, info) => {
+test("Remove provider: the confirm states the exact number of waiting sessions; nothing is called before Remove; one call after", async ({ page }, info) => {
   await providers(page, info);
   const { sheet } = await openSheet(page);
   const opener = sheet.dialog.getByRole("button", { name: "Remove provider…" });
   const confirm = await Sheet.open(page, opener);
-  await expect(confirm.dialog).toContainText(/session/i);
-  await expect(confirm.dialog).toContainText(/pause/i);
+  // The demo has 10 sessions on anthropic-wif; the dialog says exactly that, and what happens to them.
+  await expect(confirm.dialog).toContainText("10 sessions using it will pause until the name is provided again.");
+  await expect(confirm.dialog).toContainText("The stored key is deleted.");
   await shot(page, info, "remove-provider");
   await expectNoSeriousAxe(page, confirm.dialog, "remove provider confirm");
+  expect(await demoCalls(page, "deleteProvider")).toHaveLength(0);
   await confirm.expectEscapeReturnsFocusTo(opener);
+  expect(await demoCalls(page, "deleteProvider")).toHaveLength(0);
+
+  const again = await Sheet.open(page, opener);
+  await again.dialog.getByRole("button", { name: "Remove provider" }).click();
+  await expect(again.dialog).toBeHidden();
+  const calls = await demoCalls(page, "deleteProvider");
+  expect(calls).toHaveLength(1);
+  expect(calls[0].params.name).toBe("anthropic-wif");
 });
 
 test("add provider: only the chosen type's fields, a password key that is cleared after saving", async ({ page }, info) => {
@@ -168,6 +241,10 @@ test("add provider: only the chosen type's fields, a password key that is cleare
   const added = page.getByRole("dialog", { name: "Provider added" });
   await expect(added).toBeVisible();
   await expect(added).toContainText("e2e-openai is ready");
+  const created = await demoCalls(page, "createMyProvider");
+  expect(created).toHaveLength(1); // "Just me" is the default: a personal provider, not a shared one
+  expect(created[0].params).toMatchObject({ name: "e2e-openai" });
+  expect(await demoCalls(page, "createProvider")).toHaveLength(0);
   await expect(page.locator("input[type=password]")).toHaveCount(0);
   expect(await page.evaluate(() => document.body.innerHTML.includes("sk-e2e-not-a-real-key"))).toBe(false);
   await added.getByRole("button", { name: "Done" }).click();
@@ -189,11 +266,26 @@ test("paused work: the banner names the reason and its action opens the provider
   await expect(page.getByRole("dialog").last()).toContainText("anthropic-wif");
 });
 
-test("default models tab: the effective model says why", async ({ page }, info) => {
+test("default models: the sentence names model, provider and source, and follows a change; Undo restores", async ({ page }, info) => {
   await providers(page, info);
   await page.getByRole("radiogroup", { name: "Models and spend" }).getByRole("radio", { name: "Default models" }).click();
-  await expect(page.getByText(/Right now/i).first()).toBeVisible();
-  await expect(page.getByText(/cluster default|your default|system default/i).first()).toBeVisible();
+  const mine = page.getByRole("heading", { name: "Your default model" }).locator("xpath=..");
+  const system = page.getByRole("heading", { name: "System default" }).locator("xpath=..");
+  // Each card states its own effective model, provider and where it comes from, together.
+  await expect(mine).toContainText("Right now: claude-sonnet-5 on anthropic-wif, from the cluster default.");
+  await expect(system).toContainText("Right now: gpt-5.6 on azure-foundry-wif, from the system default.");
   await shot(page, info, "defaults");
   await expectNoSeriousAxe(page, page.getByRole("main"), "default models");
+
+  // Choosing a model of your own changes the source of the sentence, not just the words around it.
+  await mine.getByRole("combobox", { name: "Model" }).selectOption({ label: "claude-opus-5 · high cost" });
+  await expect(mine).toContainText("Right now: claude-opus-5 on anthropic-wif, from your default.");
+  await expect(system).toContainText("from the system default."); // the other cards did not move
+  await expect(toastRegion(page)).toContainText("Your default model is claude-opus-5.");
+  const set = (await demoCalls(page)).filter((c) => /^set(My|Model)Default$/.test(c.op));
+  expect(set).toHaveLength(1);
+  expect(JSON.stringify(set[0].params)).toContain("claude-opus-5");
+
+  await toastRegion(page).getByRole("button", { name: "Undo" }).click();
+  await expect(mine).toContainText("Right now: claude-sonnet-5 on anthropic-wif, from the cluster default.");
 });

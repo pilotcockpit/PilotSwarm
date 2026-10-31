@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { expectNoSeriousAxe, finishAnimations, gotoDemo, IDS, isPhone, watchConsole } from "./helpers";
+import { expectNoSeriousAxe, gotoDemo, IDS, isPhone, settle, watchConsole } from "./helpers";
 
 // Every route and tab, on demo data, in all four projects: no serious/critical axe violations, no
 // horizontal overflow, no console errors. On a phone, a soft report of tap targets under 44px.
@@ -38,9 +38,9 @@ for (const route of ROUTES) {
     await expect(page.getByRole("heading", { level: 1 }).or(page.getByRole("heading", { level: 2 })).first()).toBeVisible();
     await expect(page.getByRole("main")).toContainText(route.ready);
     await page.waitForTimeout(250); // data, then a settled layout
-    await finishAnimations(page);
+    await settle(page, info);
 
-    await expectNoSeriousAxe(page, undefined, route.name);
+    await expectNoSeriousAxe(page, undefined, route.name, info);
 
     const overflow = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
     expect(overflow.scroll, `${route.name} scrolls sideways (${overflow.scroll} > ${overflow.inner})`).toBeLessThanOrEqual(overflow.inner);

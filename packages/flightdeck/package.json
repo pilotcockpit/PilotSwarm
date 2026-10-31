@@ -7,14 +7,15 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && node scripts/token-guard.mjs && vite build",
+    "build": "tsc --noEmit && node scripts/token-guard.mjs && vite build && node scripts/check-dist.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:ux": "node --experimental-strip-types --test src/lib/session-access.test.mjs src/lib/session-composer.test.mjs",
     "tokens:check": "node scripts/token-guard.mjs",
+    "test:dist": "node scripts/check-dist.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test": "vitest run --exclude \"**/*.test.mjs\" && node --test src/lib/*.test.mjs"
+    "test": "vitest run --exclude \"**/*.test.mjs\" --exclude \"e2e/**\" --exclude \"node_modules/**\" && node --test src/lib/*.test.mjs scripts/check-dist.test.mjs"
   },
   "dependencies": {
     "@fontsource-variable/recursive": "5.3.0",

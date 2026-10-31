@@ -29,7 +29,31 @@ export async function gotoDemo(page: Page, path: string, info: TestInfo) {
   const url = path.includes("?") ? `${path}&data=demo` : `${path}?data=demo`;
   await page.goto(url);
   await page.locator("#root *").first().waitFor();
-  await finishAnimations(page);
+  await settle(page, info);
+}
+
+/** True for the project that runs with real motion (no reducedMotion), where animations play out naturally. */
+export const withMotion = (info: TestInfo) => Boolean(info.project.metadata?.motion);
+
+/**
+ * Wait for the page to be at rest. With reduced motion (the default projects) finite animations are jumped to
+ * their end. With real motion they are left to play, and the test waits for them to finish by themselves, so
+ * layout shifts and animation overlaps happen as a person would see them.
+ */
+export async function settle(page: Page, info: TestInfo) {
+  if (!withMotion(info)) return finishAnimations(page);
+  // At rest means: no finite animation or transition running, and none started for 300ms (data that arrives late
+  // re-renders and starts new colour transitions; measuring contrast in the middle of one is measuring a blend).
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    const running = () => document.getAnimations().some((a) => a.playState !== "finished" && a.effect?.getTiming().iterations !== Infinity);
+    let quietSince = performance.now();
+    const tick = () => {
+      if (running()) quietSince = performance.now();
+      if (performance.now() - quietSince >= 300) resolve();
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }));
 }
 
 /** Finite animations jump to their end; infinite ones (pulses) are left alone. */
@@ -45,8 +69,9 @@ export async function shot(page: Page, info: TestInfo, state: string) {
 }
 
 /** Fail on serious or critical axe violations inside `scope` (default the whole page). */
-export async function expectNoSeriousAxe(page: Page, scope?: Locator | string, label = "page") {
-  await finishAnimations(page);
+export async function expectNoSeriousAxe(page: Page, scope?: Locator | string, label = "page", info?: TestInfo) {
+  if (info && withMotion(info)) await settle(page, info);
+  else await finishAnimations(page);
   let builder = new AxeBuilder({ page })
     // The sandboxed canvas frame renders agent-drawn documents, not Flight Deck's own UI.
     .exclude("iframe")
@@ -67,7 +92,7 @@ export async function expectNoSeriousAxe(page: Page, scope?: Locator | string, l
   const { violations } = await builder.analyze();
   const bad = violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   expect(
-    bad.map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`),
+    bad.map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 3).map((n) => `${n.target.join(" ")}${v.id === "color-contrast" ? ` [${JSON.stringify((n.any[0] as any)?.data ?? {})} ${n.html.slice(0, 90)}]` : ""}`).join(" | ")}`),
     `axe on ${label}`,
   ).toEqual([]);
 }
@@ -124,3 +149,11 @@ export function watchConsole(page: Page) {
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   return errors;
 }
+
+/** Operation calls the demo registry has answered since the page loaded: [{ op, params }]. Dev-only hook. */
+export async function demoCalls(page: Page, op?: string): Promise<Array<{ op: string; params: any }>> {
+  return page.evaluate((wanted) => ((window as any).__fdDemo.calls() as Array<{ op: string; params: any }>).filter((c) => !wanted || c.op === wanted), op ?? null);
+}
+
+/** The text of every toast on the page (the Sonner region), not the page around it. */
+export const toastRegion = (page: Page) => page.locator("[data-sonner-toaster]");

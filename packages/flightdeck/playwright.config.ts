@@ -29,7 +29,7 @@ export default defineConfig({
     actionTimeout: 10_000,
   },
   webServer: {
-    command: `npx vite --port ${PORT} --strictPort`,
+    command: `FD_E2E=1 npx vite --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: false,
     timeout: 60_000,
@@ -41,5 +41,13 @@ export default defineConfig({
     { name: "desktop-dark", use: { ...desktop, colorScheme: "dark" }, metadata: { theme: "dark", phone: false } },
     { name: "phone-light", use: { ...phone, colorScheme: "light" }, metadata: { theme: "light", phone: true } },
     { name: "phone-dark", use: { ...phone, colorScheme: "dark" }, metadata: { theme: "dark", phone: true } },
+    // The same smoke run with REAL motion (no reducedMotion), so a layout shift or an animation that overlaps
+    // content shows up as a person would see it. Only the smoke spec: the others are about behaviour.
+    {
+      name: "desktop-light-motion",
+      testMatch: /a11y-smoke\.spec\.ts/,
+      use: { ...desktop, colorScheme: "light", reducedMotion: "no-preference" },
+      metadata: { theme: "light", phone: false, motion: true },
+    },
   ],
 });

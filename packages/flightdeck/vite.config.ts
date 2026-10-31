@@ -27,6 +27,9 @@ export default defineConfig({
   server: {
     port: 5180,
     strictPort: true,
+    // The end-to-end suite starts its own dev server (playwright.config.ts sets FD_E2E): no file watching and no
+    // hot reload there, so an edit made while the suite runs cannot reload a page in the middle of a test.
+    ...(process.env.FD_E2E ? { watch: null, hmr: false } : {}),
     headers: { ...PORTAL_SHELL_HEADERS },
     proxy: {
       "/api": { target: apiTarget, ws: true },

@@ -96,7 +96,8 @@ canvas apps, and pausing, resuming or firing a schedule from outside a turn
 ## End-to-end tests
 
 Playwright drives the real app on the demo data (no server, no database) in four projects: desktop
-(1280x800) and phone (390x844), each in light and dark.
+(1280x800) and phone (390x844), each in light and dark, plus one desktop-light run of the smoke spec with real
+motion.
 
 ```bash
 npm run test:e2e --workspace=pilotswarm-flightdeck            # everything (about 1 minute)
@@ -127,6 +128,25 @@ Writing a spec:
   `src/data/ops/workspace.demo.ts`). It does not exist in production builds. Add a similar hook beside the
   demo fixtures of another area when a spec needs one.
 - Demo state lives in module memory, so every test starts from the same fixtures.
+- **Count what was sent, not just what is shown.** The demo operations delete nothing, so a destructive
+  confirm that ran early would still look right on screen. The dev-only hook records every operation the demo
+  registry answers: `demoCalls(page, "restartSystemSession")` returns `[{ op, params }]`. Assert zero calls
+  before a confirmation and after Cancel, and exactly one, with the right parameters, after it.
+- **The hook exists only for the demo source on the dev server.** `window.__fdDemo` is installed when the
+  demo source starts and deleted when the live source starts (`src/data/ops/demo-hook.ts`); a spec
+  (`demo-hook.spec.ts`) checks that `?data=live` has none, and `npm run build` ends with
+  `scripts/check-dist.mjs`, which fails if the production bundle contains `__fdDemo`, `writeBehind`,
+  `bumpRevision` or `clearCalls` (`npm run test:dist`; its own tests are `scripts/check-dist.test.mjs`).
+  Register a new area's helpers with `extendDemoHook(area, {...})` inside an `if (import.meta.env.DEV)` block.
+- **Undo while a sheet is open lives in the sheet.** A modal traps focus, so a toast outside it cannot be
+  reached by keyboard. Call `notifyUndo(message, onUndo)` (`src/lib/undo.tsx`) instead of `toast` for any Undo:
+  with a modal open it renders in the dialog's status region (Tab-reachable, 8 seconds, paused on hover or
+  focus), otherwise it is a normal toast, never both. Specs find it with
+  `sheet.dialog.getByRole("status").getByRole("button", { name: "Undo" })`.
+- **Real motion.** The default projects run with `reducedMotion: "reduce"` so tests are deterministic.
+  `desktop-light-motion` runs only `a11y-smoke.spec.ts` with real motion, waiting for animations to finish on
+  their own, so layout shifts and animation overlaps show up. Do not raise timeouts to hide slow tests; read
+  the slowest list in the run output instead.
 
 ## Extending Flight Deck
 

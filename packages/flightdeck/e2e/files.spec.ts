@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { expectNoSeriousAxe, gotoDemo, IDS, isPhone, shot, watchConsole } from "./helpers";
+import { demoCalls, expectNoSeriousAxe, gotoDemo, IDS, isPhone, shot, toastRegion, watchConsole } from "./helpers";
 
 // Files: browse, edit, conflict, unsaved-changes guard, Changes, create/rename/delete/upload.
 // Everything runs on the demo working folder (src/data/ops/workspace.demo.ts).
@@ -20,6 +20,7 @@ async function ensureList(page: Page, info: import("@playwright/test").TestInfo)
   await page.getByRole("button", { name: "Back to the file list" }).click();
 }
 const editor = (page: Page, name: string) => page.getByRole("textbox", { name: `Editing ${name}` });
+const fileWrites = async (page: Page) => (await demoCalls(page)).filter((c) => c.op === "sessionWorkspaceFiles" && c.params?.call?.op === "write").map((c) => c.params.call);
 const writeBehind = (page: Page, folder: string, path: string, text: string) =>
   page.evaluate(([f, p, t]) => (window as any).__fdDemo.workspace.writeBehind(f, p, t), [folder, path, text]);
 
@@ -43,7 +44,12 @@ test("browse, open and edit a text file; the saved text shows", async ({ page },
   await expect(page.getByText("Unsaved", { exact: true })).toBeVisible();
   await expect(save).toBeEnabled();
   await save.click();
-  await expect(page.getByText("Saved").first()).toBeVisible();
+  await expect(toastRegion(page)).toContainText("Saved");
+  await expect(toastRegion(page)).toContainText("package.json");
+  const writes = (await demoCalls(page)).filter((c) => c.op === "sessionWorkspaceFiles" && c.params?.call?.op === "write");
+  expect(writes).toHaveLength(1);
+  expect(writes[0].params.call).toMatchObject({ folder: "working", path: "package.json" });
+  expect(typeof writes[0].params.call.ifMatch).toBe("string"); // saved against the version that was opened
   await expect(editor(page, "package.json")).toHaveCount(0);
   await expect(page.getByText('"name": "renamed-by-e2e"')).toBeVisible();
   await shot(page, info, "saved");
@@ -69,6 +75,9 @@ test("conflict: another writer saved first; Keep my version overwrites, the draf
   await alert.getByRole("button", { name: "Keep my version" }).click();
   await expect(editor(page, "package.json")).toHaveCount(0);
   await expect(page.locator("pre code").filter({ hasText: "MINE" })).toBeVisible();
+  const writes = await fileWrites(page);
+  expect(writes).toHaveLength(2); // the refused save, then Keep my version
+  expect(writes[1].ifMatch).not.toBe(writes[0].ifMatch); // Keep sends the etag the server reported, not the stale one
 });
 
 test("conflict: Take theirs loads their text and drops the draft", async ({ page }, info) => {
@@ -82,6 +91,7 @@ test("conflict: Take theirs loads their text and drops the draft", async ({ page
   await expect(editor(page, "package.json")).toHaveCount(0);
   await expect(page.locator("pre code").filter({ hasText: "THEIRS" })).toBeVisible();
   await expect(page.locator("pre code").filter({ hasText: "MINE" })).toHaveCount(0);
+  expect(await fileWrites(page)).toHaveLength(1); // only the refused save: "Take theirs" writes nothing
 });
 
 test("a file that changes while you edit is flagged before you save", async ({ page }, info) => {
@@ -168,7 +178,11 @@ test("Changes lists staged, changed and new files and opens a diff", async ({ pa
   await shot(page, info, "changes");
   await page.getByRole("region", { name: "Changed" }).getByRole("button", { name: /App\.tsx/ }).click();
   await expect(page.getByRole("button", { name: "Open file" })).toBeVisible();
-  await expect(page.getByText(/flight deck/i).first()).toBeVisible();
+  // The two versions differ in exactly one line: the diff shows the old line removed and the new one added,
+  // and "Flight Deck" (present in both) is not what proves it.
+  await expect(page.getByText('Removed: return <main>Flight Deck</main>;')).toBeVisible();
+  await expect(page.getByText('Added: return <main className="p-4">Flight Deck</main>;')).toBeVisible();
+  await expect(page.getByText("Added: export function App() {")).toHaveCount(0); // an unchanged line is not marked
   await shot(page, info, "diff");
   await expectNoSeriousAxe(page, page.getByRole("tabpanel"), "diff");
   if (isPhone(info)) {
