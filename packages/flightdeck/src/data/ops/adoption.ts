@@ -23,26 +23,57 @@ export interface PendingPackage {
 export const pendingKey = (p: Pick<PendingPackage, "name" | "scope" | "ownerSubject" | "semver">) => `${p.scope}:${p.ownerSubject || ""}:${p.name}@${p.semver || "active"}`;
 
 // ── the store ──────────────────────────────────────────────────────────────────────────────────
+// Entries expire on their own deadline (since + the timeout), whether or not any component is mounted:
+// every read, add, clear and subscribe prunes first, and one timer (never keeping a process alive) prunes
+// at the earliest deadline, so a page that is closed or navigated away leaves nothing behind.
 const store = new Map<string, PendingPackage>();
 const listeners = new Set<() => void>();
+const expiryListeners = new Set<() => void>();
 let version = 0;
+let timer: ReturnType<typeof setTimeout> | null = null;
 const emit = () => { version += 1; for (const l of listeners) l(); };
 
+/** Drop what is past its deadline. Returns how many went. */
+function prune(now = Date.now()): number {
+  let gone = 0;
+  for (const [k, p] of store) if (now - p.since >= PENDING_TIMEOUT_MS) { store.delete(k); gone += 1; }
+  return gone;
+}
+
+function schedule(now = Date.now()) {
+  if (timer !== null) { clearTimeout(timer); timer = null; }
+  if (!store.size) return;
+  const next = Math.min(...[...store.values()].map((p) => p.since + PENDING_TIMEOUT_MS));
+  timer = setTimeout(() => {
+    timer = null;
+    const gone = prune();
+    if (gone) { emit(); for (const l of expiryListeners) l(); }
+    schedule();
+  }, Math.max(0, next - now) + 1);
+  (timer as any)?.unref?.();
+}
+
 export function markPending(p: Omit<PendingPackage, "since">, now = Date.now()) {
+  prune(now);
   store.set(pendingKey(p), { ...p, since: now });
+  schedule(now);
   emit();
 }
 export function clearPending(keys: string[]) {
-  let changed = false;
+  let changed = prune() > 0;
   for (const k of keys) changed = store.delete(k) || changed;
+  schedule();
   if (changed) emit();
 }
-export const resetPending = () => { if (store.size) { store.clear(); emit(); } };
-export const pendingList = (): PendingPackage[] => [...store.values()];
+export const resetPending = () => { store.clear(); schedule(); emit(); };
+/** What is still waiting. Anything past its deadline is gone. */
+export const pendingList = (now = Date.now()): PendingPackage[] => { prune(now); return [...store.values()]; };
 export const pendingVersion = () => version;
-export const subscribePending = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
+export const subscribePending = (l: () => void) => { prune(); listeners.add(l); return () => { listeners.delete(l); }; };
+/** Told when an entry timed out on its own (not when it was settled). */
+export const subscribeExpired = (l: () => void) => { expiryListeners.add(l); return () => { expiryListeners.delete(l); }; };
 
-/** Re-render when something becomes pending or is settled; returns what is pending now. */
+/** Re-render when something becomes pending, is settled or times out; returns what is pending now. */
 export function usePending(): PendingPackage[] {
   const v = React.useSyncExternalStore(subscribePending, pendingVersion, () => 0);
   return React.useMemo(() => pendingList(), [v]);
@@ -103,10 +134,30 @@ export function updateInProgress(packages: PackageSummary[] | undefined, states:
   });
 }
 
-/** How long until the next look: every few seconds while anything is pending or changing, never otherwise. */
-export function pollInterval(list: PendingPackage[], states: WorkerPackageState[] | undefined, packages: PackageSummary[] | undefined, updating: boolean, now: number): number | false {
+/**
+ * How long until the next look: every few seconds while something this page is waiting for has not landed,
+ * and while workers disagree about a version, but only for the timeout window. `updatingSince` is when the
+ * installed state last changed (null when nobody is mid-update): a worker that never catches up must not keep
+ * the page polling forever, and a genuine change in what a worker has installed starts the window again.
+ */
+export function pollInterval(list: PendingPackage[], states: WorkerPackageState[] | undefined, packages: PackageSummary[] | undefined, updatingSince: number | null, now: number): number | false {
   const live = list.some((p) => now - p.since < PENDING_TIMEOUT_MS && !isSettled(p, states, packages));
+  const updating = updatingSince != null && now - updatingSince < PENDING_TIMEOUT_MS;
   return live || updating ? ADOPTION_POLL_MS : false;
+}
+
+/** Remembers when the installed state last changed, so "still changing" can be bounded in time. */
+export function createChangeTracker() {
+  let signature: string | null = null;
+  let at = 0;
+  return {
+    /** Feed every look; returns the time of the most recent change (the first look counts as one). */
+    observe(states: WorkerPackageState[] | undefined, now: number): number {
+      const s = installedSignature(states);
+      if (signature === null || s !== signature) { signature = s; at = now; }
+      return at;
+    },
+  };
 }
 
 /** A fingerprint of what every worker has installed; it changes when any worker adopts, drops or fails a package. */

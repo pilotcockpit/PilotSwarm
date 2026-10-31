@@ -6,7 +6,7 @@ vi.hoisted(() => { (globalThis as any).window = globalThis; });
 
 import { render, act } from "@/test/render";
 import { Providers, newClient, stubSource } from "@/test/harness";
-import { ADOPTION_POLL_MS, PENDING_TIMEOUT_MS, evaluatePending, markPending, pendingList, pollInterval, resetPending } from "./adoption";
+import { ADOPTION_POLL_MS, PENDING_TIMEOUT_MS, createChangeTracker, evaluatePending, markPending, pendingList, pollInterval, resetPending, subscribePending } from "./adoption";
 import { useWorkerPackageState, type PackageSummary, type WorkerPackageState } from "./packages";
 
 const T0 = 1_000_000;
@@ -15,13 +15,15 @@ const worker = (id: string, installed: WorkerPackageState["installed"] = {}): Wo
 const has = (semver = "1.0.0") => ({ "ops-toolkit": { semver, sha256: `sha-${semver}`, status: "ok" } });
 const waitingFor = () => markPending({ name: "ops-toolkit", scope: "shared", semver: "1.0.0" }, T0);
 
-beforeEach(() => resetPending());
+// The store prunes against the clock, so the clock is fixed at T0 for the pure checks.
+beforeEach(() => { vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] }); vi.setSystemTime(T0); resetPending(); });
+afterEach(() => { vi.useRealTimers(); resetPending(); });
 
 describe("waiting for workers to pick up a package", () => {
   it("first publication: polls even though no worker lists the package yet", () => {
     waitingFor();
     const states = [worker("w1"), worker("w2")];                      // installed: {} everywhere
-    expect(pollInterval(pendingList(), states, [pkg], false, T0 + 1_000)).toBe(ADOPTION_POLL_MS);
+    expect(pollInterval(pendingList(), states, [pkg], null, T0 + 1_000)).toBe(ADOPTION_POLL_MS);
     expect(evaluatePending(pendingList(), states, [pkg], T0 + 1_000)).toMatchObject({ done: [], expired: [], waiting: [expect.anything()] });
   });
   it("stays waiting until EVERY worker has the version, then is done", () => {
@@ -30,7 +32,7 @@ describe("waiting for workers to pick up a package", () => {
     expect(evaluatePending(pendingList(), half, [pkg], T0 + 5_000).done).toHaveLength(0);
     const all = [worker("w1", has()), worker("w2", has())];
     expect(evaluatePending(pendingList(), all, [pkg], T0 + 10_000).done).toHaveLength(1);
-    expect(pollInterval(pendingList(), all, [pkg], false, T0 + 10_000)).toBe(false);
+    expect(pollInterval(pendingList(), all, [pkg], null, T0 + 10_000)).toBe(false);
   });
   it("a worker that reports the package as failed counts as settled", () => {
     waitingFor();
@@ -53,25 +55,61 @@ describe("waiting for workers to pick up a package", () => {
     waitingFor();
     const states = [worker("w1")];
     const late = T0 + PENDING_TIMEOUT_MS;
-    expect(pollInterval(pendingList(), states, [pkg], false, late - 1)).toBe(ADOPTION_POLL_MS);
-    expect(pollInterval(pendingList(), states, [pkg], false, late)).toBe(false);
+    expect(pollInterval(pendingList(), states, [pkg], null, late - 1)).toBe(ADOPTION_POLL_MS);
+    expect(pollInterval(pendingList(), states, [pkg], null, late)).toBe(false);
     const r = evaluatePending(pendingList(), states, [pkg], late);
     expect(r.expired).toHaveLength(1);
     expect(r.done).toHaveLength(0);
   });
   it("does not poll when nothing is pending, and no update is in flight", () => {
-    expect(pollInterval([], [worker("w1", has())], [pkg], false, T0)).toBe(false);
-    expect(pollInterval([], undefined, undefined, false, T0)).toBe(false);
+    expect(pollInterval([], [worker("w1", has())], [pkg], null, T0)).toBe(false);
+    expect(pollInterval([], undefined, undefined, null, T0)).toBe(false);
   });
   it("still polls while workers disagree about a version that was not published from here", () => {
-    expect(pollInterval([], [worker("w1", has()), worker("w2", has("0.9.0"))], [pkg], true, T0)).toBe(ADOPTION_POLL_MS);
+    expect(pollInterval([], [worker("w1", has()), worker("w2", has("0.9.0"))], [pkg], T0, T0)).toBe(ADOPTION_POLL_MS);
+  });
+});
+
+describe("a partly adopted package", () => {
+  it("stops polling after the timeout window instead of polling forever, and restarts it on a real change", () => {
+    const tracker = createChangeTracker();
+    const partial = [worker("w1", has()), worker("w2")];            // one worker has it, one never will
+    const changedAt = tracker.observe(partial, T0);                  // first look
+    expect(pollInterval([], partial, [pkg], changedAt, T0 + 60_000)).toBe(ADOPTION_POLL_MS);
+    expect(tracker.observe(partial, T0 + 100_000)).toBe(T0);          // nothing changed: the window keeps counting from T0
+    expect(pollInterval([], partial, [pkg], T0, T0 + PENDING_TIMEOUT_MS)).toBe(false);
+    // A genuine change (the other worker installs something else) starts a new window.
+    const moved = [worker("w1", has()), worker("w2", has("0.9.0"))];
+    const again = tracker.observe(moved, T0 + PENDING_TIMEOUT_MS + 1_000);
+    expect(again).toBe(T0 + PENDING_TIMEOUT_MS + 1_000);
+    expect(pollInterval([], moved, [pkg], again, T0 + PENDING_TIMEOUT_MS + 61_000)).toBe(ADOPTION_POLL_MS);
+  });
+});
+
+describe("pending entries without any mounted hook", () => {
+  it("expire on their own deadline: gone after four minutes even though nothing ever read them", () => {
+    let told = 0;
+    const off = subscribePending(() => { told += 1; });
+    waitingFor();                                                    // published, then the page was left: no hook is mounted
+    const before = told;
+    vi.advanceTimersByTime(4 * 60_000);
+    expect(told).toBeGreaterThan(before);                            // the timer itself pruned it and told listeners
+    expect(pendingList()).toHaveLength(0);
+    off();
+  });
+  it("are also pruned lazily on the next read, add or subscribe, with no timer at all", () => {
+    waitingFor();
+    expect(pendingList(T0 + PENDING_TIMEOUT_MS - 1)).toHaveLength(1);
+    expect(pendingList(T0 + PENDING_TIMEOUT_MS)).toHaveLength(0);
+    markPending({ name: "other", scope: "shared", semver: "1.0.0" }, T0 + 5);
+    markPending({ name: "third", scope: "shared", semver: "1.0.0" }, T0 + PENDING_TIMEOUT_MS + 10);   // adding prunes the old one
+    expect(pendingList(T0 + PENDING_TIMEOUT_MS + 10).map((p) => p.name)).toEqual(["third"]);
   });
 });
 
 // ── the real hook, over time ────────────────────────────────────────────────────────────────────
 describe("useWorkerPackageState", () => {
-  beforeEach(() => { vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] }); vi.setSystemTime(T0); });
-  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => { vi.useRealTimers(); vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] }); vi.setSystemTime(T0); resetPending(); });
   const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 
   it("first publication: keeps looking until workers have it, refreshes agents once, then stops looking", async () => {
@@ -115,6 +153,19 @@ describe("useWorkerPackageState", () => {
     const n = calls.length;
     await advance(ADOPTION_POLL_MS * 6);
     expect(calls.length).toBe(n);
+    await r.unmount();
+  });
+
+  it("partial adoption: stops looking once the window has passed", async () => {
+    const { source, calls } = stubSource({ listAgentWorkerState: [worker("w1", has()), worker("w2")] });   // one worker never gets it
+    function Probe() { useWorkerPackageState(true, [pkg]); return null; }
+    const r = await render(<Providers source={source}><Probe /></Providers>);
+    await advance(10);
+    await advance(PENDING_TIMEOUT_MS + ADOPTION_POLL_MS);           // the window is over
+    const after = calls.filter((c) => c.op === "listAgentWorkerState").length;
+    expect(after).toBeGreaterThan(2);                                // it did look while the window was open
+    await advance(60_000);                                            // another minute: no more reads
+    expect(calls.filter((c) => c.op === "listAgentWorkerState")).toHaveLength(after);
     await r.unmount();
   });
 

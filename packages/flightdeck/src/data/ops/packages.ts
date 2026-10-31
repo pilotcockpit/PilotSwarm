@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizePackageFile, type PackageFileView } from "./contracts";
-import { ADOPTION_POLL_MS, clearPending, evaluatePending, installedSignature, markPending, pendingKey, pollInterval, updateInProgress, usePending } from "./adoption";
+import { ADOPTION_POLL_MS, clearPending, createChangeTracker, evaluatePending, installedSignature, markPending, pendingKey, pollInterval, subscribeExpired, updateInProgress, usePending } from "./adoption";
 export { ADOPTION_POLL_MS } from "./adoption";
 import { useSource } from "@/data/source";
 import { useOpMutation, useOpQuery, useOpRequest, type OpRequest } from "@/data/ops/use-op";
@@ -138,11 +138,16 @@ export function useWorkerPackageState(enabled: boolean, packages?: PackageSummar
   packagesRef.current = packages;
   const pendingRef = React.useRef(pending);
   pendingRef.current = pending;
+  const tracker = React.useRef(createChangeTracker());
   const [tick, setTick] = React.useState(0);
   const query = useOpQuery<WorkerPackageState[]>(["packages", "workers"], "listAgentWorkerState", {}, {
     enabled,
     staleTime: 15_000,
-    refetchInterval: (q) => pollInterval(pendingRef.current, q.state.data, packagesRef.current, adoptionInProgress(packagesRef.current, q.state.data), Date.now()),
+    refetchInterval: (q) => {
+      const now = Date.now();
+      const changedAt = tracker.current.observe(q.state.data, now);
+      return pollInterval(pendingRef.current, q.state.data, packagesRef.current, adoptionInProgress(packagesRef.current, q.state.data) ? changedAt : null, now);
+    },
     select: (raw) => list<WorkerPackageState>(raw, "workers").concat(Array.isArray(raw) ? [] : list<WorkerPackageState>(raw, "rows")).map((r) => ({ ...r, installed: (r.installed || {}) as WorkerPackageState["installed"] })),
   });
 
@@ -172,6 +177,9 @@ export function useWorkerPackageState(enabled: boolean, packages?: PackageSummar
       void qc.invalidateQueries({ queryKey: ["agents"] });
     }
   }, [pending, query.dataUpdatedAt, packages, enabled, tick]);
+
+  // A wait that timed out on its own: look at the agents once more before giving up.
+  React.useEffect(() => subscribeExpired(() => void qc.invalidateQueries({ queryKey: ["agents"] })), [qc]);
 
   // Any worker adopting, dropping or failing a package changes what agents exist.
   const signature = installedSignature(query.data);
