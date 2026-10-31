@@ -241,7 +241,7 @@ export function createDemoSource(): DataSource {
   published.clear();
   extendDemoHook("artifacts", {
     /** Publish a document into a session as its newest output. `size` overrides the metadata (null: unknown). */
-    publish(sessionId: string, doc: { filename: string; content: string; size?: number | null }) {
+    publishArtifact(sessionId: string, doc: { filename: string; content: string; size?: number | null }) {
       const list = (published.get(sessionId) || []).filter((f) => f.filename !== doc.filename);
       const size = doc.size === null ? undefined : doc.size ?? new TextEncoder().encode(doc.content).length;
       list.push({ filename: doc.filename, contentType: "text/html", updatedAt: Date.now() + 60_000, content: doc.content, ...(size === undefined ? {} : { size }) });

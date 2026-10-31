@@ -102,3 +102,20 @@ describe("Undo in a toast (no dialog open)", () => {
     expect(toasts.calls.some((c) => c.kind === "error")).toBe(true);
   });
 });
+
+describe("Undo races", () => {
+  it("abandons an older restore whose guard was still reading when a newer action registered", async () => {
+    const r = await render(<DialogUndoHost />);
+    const a = vi.fn(), b = vi.fn();
+    let release!: (ok: boolean) => void;
+    const slowGuard = () => new Promise<boolean>((res) => { release = res; });
+    await act(() => notifyUndo("Pinned 1.3.2", a, { resource: "pin:race", guard: slowGuard }));
+    await click(r); // the guard is now waiting on its read
+    await act(() => notifyUndo("Pinned 1.3.0", b, { resource: "pin:race" }));
+    release(true); // the older read answers "still fresh", too late
+    await r.flush();
+    expect(a).not.toHaveBeenCalled();
+    expect(toasts.calls.some((c) => c.kind === "error" && c.arg.message === STALE_UNDO_MESSAGE)).toBe(true);
+    await r.unmount();
+  });
+});

@@ -49,12 +49,19 @@ const hosts: Host[] = [];
 let seq = 0;
 /** One live undo per resource, whichever channel (toast or in-dialog) shows it. */
 const live = new Map<string, { token: number; retire: () => void }>();
+/**
+ * How many undos have been registered for a resource. An Undo pressed while its guard is still reading
+ * remembers the number it saw; if a newer action registered meanwhile, the number moved and the older
+ * restore is abandoned even though its guard answered "still fresh" (that answer is already history).
+ */
+const generation = new Map<string, number>();
 
 function claim(resource: string | undefined, retire: () => void): number {
   const token = ++seq;
   if (resource) {
     live.get(resource)?.retire();
     live.set(resource, { token, retire });
+    generation.set(resource, (generation.get(resource) ?? 0) + 1);
   }
   return token;
 }
@@ -63,12 +70,15 @@ function release(resource: string | undefined, token: number) {
 }
 
 /** The action actually run on Undo: guarded when the caller supplied a guard. */
-function guarded(onUndo: () => void, guard?: UndoOptions["guard"]) {
+function guarded(onUndo: () => void, guard?: UndoOptions["guard"], resource?: string) {
   if (!guard) return onUndo;
   return () => {
     void (async () => {
+      const seen = resource ? generation.get(resource) ?? 0 : 0;
       let ok = false;
       try { ok = await guard(); } catch { ok = false; }
+      // A newer action registered while the guard was reading: this restore would overwrite it.
+      if (ok && resource && (generation.get(resource) ?? 0) !== seen) ok = false;
       if (ok) onUndo(); else toast.error(STALE_UNDO_MESSAGE);
     })();
   };
@@ -88,7 +98,7 @@ function toastUndo({ message, description, duration, resource, run }: { message:
 
 export function notifyUndo(message: string, onUndo: () => void, opts?: UndoOptions) {
   const duration = opts?.duration ?? UNDO_MS;
-  const run = guarded(onUndo, opts?.guard);
+  const run = guarded(onUndo, opts?.guard, opts?.resource);
   const host = hosts[hosts.length - 1];
   if (host) {
     host.show({ message, description: opts?.description, onUndo: run, duration, resource: opts?.resource });

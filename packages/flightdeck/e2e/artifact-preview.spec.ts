@@ -40,7 +40,7 @@ async function publish(page: Page, doc: { filename: string; content: string; siz
   await page.evaluate(({ filename, content, size, padKb }) => {
     const h = (window as any).__fdDemo;
     const pad = padKb ? `<!--${"x".repeat(padKb * 1024)}-->` : "";
-    h.artifacts.publish("a1f0c2d4-0001-4c00-9000-000000000001", { filename, content: content + pad, ...(size === undefined ? {} : { size }) });
+    h.artifacts.publishArtifact("a1f0c2d4-0001-4c00-9000-000000000001", { filename, content: content + pad, ...(size === undefined ? {} : { size }) });
     return h.invalidate(["artifacts"]);
   }, doc);
 }
