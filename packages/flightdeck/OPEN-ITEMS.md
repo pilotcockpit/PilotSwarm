@@ -70,3 +70,28 @@ Still open:
 `packages/flightdeck/e2e/` runs the Vite dev server on port 5181 (not 5180) and drives the demo data.
 See README, "End-to-end tests". It already found and fixed real defects; the list is in the commit
 that added it.
+
+## Handoff: review of the e2e suite (REJECT at 0f11b8bd, not yet addressed)
+
+An independent read-only review of the Playwright suite found these. None are fixed yet. Verify
+the suite still passes first (`npm run test:e2e`, about 2 minutes, 288 tests), then fix:
+
+1. **Hard-delete test does not guard the execution boundary** (`e2e/knowledge.spec.ts`). An early
+   `restart.mutate` before the confirmation would pass because the demo op deletes nothing. Add a
+   call log to the dev-only demo hook (`window.__fdDemo`) and assert zero `restartSystemSession`
+   calls before confirm and after cancel, exactly one with the right params after the name is
+   typed. Apply the same call-count check to force purge, namespace delete, prune and embedder stop.
+2. **Weak assertions**: gentle restart (`/restart/i` matches static page text; assert the exact
+   result toast), default-model explanation (assert model, provider and source together in the
+   card), diff (assert distinct added and removed lines), provider removal (assert the exact
+   waiting-session count). Scan the suite for the same pattern.
+3. **Undo is not keyboard-reachable while a sheet is open**: Radix's modal focus trap redirects focus
+   away from the external toaster. Render the Undo inside the open dialog (status region, Tab
+   reachable, same 8 s window) and add keyboard specs.
+4. **`window.__fdDemo` is installed in dev even with `?data=live`**: install it only for the demo
+   source and only when `import.meta.env.DEV`; add a spec for the live case and a check that the
+   production build contains no `__fdDemo`, `writeBehind` or `bumpRevision`.
+5. **Config**: add one run without `reducedMotion` (desktop, light, a11y smoke); do not raise
+   timeouts to hide slowness.
+
+Run the matching mutation for each fix and confirm the spec fails before restoring.
