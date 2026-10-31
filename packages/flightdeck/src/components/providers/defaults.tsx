@@ -10,6 +10,7 @@ import { useClearSystemAgentModel, useModelDefaults, useSetDefault, useSetSystem
 import { useProfile, useSessions } from "@/data/source";
 import type { Model } from "@/data/types";
 import { cn } from "@/lib/utils";
+import { notifyUndo } from "@/lib/undo";
 
 const SOURCE_WORD: Record<Effective["source"], string> = {
   user_default: "your default",
@@ -65,7 +66,7 @@ function DefaultCard({ title, description, slot, scope, canEdit, inheritLabel, m
     const m = models.find((x) => x.qualifiedName === next.model);
     try {
       await set.mutateAsync({ scope, provider: m?.providerId ?? null, model: next.model || null, reasoningEffort: next.model ? next.reasoning ?? m?.defaultReasoningEffort ?? null : null, contextTier: null, restartSystemSessions: scope === "system" && restart });
-      toast.success(message, { action: { label: "Undo", onClick: () => void set.mutateAsync({ scope, provider: prev.provider, model: prev.model, reasoningEffort: prev.reasoning, contextTier: prev.context }) } });
+      notifyUndo(message, () => void set.mutateAsync({ scope, provider: prev.provider, model: prev.model, reasoningEffort: prev.reasoning, contextTier: prev.context }));
     } catch { /* toasted */ }
   };
 

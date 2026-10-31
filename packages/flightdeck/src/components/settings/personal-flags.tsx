@@ -1,10 +1,10 @@
 import * as React from "react";
-import { toast } from "sonner";
 import { EmptyState, Panel, SectionTitle } from "@/components/empty";
 import { Skeleton, Tag } from "@/components/ui/misc";
 import { Segmented } from "@/components/ui/tabs";
 import { clusterPolicy, groupFlags, useFlagMutation, useMyFlags, type FlagView, type FlagsData } from "@/data/ops/flags";
 import { cn } from "@/lib/utils";
+import { notifyUndo } from "@/lib/undo";
 
 type Target = { kind: "me" } | { kind: "user"; userId: number };
 type Choice = "inherit" | "on" | "off";
@@ -65,10 +65,7 @@ function PersonalRow({ flag, target, who }: { flag: FlagView; target: Target; wh
     const writtenTo = target;
     const revision = await apply(next, flag.revision, writtenTo);
     if (!revision) return;
-    toast(`${flag.displayName}: ${next === "inherit" ? `back to the default (${onOff(policy.enabled)})` : onOff(next === "on")} for ${who}`, {
-      duration: 8000,
-      action: { label: "Undo", onClick: () => void apply(before, revision, writtenTo) },
-    });
+    notifyUndo(`${flag.displayName}: ${next === "inherit" ? `back to the default (${onOff(policy.enabled)})` : onOff(next === "on")} for ${who}`, () => void apply(before, revision, writtenTo));
   };
 
   let status: React.ReactNode;

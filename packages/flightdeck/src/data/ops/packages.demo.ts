@@ -1,4 +1,5 @@
 import { callDemoOp, registerDemoOps } from "./registry";
+import type { Agent } from "@/data/types";
 
 // Demo fixtures for agent packages: enough variety (shared and private copies, a disabled one, a copy
 // that shadows a shared name, editors, a worker that lags) to exercise every flow without a backend.
@@ -80,7 +81,24 @@ const need = (p: any) => {
   return pkg;
 };
 const active = (p: Pkg) => p.versions.find((v) => v.versionId === p.activeVersionId) ?? p.versions[0];
-const summary = (p: Pkg) => ({ packageId: p.packageId, name: p.name, scope: p.scope, owner: p.owner, enabled: p.enabled, shadowed: Boolean(p.shadowed), canEdit: true, createdAt: p.versions.at(-1)?.createdAt, active: active(p) });
+const shadowed = (p: Pkg) => p.scope === "shared" && store.some((other) => other.scope === "user" && other.owner.subject === me.subject && other.enabled && other.name === p.name);
+const summary = (p: Pkg) => ({ packageId: p.packageId, name: p.name, scope: p.scope, owner: p.owner, enabled: p.enabled, shadowed: shadowed(p), canEdit: true, createdAt: p.versions.at(-1)?.createdAt, active: active(p) });
+
+/** Mirror the SDK's creatable catalog as fixture versions/availability change.
+ * This parser is fixture-only; production eligibility always comes from the API.
+ */
+export function demoPackageAgents(): Agent[] {
+  const field = (text: string, name: string) => text.match(new RegExp(`^${name}:\\s*(.+)$`, "m"))?.[1]?.trim().replace(/^["']|["']$/g, "");
+  return store.filter((p) => p.enabled && !shadowed(p) && (p.scope === "shared" || p.owner.subject === me.subject)).flatMap((p) =>
+    Object.entries(p.files).filter(([path]) => /^agents\/.*\.agent\.md$/.test(path)).flatMap(([, content]) => {
+      const name = field(content, "name");
+      if (!name) return [];
+      const tools = field(content, "tools")?.replace(/^\[|\]$/g, "").split(",").map((t) => t.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
+      return [{ name, ...(field(content, "title") ? { title: field(content, "title") } : {}), description: field(content, "description"), tools,
+        source: "package", packageName: p.name, package: `${p.name} ${active(p).semver}`, packageSemver: active(p).semver,
+        scope: p.scope, mine: p.owner.subject === me.subject }];
+    }));
+}
 
 registerDemoOps(import.meta.url, {
   listAgentPackages: () => store.map(summary),

@@ -177,7 +177,7 @@ function Namespaces() {
       {isLoading ? <Skeleton className="h-32" /> : (
         <Panel enter>
           {data?.length ? data.map((n) => (
-            <div key={n.namespace} className={cn("flex items-start gap-3 border-t border-line-subtle px-4 py-3 first:border-t-0", n.archived && "opacity-70")}>
+            <div key={n.namespace} className="flex items-start gap-3 border-t border-line-subtle px-4 py-3 first:border-t-0">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium">{n.frontmatter?.name || n.namespace}</span>

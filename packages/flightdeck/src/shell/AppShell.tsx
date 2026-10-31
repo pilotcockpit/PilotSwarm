@@ -333,7 +333,10 @@ function ShellInner({ children }: { children: React.ReactNode }) {
       <Toaster
         // Undo and Retry live in toasts: 4s (the library default) is too short to read and reach them (WCAG 2.2.1).
         duration={8000}
-        position={phone ? "top-center" : "bottom-right"}
+        // Phones: above the bottom bar, not over the top bar. A toast on top covers the title, search and the
+        // session menu for its whole 8 seconds, so you cannot reach them.
+        position={phone ? "bottom-center" : "bottom-right"}
+        mobileOffset={{ bottom: "calc(72px + env(safe-area-inset-bottom, 0px))", left: 12, right: 12 }}
         toastOptions={{ className: "!bg-overlay !text-fg !border-line !rounded-pane !shadow-pop !font-sans !text-sm" }}
       />
     </div>

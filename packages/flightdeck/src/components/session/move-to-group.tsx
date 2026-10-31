@@ -2,11 +2,11 @@ import * as React from "react";
 import { Command } from "cmdk";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, FolderMinus, FolderPlus, Folders } from "lucide-react";
-import { toast } from "sonner";
 import type { Session } from "@/data/types";
 import { useCreateGroup, useGroupOptions, usePlaceInGroup } from "@/data/ops/groups";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { notifyUndo } from "@/lib/undo";
 
 /** Which group a session sits in right now: this tab's own placement first, then what the list says. */
 export function useCurrentGroupId(session: Session): string | null {
@@ -39,10 +39,7 @@ export function MoveToGroupDialog({ session, open, onOpenChange }: { session: Se
       onSuccess: () => {
         qc.setQueryData(["groups", "placement", session.sessionId], groupId);
         onOpenChange(false);
-        toast.success(groupId ? `Moved to ${name}` : "Removed from its group", {
-          description: session.title,
-          action: { label: "Undo", onClick: () => place.mutate({ groupId: previous, sessionIds: [session.sessionId] }, { onSuccess: () => qc.setQueryData(["groups", "placement", session.sessionId], previous) }) },
-        });
+        notifyUndo(groupId ? `Moved to ${name}` : "Removed from its group", () => place.mutate({ groupId: previous, sessionIds: [session.sessionId] }, { onSuccess: () => qc.setQueryData(["groups", "placement", session.sessionId], previous) }), { description: session.title });
       },
     });
   };

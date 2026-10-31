@@ -1,3 +1,4 @@
+import { recordDemoCall } from "./demo-hook";
 // Demo-mode handlers for Web API operations that have no typed method on DataSource.
 // An area registers its own fixtures from a `<area>.demo.ts` file in this folder; index.ts
 // loads every one, so areas never edit a shared list. One file owns each operation: a second
@@ -19,6 +20,7 @@ export function registerDemoOps(owner: string, ops: Record<string, Handler>) {
 }
 
 export async function callDemoOp(op: string, params?: Record<string, unknown>) {
+  recordDemoCall(op, params);
   const entry = handlers.get(op);
   await new Promise((r) => window.setTimeout(r, 120));
   if (!entry) throw new Error(`${op} is not part of the demo data. Switch to live data to use it.`);

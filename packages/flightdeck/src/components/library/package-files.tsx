@@ -59,10 +59,10 @@ export function PackageFiles({ pkg, semver, profile }: { pkg: PackageSummary; se
   if (tree.isError) return <p role="alert" className="text-sm text-failed">The files could not be read: {(tree.error as Error)?.message}</p>;
   return (
     <div className="grid gap-3 md:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]">
-      <ul aria-label="Package files" className="rounded-pane border border-line p-1 md:max-h-72 md:overflow-y-auto">{nodes.map((n) => row(n, 0))}</ul>
+      <ul aria-label="Package files" tabIndex={0} className="rounded-pane border border-line p-1 md:max-h-72 md:overflow-y-auto">{nodes.map((n) => row(n, 0))}</ul>
       <div className="min-w-0 rounded-pane border border-line">
         <p className="truncate border-b border-line px-3 py-1.5 font-mono text-xs text-muted">{file ?? "No file selected"}</p>
-        <div className="max-h-72 overflow-auto p-3">
+        <div tabIndex={0} role="region" aria-label="File preview (scrolls)" className="max-h-72 overflow-auto p-3">
           {preview.isLoading ? <Skeleton className="h-24" /> : preview.isError ? <p className="text-sm text-failed">This file could not be read.</p> : preview.data?.binary ? <p className="text-sm text-muted">This is a binary file, so there is no preview.</p> : file && /\.md$/i.test(file) ? <Markdown text={preview.data?.text ?? ""} /> : <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-5">{preview.data?.text ?? ""}</pre>}
           {preview.data?.truncated ? <p className="mt-2 text-xs text-muted">Showing the first 256 KB.</p> : null}
         </div>

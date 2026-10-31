@@ -48,7 +48,7 @@ export function PackagesTab({ query, profile, onOpen, onAdd, onDropped }: {
   const mineCount = all.filter((p) => p.scope === "user" && packageRights(p, profile).mine).length;
   const counts: Record<Filter, number> = { all: all.length, shared: all.filter((p) => p.scope === "shared").length, mine: mineCount, off: all.filter((p) => !p.enabled).length };
   const rows = all
-    .filter((p) => filter === "all" || (filter === "shared" && p.scope === "shared") || (filter === "mine" && p.scope === "user") || (filter === "off" && !p.enabled))
+    .filter((p) => filter === "all" || (filter === "shared" && p.scope === "shared") || (filter === "mine" && p.scope === "user" && packageRights(p, profile).mine) || (filter === "off" && !p.enabled))
     .filter((p) => !q || [p.name, p.active?.manifest?.description, p.owner?.displayName].join(" ").toLowerCase().includes(q))
     .sort((a, b) => Number(!a.enabled) - Number(!b.enabled) || a.name.localeCompare(b.name));
   const sharedNames = new Set(all.filter((p) => p.scope === "shared").map((p) => p.name));

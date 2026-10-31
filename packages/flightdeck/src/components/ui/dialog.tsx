@@ -3,6 +3,7 @@ import { Dialog as D } from "radix-ui";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createFocusReturn } from "./focus-return";
+import { DialogUndoHost } from "@/lib/undo";
 
 // One dialog primitive: role, label, focus trap, focus return and Esc come
 // from Radix. Sheets are the same primitive anchored to the right edge.
@@ -19,11 +20,12 @@ export function DialogContent({
   description,
   side = "center",
   hideClose = false,
+  undoHost = true,
   onCloseAutoFocus,
   onPointerDownOutside,
   onInteractOutside,
   ...props
-}: Omit<React.ComponentProps<typeof D.Content>, "title"> & { title: React.ReactNode; description?: React.ReactNode; side?: "center" | "right"; hideClose?: boolean }) {
+}: Omit<React.ComponentProps<typeof D.Content>, "title"> & { title: React.ReactNode; description?: React.ReactNode; side?: "center" | "right"; hideClose?: boolean; undoHost?: boolean }) {
   // Most dialogs here are opened from code (a menu item, a button's handler), with no Trigger for Radix
   // to hand focus back to. The tracker remembers what had focus when the content MOUNTED (the moment the
   // dialog opens, not when this component first renders closed) and returns it on close.
@@ -64,6 +66,7 @@ export function DialogContent({
           )}
         </div>
         {children}
+        <DialogUndoHost enabled={undoHost} />
       </D.Content>
     </D.Portal>
   );

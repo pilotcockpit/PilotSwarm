@@ -1,10 +1,10 @@
 import * as React from "react";
 import { Search, UserMinus } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { initials } from "@/lib/utils";
 import { isSamePerson, type PackageEditor, type Principal, useKnownUsers } from "@/data/ops/packages";
+import { notifyUndo } from "@/lib/undo";
 
 const label = (p: Principal) => p.displayName || p.email || p.subject || "Unknown";
 
@@ -36,7 +36,7 @@ export function PackageEditors({ editors, owner, canManage, onGrant, onRevoke }:
   const remove = async (u: Principal) => {
     try {
       await onRevoke(u);
-      toast(`${label(u)} can no longer publish`, { action: { label: "Undo", onClick: () => void onGrant(u) } });
+      notifyUndo(`${label(u)} can no longer publish`, () => void onGrant(u));
     } catch { /* reported */ }
   };
 

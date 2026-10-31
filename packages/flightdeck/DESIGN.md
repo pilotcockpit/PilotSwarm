@@ -1,222 +1,391 @@
 ---
 name: Flight Deck
-description: An operator's instrument panel for durable agents. Quiet neutral chrome; colour means agent state and nothing else.
+description: A workbench for durable agent work, with shared operational controls.
 colors:
-  light:
-    bg: "#f6f7f8"
-    surface: "#ffffff"
-    raised: "#eff1f3"
-    overlay: "#ffffff"
-    line: "#e3e5e8"
-    line-subtle: "#eef0f2"
-    line-strong: "#858b94"
-    fg: "#111214"
-    muted: "#565a61"
-    faint: "#62666d"
-    accent: "#1a5fcc"
-    needs: "#6b3fc2"
-    live: "#09705f"
-    waiting: "#855607"
-    failed: "#b8293a"
-    ok: "#1a6e46"
-  dark:
-    bg: "#0e0f11"
-    surface: "#141518"
-    raised: "#1b1c20"
-    overlay: "#202126"
-    line: "#26272c"
-    line-subtle: "#1d1e22"
-    line-strong: "#64666f"
-    fg: "#ececee"
-    muted: "#b3b5bd"
-    faint: "#9a9ca5"
-    accent: "#5c9dff"
-    needs: "#b497ff"
-    live: "#3ec7b0"
-    waiting: "#e2a93b"
-    failed: "#f2666f"
-    ok: "#57c785"
+  bg: "#f6f7f8"
+  surface: "#ffffff"
+  raised: "#eff1f3"
+  overlay: "#ffffff"
+  line: "#e3e5e8"
+  line-subtle: "#eef0f2"
+  line-strong: "#858b94"
+  fg: "#111214"
+  muted: "#565a61"
+  faint: "#62666d"
+  accent: "#1a5fcc"
+  accent-fg: "#ffffff"
+  live: "#09705f"
+  waiting: "#855607"
+  failed: "#b8293a"
+  ok: "#1a6e46"
+  needs: "#6b3fc2"
+  dark-bg: "#0e0f11"
+  dark-surface: "#141518"
+  dark-raised: "#1b1c20"
+  dark-overlay: "#202126"
+  dark-line: "#26272c"
+  dark-line-subtle: "#1d1e22"
+  dark-line-strong: "#64666f"
+  dark-fg: "#ececee"
+  dark-muted: "#b3b5bd"
+  dark-faint: "#9a9ca5"
+  dark-accent: "#5c9dff"
+  dark-accent-fg: "#0b1220"
+  dark-live: "#3ec7b0"
+  dark-waiting: "#e2a93b"
+  dark-failed: "#f2666f"
+  dark-ok: "#57c785"
+  dark-needs: "#b497ff"
 typography:
-  family: "Recursive Variable (sans voice MONO 0, mono voice MONO 1)"
-  xs: "12/16"
-  sm: "13/20"
-  base: "14/22"
-  prose: "15/24"
-  lg: "18/24"
-  xl: "22/28"
+  display:
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+    fontSize: "28px"
+    fontWeight: 600
+    lineHeight: "36px"
+  featured-title:
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+    fontSize: "22px"
+    fontWeight: 600
+    lineHeight: "28px"
+  work-title:
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+    fontSize: "18px"
+    fontWeight: 600
+    lineHeight: "24px"
+  featured-question:
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+    fontSize: "18px"
+    fontWeight: 400
+    lineHeight: 1.625
+  prose:
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+    fontSize: "15px"
+    fontWeight: 400
+    lineHeight: "24px"
+  body:
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: "22px"
+  label:
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+    fontSize: "13px"
+    fontWeight: 500
+    lineHeight: "20px"
+  metadata:
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: "16px"
+  code:
+    fontFamily: "\"Recursive Variable\", ui-monospace, \"SF Mono\", Menlo, monospace"
+    fontSize: "12.5px"
+    lineHeight: "18px"
+    fontVariation: "\"MONO\" 1, \"CASL\" 0"
 rounded:
   chip: "4px"
   control: "6px"
   pane: "8px"
   dialog: "10px"
+  work: "14px"
 spacing:
   base: "4px"
-  density: "Compact (default) row 30 / control 30 / body 13; Comfortable row 36 / control 32 / body 14"
-motion:
-  fast: "120ms"
-  base: "180ms"
-  slow: "260ms"
-  ease-out: "cubic-bezier(0.2, 0, 0, 1)"
-  emphasized: "cubic-bezier(0.16, 1, 0.3, 1)"
+  sm: "8px"
+  footer-block: "12px"
+  md: "16px"
+  work-body: "20px"
+  featured-body: "24px"
+  desktop-gutter: "28px"
+  section: "32px"
+components:
+  button-primary:
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.accent-fg}"
+    typography: "{typography.label}"
+    rounded: "{rounded.control}"
+    padding: "0 10px"
+    height: "30px"
+  button-default:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.fg}"
+    typography: "{typography.label}"
+    rounded: "{rounded.control}"
+    padding: "0 10px"
+    height: "30px"
+  button-quiet:
+    textColor: "{colors.muted}"
+    typography: "{typography.label}"
+    rounded: "{rounded.control}"
+    padding: "0 10px"
+    height: "30px"
+  button-danger:
+    textColor: "{colors.failed}"
+    typography: "{typography.label}"
+    rounded: "{rounded.control}"
+    padding: "0 10px"
+    height: "30px"
+  button-link:
+    textColor: "{colors.accent}"
+    typography: "{typography.label}"
+    rounded: "{rounded.control}"
+    padding: "0"
+    height: "24px"
+  input:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.fg}"
+    typography: "{typography.label}"
+    rounded: "{rounded.control}"
+    padding: "0 10px"
+    height: "30px"
+  chip:
+    textColor: "{colors.muted}"
+    typography: "{typography.metadata}"
+    rounded: "{rounded.control}"
+    padding: "0 10px"
+    height: "26px"
+  card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.fg}"
+    rounded: "{rounded.pane}"
+  work-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.fg}"
+    rounded: "{rounded.work}"
+    padding: "20px"
+  work-action:
+    typography: "{typography.body}"
+    rounded: "{rounded.control}"
+    padding: "6px 12px"
+    height: "36px"
 ---
 
 # Design System: Flight Deck
 
-The source of truth for tokens is [`src/styles.css`](src/styles.css). This file says what they mean and how to use them. The original rationale and research are in [`docs/proposals/ux-redesign/design-system.md`](../../docs/proposals/ux-redesign/design-system.md).
+## Overview
 
-## Workspace hierarchy
+**Creative North Star: "Work placed within reach."**
 
-The dashboard is an Operate surface. Navigation groups are Work (Overview,
-Sessions, Boards, Outputs), Build (Agent library), and Manage (Providers, Admin,
-Settings). Overview starts with the attention queue, followed by progress and
-upcoming work, then recent outputs. It keeps a stable no-attention state instead
-of silently removing the section. At phone widths, the same reading order stacks
-in one column; secondary section descriptions yield before headings do.
+Flight Deck puts durable agent work within reach: a decision to answer, a task to follow, and an output to open. Overview uses substantial work cards with readable content, bounded arrivals and an actual output that expands into a reading view. The surrounding shell remains quiet, so real work and its state carry the emphasis.
 
-Output cards show type, title, source session, freshness, and the next navigation
-affordance. Type icons are not content previews. A generated illustration belongs
-only to first-session onboarding. Charts elsewhere must use reported values with
-visible period, scope, and an accessible value list. Failed or stale reads must
-never receive a current healthy-state verdict.
+This workbench extension retains the shared semantic palette, native controls, keyboard behavior and compact operational surfaces. Sessions, provider management, tables, logs and Admin can remain dense. Large work cards describe the Overview and output-entry pattern; they are not a mandate to replace every operational row.
 
-## 1. Overview
+**Key Characteristics:**
 
-**Creative North Star: "The instrument panel."** Flight Deck is a place to supervise agents that keep working while nobody is watching. The chrome is quiet and neutral so that the one thing that changes, an agent's state, is the loudest thing on screen. Density is high but calm: rows, not tiles; tone steps, not shadows; one accent.
+- Substantial cards for decisions, recoveries, sessions and outputs.
+- Quiet semantic light and dark palettes.
+- Native sans for reading; Recursive for code and comparable strings.
+- Authentic artifact content and honest loading, stale and error states.
+- Bounded movement with a complete reduced-motion alternative.
 
-It explicitly rejects: monospace for the whole UI, ASCII boxes and bracket tags, uppercase tracked labels, rainbow accents, glow and glass, hero-metric tiles, text under 12px.
+The source of truth is [src/styles.css](src/styles.css), together with the shared
+[Card](src/components/ui/card.tsx), [WorkCard](src/components/ui/work-card.tsx)
+and component sources. The frontmatter records the light palette and explicit
+`dark-*` overrides, with the runtime semantic CSS variables selecting the theme.
+The [workbench direction](../../docs/ux-audit/2026-10-30/workbench/direction.md)
+records the authorized composition change and reference research. This document
+records the implementation; fresh visual review and owner acceptance are separate.
 
-## 2. Tokens and how they are layered
+## Colors
 
-Two tiers. Components read **only** the semantic tier.
+The palette combines cool neutral surfaces with a blue action accent and distinct
+state hues. Components consume semantic variables, never raw palette classes.
 
-| Tier | Where | Rule |
-|---|---|---|
-| Hues | `:root` and `.dark` in `styles.css` | The only place a hex value is written. |
-| Derived | `--*-tint`, `--scrim` | Computed from a hue with `color-mix`; never written by hand. `--tint` is the strength (9% light, 13% dark). |
-| Utilities | `@theme inline` | Exposes tokens to Tailwind: `bg-surface`, `text-muted`, `rounded-pane`, `shadow-lift`, `animate-enter`, `ease-emphasized`. |
-| Stacking | `--z-sticky` 40, `--z-overlay` 50, `--z-tooltip` 60, `--z-toast` 70 | Used as `z-(--z-overlay)`. Nothing else gets a z-index. |
+### Primary
 
-To change a colour, change the hue once. To add a role, add it in `:root`, `.dark` and `@theme inline` together, then document it here. Do not add a token for a single local value; if a value repeats three times with the same intent, promote it.
+- **Action blue** (`accent`, `accent-fg`): links, focus, selection and primary actions.
 
-**Guard.** `npm run tokens:check` (also run by `npm run build`) fails on raw colours, Tailwind default-palette classes (`bg-white`, `text-red-500`), colour escapes (`bg-[#fff]`), and text under 12px. Arbitrary size values (`h-[26px]`) are held to a ratchet in `scripts/token-guard.baseline.json`: the count per file may only go down. Re-baseline with `npm run tokens:check -- --update` only after review. A justified exception takes a `token-ok: <reason>` comment on the same line.
+### Secondary
 
-## 3. Colour
+- **Human-decision violet** (`needs`): the state asking for a person's answer.
+- **Running teal**, **Waiting amber**, **Failure red**, **Passed green** (`live`, `waiting`, `failed`, `ok`): operational meanings, paired with words and glyphs. Completed sessions remain neutral.
 
-**Colour means agent state and nothing else.** One accent marks selection, focus, links and the single primary action on a screen.
+### Neutral
 
-| Role | Use |
-|---|---|
-| `bg` → `surface` → `raised` → `overlay` | Layers, lowest to highest. Separate layers by a tone step first, a hairline second, a shadow last. |
-| `line-subtle` / `line` / `line-strong` | Row rules / pane and card borders / control borders (the one that must meet 3:1). |
-| `fg` / `muted` / `faint` | Text, secondary text, meta. `faint` is the floor for readable text; on a tinted surface (selected card, notice) use `muted`. |
-| `accent` | Selection, focus ring, links, primary action. Never decoration, and never a state. |
-| `needs` | Needs you, and only that. A violet of its own, because the one state that wants a person must not share a hue with links and selection. |
-| `live` / `waiting` / `failed` / `ok` | Running / waiting / failed / passed. Always paired with a glyph and a word, never colour alone. |
+- **Workspace ground / surface / raised / overlay** (`bg`, `surface`, `raised`, `overlay`): tonal depth, lowest to highest.
+- **Rules / subtle rules / control borders** (`line`, `line-subtle`, `line-strong`): separations and component boundaries. Strong control borders are the contrast-bearing edge.
+- **Primary / secondary / metadata ink** (`fg`, `muted`, `faint`): readable hierarchy. Use muted ink on tinted surfaces rather than faint.
 
-Completed sessions are neutral grey: done is not news.
+Tints derive with `color-mix` from their semantic hue: 9% in light and 13% in dark.
+They are not independent hand-tuned colors. Scrims and theme-specific shadows
+remain CSS source tokens. Add a semantic role to light, dark and Tailwind's inline
+theme together. Reuse existing roles before proposing another.
 
-## 4. Typography
+**The State Meaning Rule.** Accent marks action, selection and focus. State hues accompany a state word and glyph; they never decorate unrelated content.
 
-One variable family. Sans voice for chrome and prose; Mono voice for IDs, agent and tool names, paths, payloads, logs and every number that must line up (`tabular-nums`). Weights 400, 550, 600/650. Sentence case everywhere. Steps are the six in the frontmatter; do not write arbitrary `text-[Npx]`.
+## Typography
 
-**Mono rule.** Mono is for strings a person pastes, compares or lines up: ids, agent and tool names, paths, payloads, logs, endpoints. It is not for counts, figures, headings, tags or "technical" decoration. Section counts, stat values and token totals are sans with `tabular-nums`.
+**Display and Body Font:** Native system sans, including the platform UI face.
+**Code Font:** Recursive Variable with MONO 1 and CASL 0, then native mono fallbacks.
 
-## 5. Shape and elevation
+The native reading voice is deliberately retained across the application. Sentence
+case, normal tracking and weights 400, 500 and 600/650 keep the hierarchy clear.
+Counts use sans with tabular numerals. Text does not go below the 12px metadata floor.
 
-Radius: `chip` 4, `control` 6, `pane` 8 (cards, panels, notices), `dialog` 10. Pills only for status.
+### Hierarchy
 
-**Flat at rest.** Surfaces carry no shadow. Two shadows exist:
+- **Display:** Overview welcome, 28/36 and semibold.
+- **Featured title:** the first decision card title, 22/28 and semibold.
+- **Work title / section heading:** 18/24 and semibold; work titles use the source's `leading-snug` value (1.375) where applied.
+- **Featured question:** 18px with relaxed line height (1.625), distinct from metadata and actions.
+- **Prose:** ordinary question text, 15/24. Shared rendered prose uses 14/22 and a 72ch maximum.
+- **Body:** descriptions, recoveries and Overview actions, 14/22.
+- **Label:** compact controls, 13/20. **Metadata:** 12/16.
+- **Code:** Recursive; rendered code blocks use 12.5/18.
 
-- `shadow-pop`: things that float (menus, popovers, dialogs, toasts, the palette).
-- `shadow-lift`: the hover response of an interactive card. It never appears at rest.
+**The Reading Voice Rule.** Use native sans for headings, questions, counts and prose. Use Recursive mono for IDs, agent/tool identifiers, paths, payloads and logs.
 
-## 6. Components
+## Layout
 
-### Card (`components/ui/card.tsx`)
+Overview leads with welcome and New session, then a featured decision alongside a
+recent real output. Recovery cards, work in motion, more outputs and a quiet
+upcoming list follow. Capacity remains in the footer; system failures are an
+administrator notice. First-session onboarding is a text/work-card composition.
+There is no Overview summary metric strip or decorative hero image.
 
-The one surface recipe. Panel, notice, tile, option card and tool-call block are all `Card` or `cardVariants`. Do not hand-write `rounded-pane border border-line bg-surface`.
+The content container is capped at 1180px, with 16px phone gutters and 28px desktop
+gutters. Major sections use a 32px gap. The desktop featured pair uses a 7:5 grid
+with a 24px gap and aligns its objects at the top. The featured decision is
+content-led, with no stretching or minimum height that leaves an empty body. Work
+collections use 16px gaps and progress from one to two or three columns. Standard responsive thresholds used here are 640, 768 and 1024px.
+Phones preserve the reading order, wrap long choices and keep actions visible.
 
-| Prop | Meaning |
-|---|---|
-| `tone` | `neutral`; `failed`, `waiting`, `accent` for notices and questions. Tone carries state meaning, so do not use it for decoration. |
-| `interactive` | The whole surface is the target. Hover: stronger border and `shadow-lift`. Press: settles 1px. |
-| `selected` | A chosen option in a radio group. |
-| `clip` | Clip children to the radius (lists, tables, thumbnails). |
-| `enter` | Arrive with a short rise and fade, once, on mount. |
-| `index` | Stagger a set of cards 30ms apart, capped at eight steps. |
+Shared operational density remains compact by default: 30px rows and controls;
+comfortable mode uses 36px rows and 32px controls. Coarse pointers raise both to
+44px. This density setting does not compress WorkCard reading or answer controls.
+All surfaces must reflow at 320px and remain usable at 200% zoom.
 
-Use `Panel` (`components/empty.tsx`) for a static container of rows. Use `Stat` for a divided strip of figures, not a grid of big-number tiles.
+## Elevation & Depth
 
-Rules: no nested cards; no icon-over-heading-over-text card grids as page structure; no coloured side stripes thicker than 1px; a row inside a card is a row, not another card.
+Depth comes first from tonal layers and hairline borders. Cards are flat at rest.
+`shadow-pop` serves menus, popovers, dialogs, toasts and the command palette.
+`shadow-lift` remains an interaction response of the generic Card, with distinct
+light and dark values in CSS; it is not added to every work card.
 
-### Buttons
+**The Flat Rest Rule.** Surfaces rest without shadows. Floating controls use pop; ordinary interactive Card surfaces may use lift. WorkCard links signal reach through movement and border response.
 
-Two heights: `sm` 26 and `md` 30 (44 on coarse pointers). Variants: `primary` (one per screen, and never "New session": creating something must not outshout triage), `default`, `quiet`, `danger`, `link`. A text button is at least 24px tall; hand-rolled `<button>` recipes are not allowed, use `Button`, `Chip`, `Tabs`, `SideNavItem` or `Segmented`.
+Shared motion uses feedback at 120ms, panels at 180ms and ordinary arrivals at
+260ms. Generic Card arrival staggers by 30ms, capped at index eight. The WorkCard
+extension instead arrives once in 220ms, staggering by 25ms capped at 100ms.
+Whole-card session links lift 4px on hover or keyboard focus and settle on press;
+their directional arrow moves 2px. Link transitions are 140ms and arrow response
+is 180ms. Decision and output articles with separate controls do not hover or lift.
+The current output preview uses Inspect rather than a whole-card hover-scale
+effect. Stable React keys preserve object identity on refresh.
 
-### The pill family
+The signature interaction is the actual output opening into a reading surface.
+Native View Transitions use the single shared name `fd-output-inspection`, with
+360ms emphasized easing on the group and old/new document snapshots; root content
+does not animate. Closing reverses the relationship and returns focus to Inspect.
+The implementation waits for the document load or a 500ms bound before capturing
+the reading surface, and a revision guard prevents fast-close completion from
+clearing a newer transition's ownership. No motion dependency is added.
 
-| Component | Means | Shape |
-|---|---|---|
-| `StatePill` / `StateLine` | A session's state: glyph, word, reason. The only status pill. | Full radius, 20/24px |
-| `Tag` | Metadata that is not state: a count of sub-agents, "working", "Check". Never clickable. | 4px radius, 20px |
-| `Badge` | A count in navigation. Accent solid when it means "needs you". | Full radius, 18px |
-| `Chip` | A filter you can toggle (`aria-pressed`). | 6px radius, 26px |
-| `StateFacets` | The state filter with live counts, shared by Home, Sessions and the Fleet wall. | Chips with glyph and count |
-| `SessionChip` | A link from one session to another, with the target's state glyph. | 6px radius, 24px |
+Reduced motion removes WorkCard arrival, stagger and all interaction transforms,
+including preview and arrow movement. Inspect opens the same reading dialog
+immediately when View Transitions are unsupported or reduced motion is requested.
+Shared arrivals keep only a fade, ambient pulses stop, and state/color feedback
+remains. Ordinary menus/dialogs exit immediately; output inspection alone has its
+explicit reversible document transition. No scroll hijacking or repeated reveal
+sequence belongs to this system.
 
-If it looks like a button it must act; if it only informs it is a `Tag` or plain text. Counts beside a heading or a nav label are plain tabular text, not pills. A "next", "preview" or "demo" tag does not belong in production chrome.
+## Shapes
 
-### Navigation inside an area
+Shared primitives retain chip (4px), control (6px), pane (8px) and dialog (10px)
+radii. WorkCard adds the larger work radius (14px), preserving Card's neutral
+surface and border recipe. Status pills remain fully rounded. Work bodies use
+20px padding, the featured decision uses 24px, and footers use 20px horizontally
+with 12px vertically. Do not turn a row inside a panel into another boxed card.
 
-`Segmented` switches a view in place (Boards | Fleet, Canvases | Files); `Tabs` are for panes with their own content; `SideNav` / `SideNavItem` is the vertical section list for Admin and Settings. One level of each per surface.
+## Components
 
-### Chrome
+### Buttons and fields
 
-The production rail carries navigation, the current connection state and the signed-in person, and nothing a developer would toggle. Demo data is chosen in Settings or the command palette (or `?data=demo`); while it is on, the rail says so and offers the way back.
+Use shared Button, Chip, Tabs, SideNavItem or Segmented instead of hand-built
+button recipes. Button variants are primary, default, quiet, danger and link.
+Compact buttons retain 26px small and density-driven medium sizes; coarse pointers
+receive 44px targets. Overview decision/recovery controls use a 36px minimum,
+14px labels and wrapping text. They grow for long answers. No choice receives
+primary styling unless the agent supplied a default. One primary action per screen
+is the general restraint; first-session Start a session is the onboarding action.
 
-### Others
+Fields retain native input behavior, strong semantic borders, surface background,
+control radius and visible focus. Input focus uses an accent border and 1px ring;
+other interactive elements receive the global 2px accent outline. Rows and tabs
+inset that outline. Credential controls remain password fields with autocomplete
+off, and drafts clear after saving. Error and disabled states explain the reason.
 
-Menu, Dialog and sheet, Popover, Tooltip, Command palette, Toast, EmptyState, StateGlyph, DurableSpine. See their files; each reads tokens only.
+### Shared Card and WorkCard
 
-## 7. Motion
+Card/cardVariants remains the base surface for panels, notices and options. Its
+tones carry state meaning; selected options use accent. Panel remains suitable
+for a static row list. Stat remains available for genuine divided figures on
+operational surfaces, but does not define Overview's composition.
 
-Motion explains state and relationship. It is never decoration, and routine feedback is never slower than 180ms.
+WorkCard extends that base with article/link semantics, the work radius and its
+own bounded arrival. WorkCardBody, WorkCardFooter and AgentIdentity make a common
+anatomy for decisions, recoveries, running sessions and outputs. Agent initials
+come from the actual agent name and do not communicate state. A single-destination
+session card is a real link through `asChild`. A decision card remains an article
+with separate title navigation and answer controls. Output preview cards also
+remain articles, with an Inspect button over the document cover and separate
+title/footer navigation links. Avoid nested interactive targets.
 
-| Job | Token | Used for |
-|---|---|---|
-| Feedback | 120ms, `ease-out-fd` | Hover, press, colour and border changes, chevrons. |
-| Panels | 180ms, `ease-emphasized` | `animate-pop`: menus, popovers, dialogs, the palette, tooltips (`animate-fade`). |
-| Arrival | 260ms, `ease-emphasized` | `animate-enter`: cards, panels and notices as they mount; `animate-sheet`: the right-hand sheet. |
+### Artifact previews and inspection
 
-Rules:
+[ArtifactPreview](src/components/artifact-preview.tsx) shows the actual available
+HTML artifact in a 16:9 cover using the shared no-network document wrapper. Its
+iframe is 100% wide and 300% high, clipped to show the document's natural-scale
+opening; it is not a scaled miniature of the whole page. The iframe has an empty
+sandbox (scripts disabled), no referrer, a negative tab index and an inert,
+aria-hidden wrapper. The overlay Inspect button owns the preview action; title
+and footer links open the output in its source session. Loading or failed HTML
+disables Inspect. Non-HTML covers show real filenames and metadata.
 
-- Only `transform` and `opacity` animate, plus colour, border-colour and shadow on small surfaces. Never width, height or position.
-- Arrivals use `backwards` fill, so content is visible in its natural state if an animation never runs.
-- Exits are instant. Do not add exit animations to menus or dialogs.
-- One ambient motion exists: the Running pulse while a turn streams. Nothing else loops except spinners.
-- `prefers-reduced-motion`: travel and scale go to zero (`--fd-rise`, `--fd-scale`, `--fd-slide`), so arrivals become a plain fade; pulses stop; colour and state changes remain.
-- Do not stagger long lists. Stagger only a set that arrives as a set (cards in a grid), capped at eight.
+[ArtifactInspector](src/components/artifact-inspector.tsx) mounts the actual
+document in a read-only dialog. It preserves real document content and checked
+values through its own DOMPurify instance, disables form controls, strips editable
+and tab-stop attributes, removes link destinations and forbids scripts, embedded
+frames/objects, forms and document metadata/link/base tags. The sanitized document
+then receives the existing no-network wrapper and an empty iframe sandbox with
+no referrer. This reading view does not implement interactive canvas/KV behavior;
+Open output keeps the existing session deep link for that workflow.
 
-## 8. States every view designs for
+The native shared-document transition is described under Elevation & Depth.
+Focus returns to the Inspect trigger on close. At phone widths below 640px, the
+dialog occupies the full viewport with square corners. Other sizes use the work
+radius and a maximum 1024px reading dialog. No output media or chart is fabricated
+to fill a cover; unavailable and loading content remain explicit.
 
-Loading (skeleton rows after 300ms, not spinners), empty (says what will appear and offers the one action), error (structured, retryable), offline, read-only (disabled with the reason), partial permission.
+### State, chips and navigation
 
-## 9. Accessibility floor
+StatePill/StateLine pair word, glyph and meaning. Tag is noninteractive metadata;
+Chip toggles a filter with `aria-pressed`; Badge counts navigation. Heading counts
+are plain tabular text. Segmented changes a view in place, Tabs change panes, and
+SideNav organizes Admin and Settings. Keep one level of each per surface.
 
-Text 4.5:1; large text and control borders 3:1. Visible 2px accent focus ring on every interactive element (inset inside rows, tabs and rail links). Targets 24px minimum, 44px on coarse pointers. Reflow at 320px and 200% zoom. State is never colour alone. Reduced motion is honoured as in section 7.
+The rail groups Work, Build and Manage and carries connection state and the signed-in
+person. Demo mode is explicit and synthetic; show its label and exit. Deep links
+and browser history retain their behavior. Loading, successful-empty, error,
+offline, stale, read-only and partial permission states remain distinct. UI
+presentation does not widen server authorization. Reversible changes use Undo;
+spending, wider access and irreversible actions explain their consequence and
+use the existing confirmation controls.
 
-## 10. Do and don't
+## Do's and Don'ts
 
-- Do reach for a token, then a scale step, then ask for a new token. Don't reach for `[Npx]`.
-- Do separate layers by tone. Don't add a resting shadow.
-- Do put state in glyph + word + colour. Don't colour a decoration with a state hue.
-- Do use `Card` for any boxed surface. Don't re-spell its classes.
-- Do keep one primary button per screen. Don't use the accent for emphasis.
+### Do:
 
-## 11. Extending Flight Deck
+- **Do** extend Card with WorkCard for substantial work objects and use its body/footer slots.
+- **Do** keep decision and output articles stationary while their individual controls act.
+- **Do** show actual output content or real file metadata, with loading and failure explained.
+- **Do** keep dense rows and tables where comparison and management need them.
+- **Do** preserve focus, keyboard operation, 44px touch targets and reduced-motion behavior.
+- **Do** keep secrets masked, clear credential drafts after saving and keep tokens out of URLs, query keys, logs and toasts.
 
-New screens follow the same recipe: read tokens only; build from `Card`, `Tag`, `StatePill`, `Button`, `DisclosureButton`, `RadioCards`, `Field` and `ConfirmDialog`; sheets are `Dialog side="right"` (full width on phones, 44px targets); reach the API with `source.call` through `useOpQuery` / `useOpMutation`; register demo fixtures in `src/data/ops/<area>.demo.ts` using the real wire shapes; hold anything that must survive navigation (drafts, upload plans, adoption) in a small module store with its own expiry; and expose page actions to ⌘K with `useIntent(name, pathname, handler)`, which only the screen at that pathname can take. The package `README.md` lists the operations each area uses.
+### Don't:
 
-**Confirmations.** Reversible changes apply at once with an Undo toast. Anything that widens access, spends, or cannot be undone asks first with `ConfirmDialog` and states the consequence in numbers; removals of whole datasets or agents ask for the name to be typed.
-
-**Secrets.** Credential inputs are `type="password"` with autocomplete off, cleared after saving, never put in toasts, query keys or logs. A one-time value (a public link token) is shown once and held only in component state.
+- **Don't** restore Overview metric-summary tiles or generated decorative illustrations.
+- **Don't** invent charts, progress, forecasts or healthy verdicts for stale or failed reads.
+- **Don't** nest answer or Inspect buttons in a whole-card link or animate the article around them.
+- **Don't** introduce raw colors, new font dependencies, glass, glows or state-colored decoration.
+- **Don't** treat a source-documentation pass as owner acceptance or runtime signoff.

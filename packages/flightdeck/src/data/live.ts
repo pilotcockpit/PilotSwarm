@@ -1,5 +1,7 @@
 import { ApiClient } from "pilotswarm-sdk/api";
 import { subscribeToSession } from "./session-stream";
+import { removeDemoHook } from "./ops/demo-hook";
+import { normalizeFeatureFlags, normalizeSessionGroups } from "./live-normalizers";
 import type { Artifact, ConnectionState, DataSource, LogEntry, Session, SessionEvent } from "./types";
 
 // The live data source: the SDK's ApiClient over the same-origin /api/v1 Web
@@ -70,6 +72,7 @@ function requestId() {
 }
 
 export function createLiveSource(): DataSource {
+  removeDemoHook();
   const api = new ApiClient({ apiUrl: window.location.origin });
   const connectionListeners = new Set<(s: ConnectionState) => void>();
   let connection: ConnectionState = "reconnecting";
@@ -208,14 +211,13 @@ export function createLiveSource(): DataSource {
     },
     async listFlags() {
       const [catalog, cluster] = await Promise.all([
-        api.call("listFeatureFlags").catch(() => []),
-        api.call("getClusterFeatureFlags").catch(() => ({})),
+        api.call("listFeatureFlags"),
+        api.call("getClusterFeatureFlags"),
       ]);
-      const values = (cluster && typeof cluster === "object" ? (cluster.flags || cluster.values || cluster) : {}) as Record<string, unknown>;
-      return list<any>(catalog, "flags").map((f) => ({ ...f, key: f.key || f.name, value: values[f.key || f.name] ?? f.value }));
+      return normalizeFeatureFlags(catalog, cluster);
     },
     async listGroups() {
-      return list(await api.call("listSessionGroups").catch(() => []));
+      return normalizeSessionGroups(await api.call("listSessionGroups"));
     },
     async profile() {
       const [profile, auth] = await Promise.all([

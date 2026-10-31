@@ -11,6 +11,7 @@ import { Meter, Select, monthProjection, plural } from "@/components/providers/s
 import { PERIODS, PERIOD_LABEL, PERIOD_WORD, initialLimitText, parseTokens, untilWords, useRemoveLimit, useSetAllowance, useSetHold, useSetLimit, type GridCell, type GridRow, type Period } from "@/data/ops/providers";
 import type { Provider } from "@/data/types";
 import { cn, tokens } from "@/lib/utils";
+import { notifyUndo } from "@/lib/undo";
 
 const PRESETS: Record<Period, number[]> = { day: [250_000, 1_000_000, 5_000_000, 10_000_000], week: [1_000_000, 5_000_000, 25_000_000, 50_000_000], month: [5_000_000, 10_000_000, 50_000_000, 100_000_000] };
 
@@ -45,7 +46,8 @@ export function LimitRow({ provider, period, model, cell, manageable, usingCount
   const clear = async () => {
     try {
       await remove.mutateAsync({ name: provider, period, model: model ?? null });
-      toast.success(`${PERIOD_LABEL[period]} limit removed.`, { action: quota != null ? { label: "Undo", onClick: () => void set.mutateAsync({ name: provider, period, model: model ?? null, tokens: quota }) } : undefined });
+      if (quota != null) notifyUndo(`${PERIOD_LABEL[period]} limit removed.`, () => void set.mutateAsync({ name: provider, period, model: model ?? null, tokens: quota }));
+      else toast.success(`${PERIOD_LABEL[period]} limit removed.`);
       setEditing(false);
     } catch { /* toasted */ }
   };
@@ -161,7 +163,7 @@ export function AllowanceControl({ provider, isAdmin, monthQuota }: { provider: 
         </div>
         <p className="text-sm text-muted">{pct === 100 ? "No per-person ceiling: anyone can use the whole limit." : `Each person can use up to ${pct}% of every limit${share != null ? `, about ${tokens(share)} a month` : ""}.`}</p>
         {isAdmin ? (
-          <div><Button variant={dirty ? "primary" : "default"} disabled={!dirty || set.isPending} onClick={async () => { try { await set.mutateAsync({ name: provider.name, pct }); toast.success(pct === 100 ? "Allowance removed." : `Each person may now use up to ${pct}%.`, { action: { label: "Undo", onClick: () => void set.mutateAsync({ name: provider.name, pct: current }) } }); } catch { /* toasted */ } }}>{set.isPending ? <Loader2 className="animate-spin" /> : null} Save allowance</Button></div>
+          <div><Button variant={dirty ? "primary" : "default"} disabled={!dirty || set.isPending} onClick={async () => { try { const previous = current; await set.mutateAsync({ name: provider.name, pct }); notifyUndo(pct === 100 ? "Allowance removed." : `Each person may now use up to ${pct}%.`, () => void set.mutateAsync({ name: provider.name, pct: previous }).then(() => setPct(previous), () => undefined)); } catch { /* toasted */ } }}>{set.isPending ? <Loader2 className="animate-spin" /> : null} Save allowance</Button></div>
         ) : <p className="text-xs text-faint">Only an administrator can change this.</p>}
       </div>
     </section>

@@ -16,6 +16,7 @@ import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/compo
 import { Skeleton, Tag } from "@/components/ui/misc";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn, initials } from "@/lib/utils";
+import { notifyUndo } from "@/lib/undo";
 
 const RANK: Record<Visibility, number> = { private: 0, shared_read: 1, shared_write: 2 };
 const ACCESS_WORD: Record<ShareAccess, string> = { read: "Can view", write: "Can reply" };
@@ -107,21 +108,19 @@ function ManagePanel({ session }: { session: Session }) {
 
   const addPerson = (user: Person) => {
     grant.mutate({ user, access: "read" }, {
-      onSuccess: () => toast.success(`${personName(user)} can view this session`, {
-        action: { label: "Undo", onClick: () => revoke.mutate(user) },
-      }),
+      onSuccess: () => notifyUndo(`${personName(user)} can view this session`, () => revoke.mutate(user)),
     });
   };
   const changeRole = (share: Share, next: ShareAccess) => {
     if (share.access === next) return;
     const prev = share.access;
     grant.mutate({ user: share, access: next }, {
-      onSuccess: () => toast.success(`${personName(share)}: ${ACCESS_WORD[next].toLowerCase()}`, { action: { label: "Undo", onClick: () => grant.mutate({ user: share, access: prev }) } }),
+      onSuccess: () => notifyUndo(`${personName(share)}: ${ACCESS_WORD[next].toLowerCase()}`, () => grant.mutate({ user: share, access: prev })),
     });
   };
   const removePerson = (share: Share) => {
     revoke.mutate(share, {
-      onSuccess: () => toast.success(`Removed ${personName(share)}`, { action: { label: "Undo", onClick: () => grant.mutate({ user: share, access: share.access }) } }),
+      onSuccess: () => notifyUndo(`Removed ${personName(share)}`, () => grant.mutate({ user: share, access: share.access })),
     });
   };
   const choose = (next: Visibility) => {
@@ -129,7 +128,7 @@ function ManagePanel({ session }: { session: Session }) {
     if (RANK[next] > RANK[visibility]) { setWiden(next); return; }
     const prev = visibility;
     setVisibility.mutate(next, {
-      onSuccess: () => toast.success(next === "private" ? "Now only people you add can open it" : "Replies are off for everyone else", { action: { label: "Undo", onClick: () => setVisibility.mutate(prev) } }),
+      onSuccess: () => notifyUndo(next === "private" ? "Now only people you add can open it" : "Replies are off for everyone else", () => setVisibility.mutate(prev)),
     });
   };
 

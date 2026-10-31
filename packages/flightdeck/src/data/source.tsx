@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tan
 import { appendEventToHistory, buildHistoryModel, type HistoryModel } from "@ps/history";
 import { createLiveSource } from "./live";
 import { createDemoSource } from "./demo";
+import { attachDemoQueryClient } from "./ops/demo-hook";
 import { usePref } from "@/shell/prefs";
 import type { ConnectionState, DataSource, Session } from "./types";
 
@@ -47,6 +48,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     () => new QueryClient({ defaultOptions: { queries: { staleTime: 2_000, retry: 1, refetchOnWindowFocus: mode === "live" } } }),
     [source],
   );
+  if (import.meta.env.DEV && mode === "demo") attachDemoQueryClient(client);
   const setMode = React.useCallback((next: DataMode) => {
     try { localStorage.setItem(MODE_KEY, next); } catch { /* storage unavailable */ }
     setModeState(next);

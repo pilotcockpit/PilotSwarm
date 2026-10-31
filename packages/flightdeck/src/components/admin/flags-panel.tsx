@@ -1,6 +1,5 @@
 import * as React from "react";
 import { ChevronRight, Search } from "lucide-react";
-import { toast } from "sonner";
 import { EmptyState, Panel, SectionTitle } from "@/components/empty";
 import { Button, DisclosureButton } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm";
@@ -11,6 +10,7 @@ import { PersonalFlagList } from "@/components/settings/personal-flags";
 import { useWorkers } from "@/data/source";
 import { changeSentence, clusterPolicy, defaultPolicy, flagDelivery, groupFlags, policySentence, samePolicy, useClusterFlags, useFeatureUsers, useFlagChanges, useFlagMutation, usePersonNames, useUserFlags, type FlagChange, type FlagUser, type FlagView, type Policy } from "@/data/ops/flags";
 import { ago, cn } from "@/lib/utils";
+import { notifyUndo } from "@/lib/undo";
 
 /**
  * Admin > Feature flags. Each flag answers three questions in one row: what is it, who gets it right now
@@ -62,13 +62,7 @@ function ClusterFlagRow({ flag, changes }: { flag: FlagView; changes: FlagChange
     const r = await mutation.mutateAsync(input).catch(() => null);
     if (!r) return;
     const label = next === "reset" ? `back to the default (${policySentence(fallback)})` : policySentence(next);
-    toast(`${flag.displayName}: ${label}`, {
-      duration: 9000,
-      action: {
-        label: "Undo",
-        onClick: () => void mutation.mutate(before ? { target: CLUSTER, featureKey: flag.featureKey, expectedRevision: r.revision, enabled: before.enabled, allowUserOverride: before.allowUserOverride } : { target: CLUSTER, featureKey: flag.featureKey, expectedRevision: r.revision, clear: true }),
-      },
-    });
+    notifyUndo(`${flag.displayName}: ${label}`, () => void mutation.mutate(before ? { target: CLUSTER, featureKey: flag.featureKey, expectedRevision: r.revision, enabled: before.enabled, allowUserOverride: before.allowUserOverride } : { target: CLUSTER, featureKey: flag.featureKey, expectedRevision: r.revision, clear: true }));
   };
   const request = (next: Policy | "reset") => {
     const target = next === "reset" ? fallback : next;

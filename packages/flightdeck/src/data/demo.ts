@@ -1,5 +1,6 @@
 import type { Agent, Artifact, ConnectionState, DataSource, FeatureFlag, LogEntry, Model, Provider, Session, SessionEvent, UsageSummary, Worker } from "./types";
 import { P95_HTML, RELEASE_CHECKLIST_HTML, TEST_MATRIX_HTML } from "@/canvas/demo-canvases";
+import { demoPackageAgents } from "./ops/packages.demo";
 
 // Demo data: fixtures shaped exactly like the Web API's payloads, so every
 // screen can be judged with realistic content when the local deployment has
@@ -223,8 +224,10 @@ const flags: FeatureFlag[] = [
 ];
 
 import { callDemoOp } from "./ops";
+import { installDemoHook } from "./ops/demo-hook";
 import { demoGroupList, effectiveGroupId, setDemoSessionRows } from "./demo-groups";
 export function createDemoSource(): DataSource {
+  installDemoHook();
   const byId = new Map(sessions.map((s) => [s.sessionId, { ...s }]));
   const events = new Map<string, SessionEvent[]>();
   for (const [id, list] of Object.entries(timelines)) {
@@ -316,7 +319,7 @@ export function createDemoSource(): DataSource {
     readArtifact: (id, filename) => wait((files.get(id) || []).find((f) => f.filename === filename)?.content || "", 140),
     artifactUrl: () => null,
     listModels: () => wait(models),
-    listAgents: () => wait(agents),
+    listAgents: () => wait([...agents.filter((a) => a.source !== "package"), ...demoPackageAgents().map((a) => ({ ...agents.find((prior) => prior.name === a.name), ...a }))]),
     listProviders: () => wait(providers),
     usageSummary: () => wait(usage),
     listWorkers: () => wait(workers),

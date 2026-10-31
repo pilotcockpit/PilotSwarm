@@ -75,7 +75,7 @@
 }
 
 /* Density: Compact is the operator default; Comfortable is for reading. */
-:root { --row: 30px; --control: 30px; --body: 13px; --body-lh: 20px; }
+:root { --row: 30px; --control: 30px; --body: 14px; --body-lh: 22px; }
 :root[data-density="comfortable"] { --row: 36px; --control: 32px; --body: 14px; --body-lh: 22px; }
 
 @theme inline {
@@ -104,7 +104,7 @@
   --color-ok-tint: var(--ok-tint);
   --color-needs-tint: var(--needs-tint);
 
-  --font-sans: "Recursive Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "Recursive Variable", ui-monospace, "SF Mono", Menlo, monospace;
 
   --text-xs: 12px;
@@ -119,6 +119,8 @@
   --text-lg--line-height: 24px;
   --text-xl: 22px;
   --text-xl--line-height: 28px;
+  --text-display: 28px;
+  --text-display--line-height: 36px;
   --text-body: var(--body);
   --text-body--line-height: var(--body-lh);
 
@@ -126,6 +128,7 @@
   --radius-control: 6px;
   --radius-pane: 8px;
   --radius-dialog: 10px;
+  --radius-work: 14px;
 
   --spacing-row: var(--row);
   --spacing-control: var(--control);
@@ -185,7 +188,7 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
-  /* The Mono voice: same family, MONO axis on. IDs, agent and tool names,
+  /* The code voice: Recursive with its MONO axis on. IDs, agent and tool names,
      paths, payloads, logs and numbers that line up. */
   .font-mono, code, kbd, pre, samp {
     font-family: var(--font-mono);
@@ -214,6 +217,26 @@
 }
 
 @layer components {
+  /* One shared arrival for work objects; refreshes preserve their stable keys.
+     Hover/press explains which whole cards open. Articles with answer buttons
+     stay still, and reduced motion removes travel and staggering. */
+  .fd-work-card {
+    animation: fd-work-arrive 220ms var(--ease-emphasized) backwards;
+    animation-delay: calc(var(--work-order, 0) * 25ms);
+  }
+  .fd-work-card-link {
+    transition: border-color 140ms ease-out, background-color 140ms ease-out, transform 140ms var(--ease-emphasized);
+  }
+  .fd-work-card-link:hover, .fd-work-card-link:focus-visible { border-color: var(--line-strong); background-color: var(--surface); transform: translateY(-4px); }
+  .fd-work-card-link:active { transform: translateY(0); }
+  .fd-preview-sheet { transform-origin: 50% 70%; transition: transform 320ms var(--ease-emphasized); }
+  .fd-card-arrow { transition: transform 180ms var(--ease-emphasized); }
+  .fd-work-card-link:hover .fd-preview-sheet, .fd-work-card-link:focus-visible .fd-preview-sheet { transform: scale(1.035); }
+  .fd-work-card-link:hover .fd-card-arrow, .fd-work-card-link:focus-visible .fd-card-arrow { transform: translate(2px, -2px); }
+  @keyframes fd-work-arrive {
+    from { opacity: 0.65; transform: translateY(var(--fd-rise-sm)); }
+    to { opacity: 1; transform: translateY(0); }
+  }
   .focus-inset:focus-visible { outline-offset: -2px; }
   .prose-fd { font-size: 14px; line-height: 22px; max-width: 72ch; overflow-wrap: anywhere; }
   .prose-fd > * + * { margin-top: 0.6em; }
@@ -236,8 +259,24 @@
    (Undo, Retry) must stay clickable. */
 [data-sonner-toast] { pointer-events: auto; }
 
+/* The output itself expands from its card into a reading surface and back.
+   Ordinary page content stays still behind this one shared-element transition. */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+::view-transition-group(fd-output-inspection),
+::view-transition-old(fd-output-inspection), ::view-transition-new(fd-output-inspection) {
+  animation-duration: 360ms;
+  animation-timing-function: var(--ease-emphasized);
+}
+::view-transition-old(fd-output-inspection), ::view-transition-new(fd-output-inspection) { height: 100%; object-fit: cover; }
+@media (max-width: 639px) { .fd-document-dialog { inset: 0; width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; transform: none; translate: none; } }
+
 /* Unlayered on purpose: these must beat the density tokens above and utility classes. */
 @media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(fd-output-inspection), ::view-transition-old(fd-output-inspection), ::view-transition-new(fd-output-inspection) { animation: none; }
+  .fd-work-card { animation: none; }
+  .fd-work-card-link:hover, .fd-work-card-link:focus-visible, .fd-work-card-link:active { transform: none; }
+  .fd-work-card-link:hover .fd-preview-sheet, .fd-work-card-link:focus-visible .fd-preview-sheet,
+  .fd-work-card-link:hover .fd-card-arrow, .fd-work-card-link:focus-visible .fd-card-arrow { transform: none; }
   /* Ambient loops stop, including pseudo-elements; the arrival fades keep running. */
   .animate-pulse-live, .animate-pulse, [class*="animate-pulse"], [class*="animate-pulse"]::after { animation: none !important; }
   /* Nothing slides or resizes: only colour, border, opacity and shadow may transition. */

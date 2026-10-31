@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Tag } from "@/components/ui/misc";
 import type { PackageSummary, PackageVersion } from "@/data/ops/packages";
 import { ago, bytes } from "@/lib/utils";
+import { notifyUndo } from "@/lib/undo";
 
 /**
  * Every published version, newest first. Switching is one click and says what it does; the toast
@@ -21,10 +22,10 @@ export function VersionTimeline({ pkg, versions, canEdit, onPin, busy }: {
     const previous = pkg.active?.semver;
     try {
       await onPin(v.semver);
-      toast(`${pkg.name} now uses ${v.semver}`, {
-        description: "Workers switch within about 20 seconds. Running turns finish first.",
-        ...(previous ? { action: { label: "Undo", onClick: () => void onPin(previous) } } : {}),
-      });
+      const message = `${pkg.name} now uses ${v.semver}`;
+      const description = "Workers switch within about 20 seconds. Running turns finish first.";
+      if (previous) notifyUndo(message, () => void onPin(previous), { description });
+      else toast(message, { description });
     } catch { /* the mutation already reported the failure */ }
     void index;
   };

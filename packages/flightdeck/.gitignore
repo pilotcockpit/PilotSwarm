@@ -1,3 +1,6 @@
 e2e/.results/
 e2e/__screenshots__/
 playwright-report/
+
+.impeccable/questions/
+.impeccable/review/

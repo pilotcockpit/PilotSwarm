@@ -93,6 +93,9 @@ export interface Agent {
   package?: string;
   packageName?: string;
   packageTitle?: string;
+  packageSemver?: string;
+  scope?: "shared" | "user";
+  mine?: boolean;
 }
 
 export interface Provider {

@@ -8,9 +8,10 @@ import { Skeleton, Switch, Tag } from "@/components/ui/misc";
 import { Markdown } from "@/components/chat";
 import { DataReadNotice } from "@/components/empty";
 import { useUi } from "@/shell/ui-state";
-import { useSessions } from "@/data/source";
+import { useAgents, useSessions } from "@/data/source";
+import { creatablePackageAgents } from "./package-eligibility";
 import { sessionState } from "@/data/state";
-import { describeFiles, packageRights, usePackageActions, usePackageDetail, usePackageFile, usePackages, usePackageTree, type PackageSummary } from "@/data/ops/packages";
+import { describeFiles, isSamePerson, packageRights, usePackageActions, usePackageDetail, usePackageFile, usePackages, usePackageTree, type PackageSummary } from "@/data/ops/packages";
 import type { Profile } from "@/data/types";
 import { PackageFiles } from "./package-files";
 import { PackageEditors } from "./package-editors";
@@ -38,6 +39,9 @@ export function PackagePanel({ pkg, onClose, profile, ownerName }: { pkg: Packag
   const canRepublish = pkg.scope === "shared" || Boolean(everything?.some((p) => p.scope === "shared" && p.name === pkg.name));
   const { openNewSession } = useUi();
   const { data: sessions } = useSessions();
+  const agentCatalog = useAgents();
+  const launchable = creatablePackageAgents(pkg, agentCatalog.data || [], isSamePerson(pkg.owner, profile));
+  const agentRows = launchable.length ? launchable.map((a) => ({ name: a.name, title: a.title || a.name, canStart: true })) : provides.agents.map((name) => ({ name, title: name, canStart: false }));
   const [browseVersion, setBrowseVersion] = React.useState<string | undefined>();
   const [scopeAsk, setScopeAsk] = React.useState(false);
   const [repub, setRepub] = React.useState(false);
@@ -81,16 +85,17 @@ export function PackagePanel({ pkg, onClose, profile, ownerName }: { pkg: Packag
           <Section title="What it gives agents" note={pkg.active?.manifest?.description as string | undefined}>
             {tree.isLoading ? <Skeleton className="h-16" /> : !provides.agents.length && !provides.skills.length && !provides.tools && !provides.mcp ? <p className="text-sm text-muted">Nothing readable in the files yet.</p> : (
               <div className="flex flex-col gap-3">
-                {provides.agents.length ? (
+                {agentRows.length ? (
                   <ul className="divide-y divide-line-subtle rounded-pane border border-line">
-                    {provides.agents.map((a) => (
-                      <li key={a} className="flex items-center gap-3 px-3 py-2">
-                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{a}</span><span className="block text-xs text-muted">Agent</span></span>
-                        <Button size="sm" disabled={!pkg.enabled} title={pkg.enabled ? undefined : "Turn the package on to start sessions"} onClick={() => { onClose(); openNewSession({ agent: a }); }}><Play /> Start session</Button>
+                    {agentRows.map((a) => (
+                      <li key={a.name} className="flex items-center gap-3 px-3 py-2">
+                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{a.title}</span><span className="block text-xs text-muted">{a.canStart ? "Agent" : agentCatalog.isLoading ? "Checking availability…" : !pkg.enabled ? "Package turned off" : "Not available to start from this package copy"}</span></span>
+                        <Button size="sm" disabled={!a.canStart || agentCatalog.isLoading || agentCatalog.isError} onClick={() => { onClose(); openNewSession({ agent: a.name }); }}><Play /> Start session</Button>
                       </li>
                     ))}
                   </ul>
                 ) : null}
+                {agentCatalog.isError ? <DataReadNotice title="Couldn't check available agents" busy={agentCatalog.isFetching} onRetry={() => void agentCatalog.refetch()}>Try again before starting a session from this package.</DataReadNotice> : null}
                 <div className="flex flex-wrap gap-1.5">
                   {provides.skills.map((s) => <Tag key={s}>Skill · {s}</Tag>)}
                   {provides.tools ? <Tag>Worker tools</Tag> : null}
@@ -102,7 +107,7 @@ export function PackagePanel({ pkg, onClose, profile, ownerName }: { pkg: Packag
 
           {provides.readme ? (
             <Section title="About">
-              {readme.isLoading ? <Skeleton className="h-20" /> : <div className="rounded-pane border border-line p-3 md:max-h-64 md:overflow-y-auto"><Markdown text={readme.data?.text ?? ""} /></div>}
+              {readme.isLoading ? <Skeleton className="h-20" /> : <div tabIndex={0} role="region" aria-label="About this package (scrolls)" className="rounded-pane border border-line p-3 md:max-h-64 md:overflow-y-auto"><Markdown text={readme.data?.text ?? ""} /></div>}
             </Section>
           ) : null}
 

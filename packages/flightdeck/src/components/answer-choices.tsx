@@ -70,6 +70,23 @@ function Inner({ sessionId, question, onAnswer: send_, size, busy, extra, classN
   const onAnswer = useGuardedAnswer(sessionId, send_);
   const [confirming, setConfirming] = React.useState<string | null>(null);
   const [sent, setSent] = React.useState<string | null>(null);
+  const confirmButton = React.useRef<HTMLButtonElement>(null);
+  const sentStatus = React.useRef<HTMLParagraphElement>(null);
+  const choiceButtons = React.useRef(new Map<string, HTMLButtonElement>());
+  const lastChoice = React.useRef<string | null>(null);
+  const previousPhase = React.useRef("choices");
+  const phase = confirming ? "confirm" : sent ? "sent" : "choices";
+  React.useLayoutEffect(() => {
+    if (typeof document === "undefined") return;
+    if (phase === "confirm") confirmButton.current?.focus();
+    else if (phase === "sent") sentStatus.current?.focus();
+    else if (previousPhase.current !== "choices" && lastChoice.current && document.activeElement === document.body) {
+      // Back/failed submission replaces the old controls. Restore its choice,
+      // without stealing focus if the person moved elsewhere while awaiting a reply.
+      choiceButtons.current.get(lastChoice.current)?.focus();
+    }
+    previousPhase.current = phase;
+  }, [phase]);
   useAnswerRejection(sessionId, sent !== null, () => setSent(null));
   const choices = Array.isArray(question.choices) ? question.choices : [];
   const recommended = recommendedChoice(question, choices);
@@ -89,16 +106,16 @@ function Inner({ sessionId, question, onAnswer: send_, size, busy, extra, classN
     return (
       <div role="group" aria-label="Confirm your answer" className={row}>
         <span className="text-sm">Send “{confirming}”? The agent acts on it right away.</span>
-        <Button size={size} variant="danger" disabled={busy} onClick={() => send(confirming)}>Send</Button>
+        <Button ref={confirmButton} size={size} variant="danger" disabled={busy} onClick={() => send(confirming)}>Send</Button>
         <Button size={size} variant="quiet" onClick={() => setConfirming(null)}>Back</Button>
       </div>
     );
   }
-  if (sent) return <p role="status" className={`text-sm text-muted ${className || ""}`}>Sent “{sent}”. Waiting for the agent…</p>;
+  if (sent) return <p ref={sentStatus} tabIndex={-1} role="status" className={`text-sm text-muted ${className || ""}`}>Sent “{sent}”. Waiting for the agent…</p>;
   return (
     <div className={row}>
       {choices.map((c) => (
-        <Button key={c} size={size} variant={c === recommended ? "primary" : "default"} disabled={busy} onClick={() => (isDestructiveChoice(c) ? setConfirming(c) : send(c))}>
+        <Button key={c} ref={(node) => { if (node) choiceButtons.current.set(c, node); else choiceButtons.current.delete(c); }} size={size} variant={c === recommended ? "primary" : "default"} disabled={busy} onClick={() => { lastChoice.current = c; isDestructiveChoice(c) ? setConfirming(c) : void send(c); }}>
           {c}
           {c === recommended ? <span className="sr-only"> (recommended)</span> : null}
         </Button>

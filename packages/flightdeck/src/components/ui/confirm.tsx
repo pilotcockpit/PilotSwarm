@@ -30,7 +30,7 @@ export function ConfirmDialog({ open, onOpenChange, title, description, conseque
   };
   return (
     <Dialog open={open} onOpenChange={(v) => !busy && onOpenChange(v)}>
-      <DialogContent title={title} description={typeof description === "string" ? description : undefined}>
+      <DialogContent title={title} description={typeof description === "string" ? description : undefined} undoHost={false}>
         <DialogBody className="flex flex-col gap-3">
           {description && typeof description !== "string" ? <div className="text-sm text-muted">{description}</div> : null}
           {consequences?.length ? <ul className="list-disc pl-5 text-sm text-fg">{consequences.map((c, i) => <li key={i}>{c}</li>)}</ul> : null}

@@ -1,26 +1,51 @@
 # Flight Deck assets
 
-`durable-work.png` is original AI-generated onboarding artwork created with the
-built-in OpenAI ImageGen tool on 30 October 2026 for this UX refresh. It is not a
-third-party stock image or a screenshot of product behavior. No third-party
-attribution was supplied by the generator.
+Overview uses authentic work content rather than decorative raster artwork. The
+welcome and first-session onboarding are text and work-card compositions. The
+existing swarm identity, Recursive code font and Lucide icons remain the UI assets.
 
-The transparent 1536 × 1024 PNG is displayed at no more than 320 CSS pixels wide,
-loads only in first-session onboarding, and uses empty alt text because the
-surrounding text carries the meaning. The source export is approximately 1.3 MB;
-a smaller delivery format is a future performance optimization.
+## Authentic output media
 
-Prompt:
+Output cards may show the actual available HTML artifact through
+[`ArtifactPreview`](../../src/components/artifact-preview.tsx). It uses the shared
+no-network document wrapper, an empty iframe sandbox with scripts disabled,
+`referrerPolicy="no-referrer"`, `tabIndex={-1}`, and an inert, aria-hidden preview
+wrapper. The iframe stays at natural width (100%) and three cover heights (300%),
+so the cover crops the opening of the real document instead of shrinking an
+entire page. Preview content comes from the source session's artifact, not a
+generated screenshot, illustration or invented chart. Loading and failed reads
+remain explicit.
 
-> A professional SaaS onboarding spot illustration for PilotSwarm, a durable AI
-> agent operations dashboard. One restrained 3D still life expressing one task
-> becoming coordinated work and a finished document: an upright blank document
-> folio, two low matte task blocks connected by a quiet thin connector, and a
-> satin-metal clock disk. Premium industrial design, orthographic three-quarter
-> view, soft studio light, porcelain, graphite and muted silver with one tiny
-> desaturated blue detail. Compact horizontal composition with transparent
-> margins, readable at 240 × 160 CSS pixels on light and dark surfaces. No text,
-> logos, people, robots, charts or interface widgets. Genuine alpha transparency.
+Output cards are articles: Inspect opens the real reading preview, while separate
+title/footer links open the source output.
+[`ArtifactInspector`](../../src/components/artifact-inspector.tsx) uses a native
+360ms shared-document View Transition (`fd-output-inspection`), reversing on close
+and returning focus to Inspect. Its snapshot waits for iframe load or a 500ms
+bound, with revision ownership guarding fast close/reopen. Reduced motion and
+browsers without View Transitions open the same dialog immediately; phones use
+the full viewport.
 
-The existing swarm identity, self-hosted Recursive font, and Lucide icons remain
-the operational UI assets. Populated cards do not use decorative raster imagery.
+The reading document uses an isolated DOMPurify instance to preserve actual text
+and checked data while disabling controls, removing link destinations, scripts,
+embedded frames and editable behavior. It then receives the existing no-network
+wrapper and empty iframe sandbox with no referrer. This is a read-only preview;
+interactive canvas/KV support remains in the source session. No new dependency
+or backend API is part of this media path.
+
+Non-HTML file covers show actual filenames and file-type metadata. Do not fill
+missing preview content with decorative documents, fake graphs or invented progress.
+Keep customer and session content within its authorized data source; do not copy
+private artifacts into this public static directory as demo media.
+
+## Retired generated artwork
+
+The owner rejected the generic generated spot illustrations and the earlier
+admin-console summary direction on 30 October 2026. Both the first-session PNG
+and compact welcome WebP have been removed from the shipped UI/public assets.
+They are historical explorations, not approved branding or current deliverables.
+Source generations are preserved outside this public directory. No decorative
+raster illustration remains in the Overview composition.
+
+See the [workbench direction](../../../../docs/ux-audit/2026-10-30/workbench/direction.md)
+for the authorized design change. Documentation records source behavior and does
+not establish fresh visual acceptance or runtime signoff.
