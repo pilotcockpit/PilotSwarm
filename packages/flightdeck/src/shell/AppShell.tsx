@@ -331,6 +331,8 @@ function ShellInner({ children }: { children: React.ReactNode }) {
       <ShortcutsDialog />
       <NewSessionSheet />
       <Toaster
+        // Undo and Retry live in toasts: 4s (the library default) is too short to read and reach them (WCAG 2.2.1).
+        duration={8000}
         position={phone ? "top-center" : "bottom-right"}
         toastOptions={{ className: "!bg-overlay !text-fg !border-line !rounded-pane !shadow-pop !font-sans !text-sm" }}
       />

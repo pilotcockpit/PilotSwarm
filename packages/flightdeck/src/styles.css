@@ -232,6 +232,10 @@
   .prose-fd blockquote { border-left: 2px solid var(--line-strong); padding-left: 10px; color: var(--muted); }
 }
 
+/* A modal dialog turns pointer events off for the rest of the page; a toast raised from inside it
+   (Undo, Retry) must stay clickable. */
+[data-sonner-toast] { pointer-events: auto; }
+
 /* Unlayered on purpose: these must beat the density tokens above and utility classes. */
 @media (prefers-reduced-motion: reduce) {
   /* Ambient loops stop, including pseudo-elements; the arrival fades keep running. */

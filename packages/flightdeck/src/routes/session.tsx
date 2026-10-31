@@ -193,7 +193,9 @@ function SplitLayout({ chat, companion }: { chat: React.ReactNode; companion: Re
 function ViewTabs({ view, counts, onView, includeChat = false, closable = false, onClose, attention = null, canvasUpdated = false }: { view: SessionView; counts: Partial<Record<SessionView, number>>; onView: (v: SessionView) => void; includeChat?: boolean; closable?: boolean; onClose?: () => void; attention?: "needs" | "failed" | null; canvasUpdated?: boolean }) {
   const views: SessionView[] = includeChat ? ["chat", "canvas", "files", "delegation", "activity"] : ["canvas", "files", "delegation", "activity"];
   return (
-    <div role="tablist" aria-label="Session views" onKeyDown={rovingKeyDown("tab")} className={cn("flex h-10 shrink-0 items-center gap-0.5 border-b border-line px-2", includeChat && "max-sm:grid max-sm:h-12 max-sm:grid-cols-5 max-sm:gap-0 max-sm:px-0")}>
+    <div className={cn("flex h-10 shrink-0 items-center gap-0.5 border-b border-line px-2", includeChat && "max-sm:h-12 max-sm:px-0")}>
+     {/* The tablist holds only tabs (an ARIA requirement): the close button sits beside it, not inside it. */}
+     <div role="tablist" aria-label="Session views" onKeyDown={rovingKeyDown("tab")} className={cn("flex items-center gap-0.5", includeChat && "max-sm:grid max-sm:flex-1 max-sm:grid-cols-5 max-sm:gap-0")}>
       {views.map((v) => {
         const Icon = VIEW_META[v].icon;
         const active = v === view;
@@ -222,6 +224,7 @@ function ViewTabs({ view, counts, onView, includeChat = false, closable = false,
           </button>
         );
       })}
+     </div>
       {closable ? (
         <Tooltip content="Close the side pane">
           <Button variant="quiet" size="icon-sm" className="ml-auto" aria-label="Close the side pane" onClick={onClose}><PanelRightClose /></Button>

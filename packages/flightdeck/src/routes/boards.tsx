@@ -93,12 +93,15 @@ export function BoardsPage() {
       <div className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-2 md:px-5">
         <Segmented label="Boards view" value={fleet ? "fleet" : "boards"} onChange={(v) => navigate({ search: v === "fleet" ? { board: "fleet" } : {} })} options={[{ value: "boards", label: "Boards" }, { value: "fleet", label: "Fleet" }]} />
         {fleet ? <span className="hidden text-xs text-faint md:inline">Every session, most urgent first. Arrow keys move between sessions.</span> : null}
-        {fleet ? null : <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist" aria-label="Boards" onKeyDown={rovingKeyDown("tab")}>
+        {fleet ? null : <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+        {/* Only tabs inside the tablist; the New board button and the count sit beside it. */}
+        <div className="flex items-center gap-1" role="tablist" aria-label="Boards" onKeyDown={rovingKeyDown("tab")}>
         {boards.map((b) => (
           <button key={b.id} role="tab" aria-selected={b.id === board.id} tabIndex={b.id === board.id ? 0 : -1} onClick={() => navigate({ search: { board: b.id } })} className={cn("focus-inset h-[28px] pointer-coarse:h-11 shrink-0 rounded-control px-2.5 text-sm font-medium", b.id === board.id ? "bg-raised text-fg shadow-[inset_0_0_0_1px_var(--line-strong)]" : "text-muted hover:text-fg")}>
             {b.name} <span className="text-xs tabular-nums text-faint">{b.tiles.length}</span>
           </button>
         ))}
+        </div>
         {boards.length < MAX_BOARDS ? (
           <Button variant="quiet" size="sm" onClick={() => { const id = `b${Date.now()}`; setBoards((bs) => [...bs, { id, name: `Board ${bs.length + 1}`, tiles: [] }]); void navigate({ search: { board: id } }); }}><Plus /> New board</Button>
         ) : null}

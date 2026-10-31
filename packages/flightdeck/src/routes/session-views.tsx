@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/tabs";
 import { Chip, Skeleton, Tag } from "@/components/ui/misc";
 import { ConfirmDialog } from "@/components/ui/confirm";
-import { useDirtyDrafts } from "@/components/session/files/drafts";
+import { dirtyDrafts, useDirtyDrafts } from "@/components/session/files/drafts";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { FolderPane } from "@/components/session/files/folder-pane";
@@ -137,7 +137,8 @@ export function FilesView({ session, tab, file, onTab, onFile }: { session: Sess
   const choose = (v: string) => {
     const here = tab === "outputs" ? "outputs" : folder?.id ?? "folders";
     if (v === here) return;
-    if (drafts.length && tab === "folders") setLeaving(() => () => go(v)); else go(v);
+    // Ask only about the folder being left: a draft kept from an earlier "Leave" is not asked about again.
+    if (tab === "folders" && dirtyDrafts(session.sessionId, folder?.id).length) setLeaving(() => () => go(v)); else go(v);
   };
   // Leaving the Files view or the session with unsaved edits asks too; closing the tab uses the browser's own prompt.
   const blocker = useBlocker({

@@ -34,7 +34,7 @@ export function SectionTitle({ children, count, action, className, id }: { child
     <div className={cn("mb-2 flex items-baseline gap-2", className)}>
       <h2 id={id} className="text-prose font-semibold text-fg">{children}</h2>
       {count != null ? <span className="text-sm tabular-nums text-faint">{count}</span> : null}
-      {action ? <div className="ml-auto text-sm">{action}</div> : null}
+      {action ? <div className="ml-auto text-sm [&_a]:inline-flex [&_a]:min-h-6 [&_a]:items-center pointer-coarse:[&_a]:min-h-11">{action}</div> : null}
     </div>
   );
 }

@@ -73,7 +73,7 @@ function Workers() {
   if (isLoading) return <Skeleton className="h-48" />;
   return (
     <>
-    <Panel className="overflow-x-auto">
+    <Panel className="overflow-x-auto" tabIndex={0} role="region" aria-label="Workers, scrolls sideways on narrow screens">
       <table className="w-full min-w-[640px] text-sm">
         <thead><tr className="border-b border-line text-left text-xs text-faint"><th className="px-3 py-2 font-medium">Worker</th><th className="px-3 py-2 font-medium">State</th><th className="px-3 py-2 font-medium">Version</th><th className="px-3 py-2 text-right font-medium">Sessions</th><th className="px-3 py-2 text-right font-medium">Memory</th><th className="px-3 py-2 text-right font-medium">Up</th></tr></thead>
         <tbody>

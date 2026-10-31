@@ -119,10 +119,13 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
   /** The baseline the save is checked against: the loaded record, or just its revision when there is no record yet. */
   const frozen = (): Baseline | null => baseline ?? (baselineRevision != null ? { revision: baselineRevision, root: "", folder: "" } : null);
 
-  const send = (choice: "normal" | "keep") => {
+  const send = async (choice: "normal" | "keep") => {
     if (!w) return;
     setProblem(null);
-    const request = buildSave({ root, folder, extrasTouched, extras }, frozen(), w.revision, choice);
+    // "Keep my edits" overwrites what is on the server now, so it must use the revision the server has NOW:
+    // the one on screen can be older than the change that raised the conflict.
+    const serverRevision = choice === "keep" ? ((await view.refetch()).data?.revision ?? w.revision) : w.revision;
+    const request = buildSave({ root, folder, extrasTouched, extras }, frozen(), serverRevision, choice);
     // A detected conflict sends nothing: the person chooses first (see buildSave).
     if (request.action === "conflict") { setConflict(true); return; }
     setConflict(false);

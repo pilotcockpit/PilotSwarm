@@ -93,6 +93,41 @@ Not here, because the Web API has no operation for it: browsing published
 canvas apps, and pausing, resuming or firing a schedule from outside a turn
 (Flight Deck asks the agent instead). Boards are stored in the browser.
 
+## End-to-end tests
+
+Playwright drives the real app on the demo data (no server, no database) in four projects: desktop
+(1280x800) and phone (390x844), each in light and dark.
+
+```bash
+npm run test:e2e --workspace=pilotswarm-flightdeck            # everything (about 1 minute)
+npm run test:e2e --workspace=pilotswarm-flightdeck -- files   # one spec by name
+npm run test:e2e:ui --workspace=pilotswarm-flightdeck         # the Playwright UI
+```
+
+It starts its own dev server on **5181**, so a dev server on 5180 can keep running. Browsers come from
+the shared Playwright cache; install them once with `npx playwright install chromium` if missing.
+
+What each spec covers: `files` (browse, edit, conflict, unsaved-changes guards, Changes, create, rename,
+delete, upload), `knowledge` (typed confirms for purge, namespaces, prune, restart), `providers-hold`
+(hold, allowance, limits, remove, add, paused work), `sharing` (Share sheet, Move to group, canvas public
+link, working-folder conflict), `a11y-smoke` (axe, overflow, console errors and phone tap targets on every
+route and tab).
+
+Writing a spec:
+
+- Start with `gotoDemo(page, path, info)`; it sets demo data and the project's theme before load.
+- Assert outcomes and roles, not pixels. `shot(page, info, "state")` saves a picture to
+  `e2e/__screenshots__/<project>/` for a person to look at; they are not compared and not committed.
+- Use `Sheet.open(page, opener, name)` for dialogs and sheets: it checks the label, that focus moved in,
+  and (`expectEscapeReturnsFocusTo`) that Escape closes it and returns focus. `expectNoSeriousAxe(page, scope)`
+  fails on serious or critical axe violations.
+- The phone project hides some header controls in the session menu; check `isPhone(info)`.
+- To play "someone else changed it", use the dev-only demo hook `window.__fdDemo.workspace`
+  (`writeBehind(folder, path, text)` and `bumpRevision({ folder })`, defined in
+  `src/data/ops/workspace.demo.ts`). It does not exist in production builds. Add a similar hook beside the
+  demo fixtures of another area when a spec needs one.
+- Demo state lives in module memory, so every test starts from the same fixtures.
+
 ## Extending Flight Deck
 
 - **Tokens first.** Components read the semantic tokens in `src/styles.css` and

@@ -30,7 +30,7 @@ export function WorkerPackages() {
         {open && data ? <span className={cn("font-normal", skewed.length ? "text-waiting" : "text-faint")}>{skewed.length ? `${skewed.length} out of step` : "all in step"}</span> : null}
       </DisclosureButton>
       {open ? (
-        <Panel enter className="mt-2 overflow-x-auto">
+        <Panel enter className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label="Installed packages by worker, scrolls sideways on narrow screens">
           {isLoading ? <Skeleton className="h-24" /> : error || !names.length ? <p className="p-4 text-sm text-muted">{error ? "Package state isn't reported by this deployment." : "No worker has reported installed packages yet."}</p> : (
             <table className="w-full min-w-120 text-sm">
               <thead><tr className="border-b border-line text-left text-xs text-faint"><th scope="col" className="px-3 py-2 font-medium">Package</th>{workers.map((w) => <th scope="col" key={w.workerNodeId} className="px-3 py-2 font-mono font-medium">{w.workerNodeId}</th>)}</tr></thead>

@@ -15,7 +15,7 @@ import { FILE_CODES, base64FromBytes, baseName, bytesFromBase64, checkName, dirO
 import { ago, bytes as formatBytes, cn, plural } from "@/lib/utils";
 import { ChangesView } from "./changes-view";
 import { FileViewer, downloadBlob } from "./file-viewer";
-import { dirtyDrafts } from "./drafts";
+import { clearDraft, dirtyDrafts, draftKey } from "./drafts";
 import { isEditable } from "./keys";
 
 type Add = null | { kind: "file" | "dir" };
@@ -337,7 +337,7 @@ export function FolderPane({ session, info, folder, openWorkingFolder }: { sessi
         description="You have edits to this file that haven't been saved."
         confirmLabel="Discard changes"
         tone="danger"
-        onConfirm={() => { const go = guarded; setGuarded(null); setDirty(false); go?.(); }}
+        onConfirm={() => { const go = guarded; setGuarded(null); if (openPath) clearDraft(draftKey(sessionId, folder.id, openPath)); setDirty(false); go?.(); }}
       />
     </div>
   );

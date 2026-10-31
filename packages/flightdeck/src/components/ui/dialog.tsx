@@ -10,6 +10,8 @@ export const Dialog = D.Root;
 export const DialogTrigger = D.Trigger;
 export const DialogClose = D.Close;
 
+const inToast = (target: EventTarget | null) => target instanceof Element && Boolean(target.closest("[data-sonner-toaster]"));
+
 export function DialogContent({
   className,
   children,
@@ -18,6 +20,8 @@ export function DialogContent({
   side = "center",
   hideClose = false,
   onCloseAutoFocus,
+  onPointerDownOutside,
+  onInteractOutside,
   ...props
 }: Omit<React.ComponentProps<typeof D.Content>, "title"> & { title: React.ReactNode; description?: React.ReactNode; side?: "center" | "right"; hideClose?: boolean }) {
   // Most dialogs here are opened from code (a menu item, a button's handler), with no Trigger for Radix
@@ -37,6 +41,10 @@ export function DialogContent({
           className,
         )}
         {...props}
+        // A toast (Undo, Retry) is outside this dialog but is not "outside" in the sense of dismissing it:
+        // pressing a toast's button must not close the sheet that raised the toast.
+        onPointerDownOutside={(e) => { onPointerDownOutside?.(e); if (inToast(e.target)) e.preventDefault(); }}
+        onInteractOutside={(e) => { onInteractOutside?.(e); if (inToast(e.target)) e.preventDefault(); }}
         onCloseAutoFocus={(e) => {
           onCloseAutoFocus?.(e);
           if (e.defaultPrevented) return;

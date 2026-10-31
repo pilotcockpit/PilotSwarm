@@ -98,7 +98,8 @@ function FleetCell({ session: s, state: st, index, tabbable, onFocus }: { sessio
         )}
       >
         <span className="min-w-0 truncate text-sm font-semibold">{s.title || "Untitled session"}</span>
-        <StatePill state={st} size="sm" showReason={false} className="self-start" />
+        {/* On a tinted card the pill drops its own tint: tint on tint lowers the word's contrast below 4.5:1. */}
+        <StatePill state={st} size="sm" showReason={false} className={cn("self-start", (st.key === "failed" || st.key === "needs") && "bg-transparent px-0")} />
         <span className="line-clamp-2 min-h-8 text-sm text-muted">{what || (st.word === "Running" ? "Working on the current task" : st.word)}</span>
         {st.next ? <span className="text-xs text-muted">{st.next}</span> : null}
         <span className="mt-auto flex items-center gap-2 text-xs text-faint">

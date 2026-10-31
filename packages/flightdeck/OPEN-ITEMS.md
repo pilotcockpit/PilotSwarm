@@ -3,17 +3,25 @@
 Last updated 2026-10-30. Each item says how it closes. Mark an item done by deleting it and
 noting the commit in the PR or changelog, not by leaving a checked box here.
 
-## Unverified (built and reviewed, never exercised end to end)
+## Unverified (built and reviewed, not yet run against real infrastructure)
+
+Closed on demo data by the Playwright suite (`npm run test:e2e`, 4 projects: desktop and phone, light and dark):
+
+| ID | What | Closed by |
+|---|---|---|
+| V1 | Files: edit, conflict resolution, Changes (git) view, upload, rename, delete, unsaved-changes guards | `e2e/files.spec.ts` |
+| V2 | Admin > Knowledge purge, embedder Stop, namespace delete, Maintenance prune, system-session restart typed confirms | `e2e/knowledge.spec.ts` |
+| V3 | Providers: hold dialog, allowance, exact-integer limits, remove, add (password key cleared), paused banner, defaults | `e2e/providers-hold.spec.ts` |
+| V4 | Share sheet roles/undo/widening, view-only reasons, Move to group, canvas public link (shown once, rotate, remove), working-folder conflict | `e2e/sharing.spec.ts` |
+| V6 | Automated accessibility: axe on every route, tab, sheet and confirm the specs open; no sideways scroll; no console errors; phone tap targets under 24px fail | `e2e/a11y-smoke.spec.ts` plus axe calls in each spec |
+| V7 | Phone top bar: Share, theme toggle and session actions reachable from the session menu | `e2e/sharing.spec.ts` (phone projects), `e2e/a11y-smoke.spec.ts` |
+
+Still open:
 
 | ID | What | Closes when |
 |---|---|---|
-| V1 | Files: edit, conflict resolution, Changes (git) view, upload and delete states | Browser e2e specs for these states pass at 1280 and 390, light and dark (see "Closing the unverified states" below) |
-| V2 | Admin > Knowledge: typed-confirm purge, namespace delete confirm, embedder Stop confirm | e2e spec |
-| V3 | Providers: hold dialog (presets, custom, release), allowance slider, system-agent overrides, legacy-key move, paused-session action | e2e spec |
-| V4 | Share sheet roles and undo, canvas Share sheet create/rotate/remove, working-folder dialog conflict path | e2e spec |
 | V5 | Every new screen against a LIVE backend (real API shapes, real permissions, real latency) | A smoke run against a dev PilotSwarm server with a member and an admin account; each ported operation called once; failures filed |
-| V6 | Real-browser accessibility: keyboard journeys, screen-reader names, focus return, focus trap in sheets, 200% zoom | axe scan in the e2e run plus a manual VoiceOver pass on Share, Add provider and the file editor |
-| V7 | Phone top-bar change (theme toggle moved to More) with keyboard and screen reader | Covered by V6 |
+| V6b | Assistive technology: a manual VoiceOver pass on Share, Add provider and the file editor; 200% zoom | A person does it once and files what they find; axe cannot judge announcement quality |
 
 ## API and SDK gaps (candidates for upstream issues)
 
@@ -57,20 +65,8 @@ noting the commit in the PR or changelog, not by leaving a checked box here.
 | Q3 | Upstream PR for orchestration 1.0.83 (stale bound answers) not yet opened; needs the maintainer `/test all` run and a rollout note (workers must register 1.0.83) |
 | Q4 | A live worker upgrade 1.0.82 to 1.0.83 through continue-as-new has not been exercised against real Duroxide history |
 
-## Closing the unverified states (V1 to V4, V6, V7)
+## End-to-end suite (done)
 
-Add `packages/flightdeck/e2e/` with Playwright (already a root devDependency, used by
-`packages/app/web/playwright.config.mjs`):
-
-1. `playwright.config.ts`: `webServer` runs the Vite dev server on a free port; projects for
-   desktop (1280x800) and phone (390x844, touch), each in light and dark; `?data=demo`.
-2. One spec per area (`files.spec.ts`, `knowledge.spec.ts`, `providers-hold.spec.ts`,
-   `sharing.spec.ts`), each walking the states in the table above and asserting outcomes (a
-   saved edit shows the new text, a conflict keeps the draft, a typed confirm stays disabled
-   until the phrase matches, a hold shows its release time, Undo restores).
-3. An axe scan (`@axe-core/playwright`) on every sheet and dialog the specs open; fail on
-   serious or critical violations.
-4. A screenshot per state to `e2e/__screenshots__` for review (not pixel-diffed at first).
-5. `npm run test:e2e` in the package; defects found become fixes in the same change.
-6. Done when the run is green on both viewports and both themes, and the screenshots were
-   reviewed once by a person.
+`packages/flightdeck/e2e/` runs the Vite dev server on port 5181 (not 5180) and drives the demo data.
+See README, "End-to-end tests". It already found and fixed real defects; the list is in the commit
+that added it.

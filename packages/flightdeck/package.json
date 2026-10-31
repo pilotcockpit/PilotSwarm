@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test:ux": "node --experimental-strip-types --test src/lib/session-access.test.mjs src/lib/session-composer.test.mjs",
     "tokens:check": "node scripts/token-guard.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "test": "vitest run --exclude \"**/*.test.mjs\" && node --test src/lib/*.test.mjs"
   },
   "dependencies": {
@@ -32,6 +34,7 @@
     "tailwind-merge": "3.7.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@tailwindcss/vite": "4.3.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",

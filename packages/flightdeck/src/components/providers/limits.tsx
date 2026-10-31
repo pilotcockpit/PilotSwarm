@@ -19,6 +19,9 @@ const PRESETS: Record<Period, number[]> = { day: [250_000, 1_000_000, 5_000_000,
  * how much headroom is left, or that new turns will wait because the period is already over.
  * Saving a limit never resets what a period has spent; it counts from now.
  */
+/** "Daily", not "Dayly": the adverb is irregular for day. */
+const PERIOD_ADVERB = { day: "Daily", week: "Weekly", month: "Monthly" } as const;
+
 export function LimitRow({ provider, period, model, cell, manageable, usingCount, allowancePct, shared }: { provider: string; period: Period; model?: string | null; cell?: GridCell; manageable: boolean; usingCount: number; allowancePct: number; shared: boolean }) {
   const [editing, setEditing] = React.useState(false);
   const [text, setText] = React.useState("");
@@ -50,7 +53,7 @@ export function LimitRow({ provider, period, model, cell, manageable, usingCount
   return (
     <li className="border-t border-line-subtle py-3 first:border-t-0">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="w-24 shrink-0 text-sm font-medium">{model ? `${PERIOD_WORD[period][0].toUpperCase()}${PERIOD_WORD[period].slice(1)}ly` : PERIOD_LABEL[period]}</div>
+        <div className="w-24 shrink-0 text-sm font-medium">{model ? PERIOD_ADVERB[period] : PERIOD_LABEL[period]}</div>
         <div className="min-w-40 flex-1"><Meter used={used} limit={quota} label={`${provider} ${PERIOD_WORD[period]} limit${model ? ` for ${model}` : ""}`} />{period === "month" && !model && monthProjection(used, quota) ? <p className="mt-1 text-xs text-waiting">{monthProjection(used, quota)}</p> : null}</div>
         {resets ? <span className="text-xs text-muted">resets in {resets}</span> : null}
         {manageable && !editing ? <Button size="sm" onClick={open}>{quota == null ? "Set a limit" : "Change"}</Button> : null}

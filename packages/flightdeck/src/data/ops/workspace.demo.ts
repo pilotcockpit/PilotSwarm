@@ -46,6 +46,28 @@ const childrenOf = (fs: Map<string, Node>, dir: string) => [...fs.keys()].filter
 let revision = 3;
 let record: any = { root: "work", folder: "projects/flight-deck", extra: { notes: { root: "shared", folder: "notes" } } };
 
+// A way for end-to-end tests to play "someone else saved this file first": a dev-server-only hook,
+// absent from production builds. Used by e2e/files.spec.ts. See README, "End-to-end tests".
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  const w = window as any;
+  w.__fdDemo = {
+    ...(w.__fdDemo || {}),
+    workspace: {
+      /** Write `text` into a demo folder as another writer would, bypassing the editor. */
+      writeBehind(folder: string, path: string, text: string) {
+        const fs = fsByFolder(folder);
+        if (!fs) throw new Error(`no demo folder ${folder}`);
+        fs.set(path, { kind: "file", text, mtimeMs: Date.now() });
+      },
+      /** Change the session's workspace record as another admin would, moving its revision on. */
+      bumpRevision(patch: { folder?: string }) {
+        revision += 1;
+        if (patch.folder != null && record) record = { ...record, folder: patch.folder };
+      },
+    },
+  };
+}
+
 registerDemoOps(import.meta.url, {
   getSessionWorkspace: () => ({
     workspace: record, revision, turnRevision: revision, path: record ? `/srv/${record.root}/${record.folder || ""}` : null,
