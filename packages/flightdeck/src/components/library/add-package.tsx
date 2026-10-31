@@ -61,7 +61,7 @@ export function AddPackageDialog({ open, onOpenChange, initial, existing, onPubl
     if (!result || !analysis) return;
     setServerErrors([]);
     try {
-      const r = await upload.mutateAsync({ files: toUploadFiles(result.files), scope });
+      const r = await upload.mutateAsync({ files: toUploadFiles(result.files), scope, name: analysis.name, semver: analysis.version });
       toast.success(r?.status === "noop" ? "Nothing changed: these files were already published." : `Published ${analysis.name} ${analysis.version}`, { description: r?.status === "noop" ? undefined : "Workers pick it up in about 20 seconds." });
       onPublished(r?.packageId);
       onOpenChange(false);

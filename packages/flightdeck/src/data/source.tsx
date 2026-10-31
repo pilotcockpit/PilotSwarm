@@ -36,6 +36,8 @@ interface SourceContext {
 }
 
 const Ctx = React.createContext<SourceContext | null>(null);
+/** For tests: provide any DataSource without building a live or demo one. */
+export const SourceContextProvider = Ctx.Provider;
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeState] = React.useState<DataMode>(readMode);

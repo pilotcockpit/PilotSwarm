@@ -7,8 +7,8 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton, Tag } from "@/components/ui/misc";
 import { cardVariants } from "@/components/ui/card";
-import { baselineOf, isDirty as formIsDirty, planSave, type Baseline } from "./working-folder-form";
-import { errorCode, useRetryWorkspace, useSetWorkspace, useWorkspaceFolders, useWorkspaceView, type WorkspaceRecord } from "@/data/ops/workspace";
+import { baselineOf, buildSave, isDirty as formIsDirty, planSave, type Baseline } from "./working-folder-form";
+import { errorCode, useRetryWorkspace, useSetWorkspace, useWorkspaceFolders, useWorkspaceView } from "@/data/ops/workspace";
 import { cn, plural } from "@/lib/utils";
 
 type Extra = { name: string; root: string; folder: string };
@@ -122,12 +122,11 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
   const send = (choice: "normal" | "keep") => {
     if (!w) return;
     setProblem(null);
-    const plan = planSave(frozen(), w.revision, choice);
-    if (plan.action === "conflict") { setConflict(true); return; }
+    const request = buildSave({ root, folder, extrasTouched, extras }, frozen(), w.revision, choice);
+    // A detected conflict sends nothing: the person chooses first (see buildSave).
+    if (request.action === "conflict") { setConflict(true); return; }
     setConflict(false);
-    const next: WorkspaceRecord = { root: root.trim(), ...(folder.trim() ? { folder: folder.trim().replace(/\/+$/, "") } : {}) };
-    if (extrasTouched) next.extra = Object.fromEntries(extras.filter((e) => e.name).map((e) => [e.name, { root: e.root.trim(), ...(e.folder.trim() ? { folder: e.folder.trim().replace(/\/+$/, "") } : {}) }]));
-    save.mutate({ expectedRevision: plan.expectedRevision, workspace: next }, {
+    save.mutate({ expectedRevision: request.expectedRevision, workspace: request.workspace }, {
       onSuccess: () => { loadedRevision.current = null; },
       onError: (e: any) => {
         // The server is the backstop: if it moved between our last read and this save, ask, don't overwrite.

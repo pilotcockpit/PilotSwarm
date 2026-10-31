@@ -19,7 +19,7 @@ const PRESETS: Record<Period, number[]> = { day: [250_000, 1_000_000, 5_000_000,
  * how much headroom is left, or that new turns will wait because the period is already over.
  * Saving a limit never resets what a period has spent; it counts from now.
  */
-function LimitRow({ provider, period, model, cell, manageable, usingCount, allowancePct, shared }: { provider: string; period: Period; model?: string | null; cell?: GridCell; manageable: boolean; usingCount: number; allowancePct: number; shared: boolean }) {
+export function LimitRow({ provider, period, model, cell, manageable, usingCount, allowancePct, shared }: { provider: string; period: Period; model?: string | null; cell?: GridCell; manageable: boolean; usingCount: number; allowancePct: number; shared: boolean }) {
   const [editing, setEditing] = React.useState(false);
   const [text, setText] = React.useState("");
   const set = useSetLimit();

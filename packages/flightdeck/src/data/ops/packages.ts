@@ -1,6 +1,8 @@
 import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizePackageFile, type PackageFileView } from "./contracts";
+import { ADOPTION_POLL_MS, clearPending, evaluatePending, installedSignature, markPending, pendingKey, pollInterval, updateInProgress, usePending } from "./adoption";
+export { ADOPTION_POLL_MS } from "./adoption";
 import { useSource } from "@/data/source";
 import { useOpMutation, useOpQuery, useOpRequest, type OpRequest } from "@/data/ops/use-op";
 import type { Profile } from "@/data/types";
@@ -114,39 +116,72 @@ export function usePackageFile(pkg: PackageSummary | null, semver: string | unde
   return useOpRequest(packageFileRequest(pkg, semver, filePath, profile), { enabled: Boolean(pkg && filePath), staleTime: 60_000 });
 }
 
-/** How often to look again while workers are still picking up a new version. */
-export const ADOPTION_POLL_MS = 5_000;
-
-/** True while some worker still runs another version of a package (and has not failed): adoption is under way. */
+/** True while a package that was already reported has workers on different versions (an update in flight). */
 export function adoptionInProgress(packages: PackageSummary[] | undefined, states: WorkerPackageState[] | undefined): boolean {
-  if (!packages?.length || !states?.length) return false;
-  return packages.some((p) => {
-    const a = adoption(p, states);
-    return Boolean(a && a.on + a.failed < a.total);
-  });
+  return updateInProgress(packages, states, adoption);
 }
 
 /**
- * Admin only: what each worker has installed, for the adoption meter. While a new version is still
- * being picked up it looks again every few seconds; when the last worker has it, the agent catalog is
- * refreshed too, because a new version can add or change agents.
+ * Admin only: what each worker has installed, for the adoption meter, kept fresh while it matters.
+ *
+ * It looks again every few seconds while a package this page just published, enabled or pinned is not yet
+ * on every worker (even before any worker has reported it, the first-publication case) or while workers
+ * disagree about a version, and stops when nothing is waiting. Each time a worker's installed state
+ * changes, and when a waited-for version lands (or the wait times out), the agent catalog is refreshed too,
+ * because a new version can add or change agents. Without worker state (a member, not an admin) it simply
+ * refreshes the agent catalog every few seconds until the wait times out.
  */
 export function useWorkerPackageState(enabled: boolean, packages?: PackageSummary[]) {
   const qc = useQueryClient();
+  const pending = usePending();
   const packagesRef = React.useRef(packages);
   packagesRef.current = packages;
+  const pendingRef = React.useRef(pending);
+  pendingRef.current = pending;
+  const [tick, setTick] = React.useState(0);
   const query = useOpQuery<WorkerPackageState[]>(["packages", "workers"], "listAgentWorkerState", {}, {
     enabled,
     staleTime: 15_000,
-    refetchInterval: (q) => (adoptionInProgress(packagesRef.current, q.state.data) ? ADOPTION_POLL_MS : false),
+    refetchInterval: (q) => pollInterval(pendingRef.current, q.state.data, packagesRef.current, adoptionInProgress(packagesRef.current, q.state.data), Date.now()),
     select: (raw) => list<WorkerPackageState>(raw, "workers").concat(Array.isArray(raw) ? [] : list<WorkerPackageState>(raw, "rows")).map((r) => ({ ...r, installed: (r.installed || {}) as WorkerPackageState["installed"] })),
   });
-  const inProgress = adoptionInProgress(packages, query.data);
-  const was = React.useRef(false);
+
+  // Something just became pending: look right away, then on the interval.
+  const lastVersion = React.useRef(pending.length);
   React.useEffect(() => {
-    if (was.current && !inProgress) void qc.invalidateQueries({ queryKey: ["agents"] });
-    was.current = inProgress;
-  }, [inProgress, qc]);
+    if (enabled && pending.length > lastVersion.current) void query.refetch();
+    lastVersion.current = pending.length;
+  }, [pending.length, enabled]);
+
+  // A clock while anything is pending, so a wait expires even if the polling fails.
+  React.useEffect(() => {
+    if (!pending.length) return;
+    const t = window.setInterval(() => setTick((n) => n + 1), ADOPTION_POLL_MS);
+    return () => window.clearInterval(t);
+  }, [pending.length]);
+
+  // Settle what has landed or timed out, and refresh the catalogs it affects.
+  React.useEffect(() => {
+    if (!pending.length) return;
+    const { done, expired } = evaluatePending(pending, enabled ? query.data : undefined, packages, Date.now());
+    if (done.length || expired.length) {
+      clearPending([...done, ...expired].map(pendingKey));
+      void qc.invalidateQueries({ queryKey: ["agents"] });
+      void qc.invalidateQueries({ queryKey: ["packages"] });
+    } else if (!enabled) {
+      void qc.invalidateQueries({ queryKey: ["agents"] });
+    }
+  }, [pending, query.dataUpdatedAt, packages, enabled, tick]);
+
+  // Any worker adopting, dropping or failing a package changes what agents exist.
+  const signature = installedSignature(query.data);
+  const lastSignature = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (query.data === undefined) return;
+    if (lastSignature.current !== null && lastSignature.current !== signature) void qc.invalidateQueries({ queryKey: ["agents"] });
+    lastSignature.current = signature;
+  }, [signature, query.data === undefined]);
+
   return query;
 }
 
@@ -191,25 +226,34 @@ export function describeFiles(paths: string[]): Provides {
 const invalidate = [["packages"], ["agents"]];
 const sel = (pkg: PackageSummary, profile?: Profile | null) => packageSelector(pkg, profile);
 
+/** Remember that this page is waiting for workers to pick up a package (a version, or "whatever is active"). */
+export function awaitWorkers(pkg: { name: string; scope: "shared" | "user"; owner?: Principal | null }, semver: string | null) {
+  markPending({ name: pkg.name, scope: pkg.scope, ownerSubject: pkg.scope === "user" ? pkg.owner?.subject ?? null : null, semver });
+}
+
 export function usePackageActions(profile?: Profile | null) {
   const setEnabled = useOpMutation<{ pkg: PackageSummary; enabled: boolean }>("setAgentPackageEnabled", {
     params: ({ pkg, enabled }) => ({ ...sel(pkg, profile), enabled }),
     invalidate,
+    onSuccess: (_r, v) => { if (v.enabled) awaitWorkers(v.pkg, null); },
     success: (_r, v) => (v.enabled ? `${v.pkg.name} is available to sessions again` : `${v.pkg.name} is turned off. Sessions that use its agents will stop resolving them.`),
   });
   const pin = useOpMutation<{ pkg: PackageSummary; semver: string }>("pinAgentPackageVersion", {
     params: ({ pkg, semver }) => ({ ...sel(pkg, profile), semver }),
     invalidate,
+    onSuccess: (_r, v) => awaitWorkers(v.pkg, v.semver),
     success: () => null,
   });
   const setScope = useOpMutation<{ pkg: PackageSummary; scope: "shared" | "user" }>("setAgentPackageScope", {
     params: ({ pkg, scope }) => ({ name: pkg.name, scope, ...(pkg.owner && !isSamePerson(pkg.owner, profile) ? { ownerProvider: pkg.owner.provider, ownerSubject: pkg.owner.subject } : {}) }),
     invalidate,
+    onSuccess: (_r, v) => awaitWorkers({ name: v.pkg.name, scope: v.scope, owner: v.scope === "user" ? v.pkg.owner : null }, null),
     success: (_r, v) => (v.scope === "shared" ? `${v.pkg.name} is now shared with everyone` : `${v.pkg.name} is private again`),
   });
   const republish = useOpMutation<{ pkg: PackageSummary; semver: string; targetScope: "shared" | "user" }>("republishAgentPackageVersion", {
     params: ({ pkg, semver, targetScope }) => ({ name: pkg.name, semver, targetScope, ...(pkg.owner && !isSamePerson(pkg.owner, profile) ? { ownerProvider: pkg.owner.provider, ownerSubject: pkg.owner.subject } : {}) }),
     invalidate,
+    onSuccess: (_r, v) => awaitWorkers({ name: v.pkg.name, scope: v.targetScope, owner: v.targetScope === "user" ? v.pkg.owner : null }, v.semver),
     success: (_r, v) => `Published ${v.pkg.name} ${v.semver} into ${v.targetScope === "shared" ? "the shared package" : "your copy"}`,
   });
   const remove = useOpMutation<{ pkg: PackageSummary }>("deleteAgentPackage", {
@@ -236,8 +280,13 @@ export function useUploadPackage() {
   const { source } = useSource();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (v: { files: UploadFile[]; scope: "shared" | "user" }) =>
+    // `name` and `semver` come from the preview the person just confirmed; they say what to wait for.
+    mutationFn: async (v: { files: UploadFile[]; scope: "shared" | "user"; name?: string | null; semver?: string | null }) =>
       (await source.call("uploadAgentPackage", { files: v.files, scope: v.scope })) as { status?: "published" | "noop"; packageId?: string; versionId?: string },
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["packages"] }); void qc.invalidateQueries({ queryKey: ["agents"] }); },
+    onSuccess: (r, v) => {
+      void qc.invalidateQueries({ queryKey: ["packages"] });
+      void qc.invalidateQueries({ queryKey: ["agents"] });
+      if (r?.status !== "noop" && v.name) awaitWorkers({ name: v.name, scope: v.scope }, v.semver || null);
+    },
   });
 }

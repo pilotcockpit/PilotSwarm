@@ -27,3 +27,26 @@ export function planSave(baseline: Baseline | null, serverRevision: number | nul
   }
   return { action: "save", expectedRevision: baseline.revision };
 }
+
+export interface FormInput { root: string; folder: string; extrasTouched: boolean; extras: Array<{ name: string; root: string; folder: string }> }
+export interface WorkspacePayload { root: string; folder?: string; extra?: Record<string, { root: string; folder?: string }> }
+export type SaveRequest = { action: "save"; expectedRevision: number; workspace: WorkspacePayload } | { action: "conflict" };
+
+const trimSlashes = (v: string) => v.trim().replace(/\/+$/, "");
+
+/**
+ * The request a Save makes, or why it makes none.
+ *
+ * A conflict found here, on the client (the record moved on since the form was loaded), sends NOTHING:
+ * the draft is not put under the newer revision, because that would replace someone else's change without
+ * the person ever seeing it. They are shown "Keep my edits" or "Take theirs" first; only "Keep" sends, and
+ * then against the revision they just looked at. If the record moves between this check and the server
+ * receiving the request, the server refuses the old revision and the dialog shows the same choice.
+ */
+export function buildSave(form: FormInput, baseline: Baseline | null, serverRevision: number | null, choice: "normal" | "keep" = "normal"): SaveRequest {
+  const plan = planSave(baseline, serverRevision, choice);
+  if (plan.action === "conflict") return plan;
+  const workspace: WorkspacePayload = { root: form.root.trim(), ...(form.folder.trim() ? { folder: trimSlashes(form.folder) } : {}) };
+  if (form.extrasTouched) workspace.extra = Object.fromEntries(form.extras.filter((e) => e.name).map((e) => [e.name, { root: e.root.trim(), ...(e.folder.trim() ? { folder: trimSlashes(e.folder) } : {}) }]));
+  return { action: "save", expectedRevision: plan.expectedRevision, workspace };
+}

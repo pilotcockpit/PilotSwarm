@@ -26,3 +26,25 @@ describe("working-folder form baseline", () => {
     expect(isDirty({ root: "shared", folder: "", extrasTouched: false }, null)).toBe(true);
   });
 });
+
+import { buildSave } from "./working-folder-form";
+
+describe("buildSave: the request a Save makes", () => {
+  const form = { root: "projects", folder: "api/", extrasTouched: false, extras: [] };
+  it("with no refresh in between, sends exactly the baseline revision it was loaded from", () => {
+    const loaded = baselineOf(4, "projects", "web");           // opened at revision 4, then edited the folder
+    const req = buildSave(form, loaded, 4);                    // the server is still at revision 4
+    expect(req).toEqual({ action: "save", expectedRevision: 4, workspace: { root: "projects", folder: "api" } });
+  });
+  it("sends nothing when the record moved on, until the person chooses", () => {
+    const loaded = baselineOf(4, "projects", "web");
+    expect(buildSave(form, loaded, 5)).toEqual({ action: "conflict" });                           // refresh brought revision 5: no request
+    expect(buildSave(form, loaded, 5, "keep")).toMatchObject({ action: "save", expectedRevision: 5 }); // "Keep my edits": against what they just saw
+  });
+  it("carries edited extra folders and leaves them out when untouched", () => {
+    const loaded = baselineOf(1, "projects", "");
+    const touched = buildSave({ ...form, extrasTouched: true, extras: [{ name: "notes", root: " shared ", folder: "n/" }, { name: "", root: "x", folder: "" }] }, loaded, 1);
+    expect(touched).toMatchObject({ action: "save", workspace: { extra: { notes: { root: "shared", folder: "n" } } } });
+    expect((buildSave(form, loaded, 1) as any).workspace.extra).toBeUndefined();
+  });
+});
