@@ -244,13 +244,19 @@ always the last section and scrolls on its own. Its heading is a link to the Ses
 the total and a filter button (state facets, group by My groups or Agent, and for admins system
 sessions). Sections: Needs you (derived, always first and expanded), Pinned, one per group the
 person made, then Recent (12, "Show more"). A session appears once, in the first section that
-claims it. Providers, Admin (admins) and Settings, the theme, density, demo/live and collapse
+claims it. Providers, Admin (admins) and Settings, the theme (a radio group) and demo/live
 live in the account menu at the foot; there is no "Manage" group. Rows are one line (state glyph,
 title, unseen-canvas dot); hover or focus reveals pin and a menu (rename, pin, move to group,
 share, copy link, complete, cancel, delete with a confirmation). The list is one tab stop with
 roving focus: arrows, Home and End move, Enter opens, `p` pins, `m` opens the menu, Delete asks to
-delete. Pins, collapsed sections, group-by and the state filter are per person in this browser
-(`fd.pins`, `fd.sidebar.*`): the API has no pin and no per-person sidebar state. Collapsed, the
+delete. Pins, collapsed sections, group-by and the state filter are kept in this browser, in keys scoped by data
+source and signed-in person (`fd.pins@<source>:<provider>:<person>`, `fd.sidebar.*@…`), so two people on one browser do
+not share them. They are not synced across browsers: the API has no pin and no per-person sidebar state. Stored
+values of the wrong shape read as the default, and when the browser refuses storage the choice holds for the page. A
+row that moves between sections (a pin, a group change, a poll) keeps keyboard focus on the same session, or on its
+neighbour if it is gone. System sessions cannot be renamed, completed, cancelled or deleted (the SDK refuses all
+four): their menus disable those and offer Restart… to admins. A sub-agent whose parent is not in the list is listed
+as a root. The Needs-you count is announced politely when it changes. Collapsed, the
 sidebar is an icon rail with a Sessions icon carrying the Needs-you count. On a phone the same
 sidebar is a left drawer, opened by the menu button or the Sessions tab; the bottom tabs stay.
 
@@ -278,10 +284,17 @@ content-led, with no stretching or minimum height that leaves an empty body. Wor
 collections use 16px gaps and progress from one to two or three columns. Standard responsive thresholds used here are 640, 768 and 1024px.
 Phones preserve the reading order, wrap long choices and keep actions visible.
 
-Shared operational density remains compact by default: 30px rows and controls;
-comfortable mode uses 36px rows and 32px controls. Coarse pointers raise both to
-44px. This density setting does not compress WorkCard reading or answer controls.
+There is one layout, not a density setting: 30px rows and controls and 14px/22px body text.
+Coarse pointers raise rows and controls to 44px. Browser zoom is the way to make everything
+larger; WorkCard reading and answer controls are sized for reading in any case.
 All surfaces must reflow at 320px and remain usable at 200% zoom.
+
+**Theme.** One control, set in three places from one implementation (`components/theme-setting.tsx`):
+Settings > Appearance (System | Light | Dark), the account menu (a radio group with the current choice checked)
+and the command palette (Theme: System, Theme: Light, Theme: Dark). There is no theme toggle in the top
+bar. The default is System, which follows the browser live; the pre-paint script in `index.html` applies it so
+there is no flash in either direction, and a stored explicit choice always wins. The phone More sheet shows
+the same segmented control.
 
 ## Elevation & Depth
 
@@ -331,7 +344,7 @@ with 12px vertically. Do not turn a row inside a panel into another boxed card.
 
 Use shared Button, Chip, Tabs, SideNavItem or Segmented instead of hand-built
 button recipes. Button variants are primary, default, quiet, danger and link.
-Compact buttons retain 26px small and density-driven medium sizes; coarse pointers
+Buttons are 26px small and 30px medium; coarse pointers
 receive 44px targets. Overview decision/recovery controls use a 36px minimum,
 14px labels and wrapping text. They grow for long answers. No choice receives
 primary styling unless the agent supplied a default. One primary action per screen

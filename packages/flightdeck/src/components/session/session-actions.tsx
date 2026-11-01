@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 export type CloseKind = "complete" | "cancel" | "delete";
 
 export const canManage = (s: Session) => !(sessionIsViewOnly(s) || s.canManage === false);
+/** Rename, complete, cancel and delete. The SDK refuses all four on a system session; those are restarted instead. */
+export const canModify = (s: Session) => canManage(s) && !s.isSystem;
 export const sessionLink = (id: string) => `${window.location.origin}/s/${id}`;
 export function copySessionLink(id: string) {
   void navigator.clipboard?.writeText(sessionLink(id));
@@ -23,7 +25,7 @@ export function copySessionLink(id: string) {
 }
 
 /** Complete, cancel or delete, after saying what it does. Closing the dialog is the caller's state. */
-export function SessionCloseDialog({ session, kind, childCount = 0, onOpenChange }: { session: Session; kind: CloseKind | null; childCount?: number; onOpenChange: (open: boolean) => void }) {
+export function SessionCloseDialog({ session, kind, childCount = 0, onOpenChange, onCloseAutoFocus }: { session: Session; kind: CloseKind | null; childCount?: number; onOpenChange: (open: boolean) => void; onCloseAutoFocus?: (e: Event) => void }) {
   const { source } = useSource();
   const refresh = useRefresh();
   const navigate = useNavigate();
@@ -31,7 +33,7 @@ export function SessionCloseDialog({ session, kind, childCount = 0, onOpenChange
   const [busy, setBusy] = React.useState(false);
   const inFlight = React.useRef(false);
   const run = async (k: CloseKind) => {
-    if (inFlight.current || !canManage(session)) return;
+    if (inFlight.current || !canModify(session)) return;
     inFlight.current = true;
     setBusy(true);
     try {
@@ -50,7 +52,7 @@ export function SessionCloseDialog({ session, kind, childCount = 0, onOpenChange
   return (
     <Dialog open={Boolean(kind)} onOpenChange={(o) => !o && !busy && onOpenChange(false)}>
       {kind ? (
-        <DialogContent title={kind === "complete" ? "Complete this session?" : kind === "cancel" ? "Cancel this session?" : "Delete this session?"}>
+        <DialogContent title={kind === "complete" ? "Complete this session?" : kind === "cancel" ? "Cancel this session?" : "Delete this session?"} onCloseAutoFocus={onCloseAutoFocus}>
           <DialogBody>
             <p className="text-sm text-muted">
               {kind === "complete" && "It closes as done. The transcript, canvases and outputs stay. "}
@@ -71,17 +73,26 @@ export function SessionCloseDialog({ session, kind, childCount = 0, onOpenChange
   );
 }
 
-/** Rename in a small dialog, for places where the title is not an editable heading (the sidebar). */
+/**
+ * Rename in a small dialog, for places where the title is not an editable heading (the sidebar).
+ * The draft starts from the title as it was when the dialog opened and is never replaced by a poll: if the
+ * session is renamed by someone else meanwhile, the dialog says so and offers their title, and saving still
+ * means what the person typed.
+ */
 export function SessionRenameDialog({ session, open, onOpenChange }: { session: Session; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { source } = useSource();
   const refresh = useRefresh();
   const [title, setTitle] = React.useState(session.title || "");
+  const baseline = React.useRef(session.title || "");
   const [busy, setBusy] = React.useState(false);
-  React.useEffect(() => { if (open) setTitle(session.title || ""); }, [open, session.title]);
+  const current = session.title || "";
+  // Only opening starts a draft. A title that changes while it is open is a notice, not a reset.
+  React.useEffect(() => { if (open) { baseline.current = current; setTitle(current); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const changedUnderneath = open && current !== baseline.current;
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     const next = title.trim();
-    if (!next || next === session.title) return onOpenChange(false);
+    if (!next || next === current) return onOpenChange(false);
     setBusy(true);
     try { await source.renameSession(session.sessionId, next); refresh(session.sessionId); toast.success("Renamed"); onOpenChange(false); }
     catch (err: any) { toast.error("Couldn't rename", { description: err?.message }); }
@@ -91,7 +102,15 @@ export function SessionRenameDialog({ session, open, onOpenChange }: { session: 
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
       <DialogContent title="Rename session">
         <form onSubmit={save}>
-          <DialogBody><Field label="Title"><Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} /></Field></DialogBody>
+          <DialogBody className="flex flex-col gap-2">
+            <Field label="Title"><Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} /></Field>
+            {changedUnderneath ? (
+              <p role="status" className="text-sm text-muted" data-title-changed>
+                Someone renamed this to “{current}” while you were typing. Saving replaces it with your title.{" "}
+                <Button type="button" variant="link" size="sm" onClick={() => { baseline.current = current; setTitle(current); }}>Use theirs</Button>
+              </p>
+            ) : null}
+          </DialogBody>
           <DialogFooter>
             <Button type="button" disabled={busy} onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" variant="primary" disabled={busy || !title.trim()}>Save</Button>

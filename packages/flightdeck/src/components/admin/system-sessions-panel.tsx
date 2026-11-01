@@ -85,7 +85,7 @@ export function SystemSessions() {
   );
 }
 
-function RestartDialog({ session, onClose }: { session: Session; onClose: () => void }) {
+export function RestartDialog({ session, onClose }: { session: Session; onClose: () => void }) {
   const restart = useRestartSystemSession();
   const [mode, setMode] = React.useState<Disposition>("complete");
   const [advanced, setAdvanced] = React.useState(false);

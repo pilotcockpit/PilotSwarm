@@ -3,7 +3,7 @@ import * as React from "react";
 import { Database } from "lucide-react";
 import { TopBar } from "@/shell/AppShell";
 import { MyFeaturePreferences } from "@/components/settings/personal-flags";
-import { useDensity, useTheme } from "@/shell/prefs";
+import { ThemeSegmented } from "@/components/theme-setting";
 import { ShortcutList } from "@/shell/shortcuts";
 import { useProfile, useSource } from "@/data/source";
 import { Panel } from "@/components/empty";
@@ -54,15 +54,10 @@ function Row({ title, note, children }: { title: string; note?: string; children
 }
 
 function Appearance() {
-  const [theme, setTheme] = useTheme();
-  const [density, setDensity] = useDensity();
   return (
     <Panel>
       <Row title="Theme" note="System follows your computer's setting.">
-        <Segmented label="Theme" value={theme} onChange={setTheme} options={[{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]} />
-      </Row>
-      <Row title="Density" note="Compact fits more rows; Comfortable is easier to read for long chats.">
-        <Segmented label="Density" value={density} onChange={setDensity} options={[{ value: "compact", label: "Compact" }, { value: "comfortable", label: "Comfortable" }]} />
+        <ThemeSegmented />
       </Row>
     </Panel>
   );

@@ -117,7 +117,7 @@ route and tab).
 
 Writing a spec:
 
-- Start with `gotoDemo(page, path, info)`; it sets demo data and the project's theme before load.
+- Start with `gotoDemo(page, path, info)`; it sets demo data and the project's theme once per browser context before load, so a test that changes the theme and reloads keeps what it chose. `e2e/theme.spec.ts` covers the theme control; a first-visit test removes the stored theme to exercise the System default.
 - Assert outcomes and roles, not pixels. `shot(page, info, "state")` saves a picture to
   `e2e/__screenshots__/<project>/` for a person to look at; they are not compared and not committed.
 - Use `Sheet.open(page, opener, name)` for dialogs and sheets: it checks the label, that focus moved in,

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { ChevronRight, FolderInput, ListFilter, MoreHorizontal, Pencil, Pin, PinOff, Plus, Share2, Link2, CheckCircle2, Ban, Trash2 } from "lucide-react";
+import { ChevronRight, FolderInput, ListFilter, MoreHorizontal, Pencil, Pin, PinOff, Plus, RotateCcw, Share2, Link2, CheckCircle2, Ban, Trash2 } from "lucide-react";
 import { useGroups, useProfile, useSessions } from "@/data/source";
 import type { Session } from "@/data/types";
 import { sessionState } from "@/data/state";
@@ -13,13 +13,15 @@ import { Segmented } from "@/components/ui/tabs";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ShareSheet } from "@/components/session/share-sheet";
 import { MoveToGroupDialog } from "@/components/session/move-to-group";
-import { SessionCloseDialog, SessionRenameDialog, canManage, copySessionLink, type CloseKind } from "@/components/session/session-actions";
+import { SessionCloseDialog, SessionRenameDialog, canModify, copySessionLink, type CloseKind } from "@/components/session/session-actions";
+import { RestartDialog } from "@/components/admin/system-sessions-panel";
 import { useUi } from "@/shell/ui-state";
 import { cn } from "@/lib/utils";
 import { usePins, useSidebarPrefs, type GroupBy } from "./prefs";
-import { buildSections, RECENT_PAGE, visibleRowIds, type Section } from "./tree";
+import { buildSections, focusAfterChange, isRoot, RECENT_PAGE, visibleRowIds, type Section } from "./tree";
+import { NeedsCountStatus } from "./needs-status";
 
-type Dialog = { id: string; kind: "rename" | "move" | "share" | CloseKind } | null;
+type Dialog = { id: string; kind: "rename" | "move" | "share" | "restart" | CloseKind } | null;
 
 /** The id of the session being viewed, from the address. */
 export function useActiveSessionId(): string | null {
@@ -59,12 +61,47 @@ export function SessionsSidebar({ onNavigate, className }: { onNavigate?: () => 
     for (const s of all) if (!s.isSystem) { const k = sessionState(s).key; c[k] = (c[k] || 0) + 1; }
     return c;
   }, [all]);
-  const total = all.filter((s) => !s.isSystem && !s.parentSessionId).length;
+  const present = React.useMemo(() => new Set(all.map((s) => s.sessionId)), [all]);
+  const total = all.filter((s) => !s.isSystem && isRoot(s, present)).length;
+  const needsCount = sections.find((sec) => sec.kind === "needs")?.sessions.length ?? 0;
   const filtering = Boolean(prefs.state) || prefs.groupBy !== "groups";
 
+  // The session whose row last held keyboard focus inside the list. A row that moves between sections (a pin,
+  // a group change, a state change on a poll) is unmounted and mounted elsewhere, which drops focus to the page;
+  // when that happens, focus goes to the same session in its new place, or to its neighbour if it is gone.
+  const focusedRef = React.useRef<string | null>(null);
+  const prevIdsRef = React.useRef<string[]>(ids);
+  const rowEl = (id: string) => listRef.current?.querySelector<HTMLElement>(`a[data-sidebar-row][data-session-id="${CSS.escape(id)}"]`) ?? null;
   const focusRow = (id: string) => {
+    focusedRef.current = id;
     setFocusId(id);
-    listRef.current?.querySelector<HTMLElement>(`a[data-sidebar-row][data-session-id="${CSS.escape(id)}"]`)?.focus();
+    rowEl(id)?.focus();
+  };
+  const onFocusRow = (id: string) => { focusedRef.current = id; setFocusId(id); };
+  React.useLayoutEffect(() => {
+    const prev = prevIdsRef.current;
+    prevIdsRef.current = ids;
+    const id = focusedRef.current;
+    if (!id || !listRef.current) return;
+    const active = document.activeElement;
+    if (listRef.current.contains(active)) return; // focus is still in the list
+    if (active && active !== document.body) { if (!active.closest("[role='dialog'],[role='menu']")) focusedRef.current = null; return; } // someone else has it
+    const target = focusAfterChange(prev, ids, id);
+    if (!target) { focusedRef.current = null; return; }
+    const el = rowEl(target);
+    if (el) { focusedRef.current = target; setFocusId(target); el.focus(); }
+  });
+  React.useEffect(() => {
+    // Pointing elsewhere is a decision to leave the list: do not pull focus back later.
+    const leave = (e: PointerEvent) => { if (!listRef.current?.contains(e.target as Node)) focusedRef.current = null; };
+    document.addEventListener("pointerdown", leave, true);
+    return () => document.removeEventListener("pointerdown", leave, true);
+  }, []);
+  /** Dialogs opened from a row give focus back to it, or to the row that took its place if it is gone by then. */
+  const closeFocus = (id: string) => (e: Event) => {
+    e.preventDefault();
+    const target = focusAfterChange(prevIdsRef.current, ids, id);
+    if (target) focusRow(target);
   };
   const onKeyDown = (e: React.KeyboardEvent) => {
     const row = (e.target as HTMLElement).closest<HTMLElement>("a[data-sidebar-row]");
@@ -77,7 +114,7 @@ export function SessionsSidebar({ onNavigate, className }: { onNavigate?: () => 
     else if (e.key === "End") { e.preventDefault(); if (ids.length) focusRow(ids[ids.length - 1]); }
     else if (e.key === "p") { e.preventDefault(); pins.toggle(id); }
     else if (e.key === "m" || e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) { e.preventDefault(); setMenuFor(id); }
-    else if (e.key === "Delete") { const s = byId.get(id); if (s && canManage(s)) { e.preventDefault(); setDialog({ id, kind: "delete" }); } }
+    else if (e.key === "Delete") { const s = byId.get(id); if (s && canModify(s)) { e.preventDefault(); setDialog({ id, kind: "delete" }); } }
   };
 
   const dialogSession = dialog ? byId.get(dialog.id) : undefined;
@@ -85,6 +122,7 @@ export function SessionsSidebar({ onNavigate, className }: { onNavigate?: () => 
 
   return (
     <nav aria-label="Sessions" className={cn("flex min-h-0 flex-1 flex-col", className)}>
+      <NeedsCountStatus count={needsCount} />
       <div className="flex shrink-0 items-center gap-1 px-1 pb-1">
         <Link to="/sessions" onClick={onNavigate} className="focus-inset flex min-h-8 flex-1 items-center gap-2 rounded-control px-1.5 text-sm font-semibold text-fg hover:bg-raised/60 pointer-coarse:min-h-11">
           Sessions <span className="text-xs font-normal tabular-nums text-faint">{total}</span>
@@ -119,7 +157,7 @@ export function SessionsSidebar({ onNavigate, className }: { onNavigate?: () => 
         </Popover>
       </div>
 
-      <div ref={listRef} onKeyDown={onKeyDown} className="min-h-0 flex-1 overflow-y-auto px-1 pb-2" data-sessions-scroll>
+      <div ref={listRef} onKeyDown={onKeyDown} onBlur={(e) => { if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget as Node) && !(e.relatedTarget as HTMLElement).closest?.("[role='dialog'],[role='menu']")) focusedRef.current = null; }} className="min-h-0 flex-1 overflow-y-auto px-1 pb-2" data-sessions-scroll>
         {isLoading ? (
           <div className="flex flex-col gap-1.5 px-1.5 pt-1" aria-hidden>{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-6" />)}</div>
         ) : isError ? (
@@ -137,7 +175,8 @@ export function SessionsSidebar({ onNavigate, className }: { onNavigate?: () => 
               onMoreRecent={() => setRecentShown((n) => n + RECENT_PAGE)}
               active={active}
               tabbable={tabbable}
-              onFocusRow={setFocusId}
+              onFocusRow={onFocusRow}
+              isAdmin={Boolean(profile?.isAdmin)}
               pins={pins}
               menuFor={menuFor}
               setMenuFor={setMenuFor}
@@ -152,18 +191,19 @@ export function SessionsSidebar({ onNavigate, className }: { onNavigate?: () => 
       {dialog && dialogSession ? (
         <>
           <SessionRenameDialog session={dialogSession} open={dialog.kind === "rename"} onOpenChange={(o) => !o && setDialog(null)} />
+          {dialog.kind === "restart" ? <RestartDialog session={dialogSession} onClose={() => setDialog(null)} /> : null}
           <MoveToGroupDialog session={dialogSession} open={dialog.kind === "move"} onOpenChange={(o) => !o && setDialog(null)} />
           <ShareSheet session={dialogSession} open={dialog.kind === "share"} onOpenChange={(o) => !o && setDialog(null)} />
-          <SessionCloseDialog session={dialogSession} kind={dialog.kind === "complete" || dialog.kind === "cancel" || dialog.kind === "delete" ? dialog.kind : null} childCount={childCount} onOpenChange={(o) => !o && setDialog(null)} />
+          <SessionCloseDialog session={dialogSession} kind={dialog.kind === "complete" || dialog.kind === "cancel" || dialog.kind === "delete" ? dialog.kind : null} childCount={childCount} onOpenChange={(o) => !o && setDialog(null)} onCloseAutoFocus={closeFocus(dialog.id)} />
         </>
       ) : null}
     </nav>
   );
 }
 
-function SectionBlock({ section, collapsed, onToggle, recentShown, onMoreRecent, active, tabbable, onFocusRow, pins, menuFor, setMenuFor, setDialog, onNavigate, onNewInGroup }: {
+function SectionBlock({ section, collapsed, onToggle, recentShown, onMoreRecent, active, tabbable, onFocusRow, isAdmin, pins, menuFor, setMenuFor, setDialog, onNavigate, onNewInGroup }: {
   section: Section; collapsed: boolean; onToggle: () => void; recentShown: number; onMoreRecent: () => void; active: string | null; tabbable: string | null;
-  onFocusRow: (id: string) => void; pins: ReturnType<typeof usePins>; menuFor: string | null; setMenuFor: (id: string | null) => void; setDialog: (d: Dialog) => void; onNavigate?: () => void; onNewInGroup?: () => void;
+  onFocusRow: (id: string) => void; isAdmin: boolean; pins: ReturnType<typeof usePins>; menuFor: string | null; setMenuFor: (id: string | null) => void; setDialog: (d: Dialog) => void; onNavigate?: () => void; onNewInGroup?: () => void;
 }) {
   const isNeeds = section.kind === "needs";
   const open = isNeeds || !collapsed;
@@ -202,6 +242,7 @@ function SectionBlock({ section, collapsed, onToggle, recentShown, onMoreRecent,
                 tabbable={tabbable === s.sessionId}
                 pinned={pins.isPinned(s.sessionId)}
                 onFocusRow={onFocusRow}
+                isAdmin={isAdmin}
                 onTogglePin={() => pins.toggle(s.sessionId)}
                 menuOpen={menuFor === s.sessionId}
                 onMenuOpenChange={(o) => setMenuFor(o ? s.sessionId : null)}
@@ -220,12 +261,15 @@ function SectionBlock({ section, collapsed, onToggle, recentShown, onMoreRecent,
   );
 }
 
-function SidebarRow({ session, active, tabbable, pinned, onFocusRow, onTogglePin, menuOpen, onMenuOpenChange, onAction, onNavigate }: {
-  session: Session; active: boolean; tabbable: boolean; pinned: boolean; onFocusRow: (id: string) => void; onTogglePin: () => void;
+function SidebarRow({ session, active, tabbable, pinned, onFocusRow, isAdmin, onTogglePin, menuOpen, onMenuOpenChange, onAction, onNavigate }: {
+  session: Session; active: boolean; tabbable: boolean; pinned: boolean; onFocusRow: (id: string) => void; isAdmin: boolean; onTogglePin: () => void;
   menuOpen: boolean; onMenuOpenChange: (open: boolean) => void; onAction: (kind: NonNullable<Dialog>["kind"]) => void; onNavigate?: () => void;
 }) {
   const st = sessionState(session);
-  const manage = canManage(session);
+  // System sessions are not ordinary sessions: the SDK refuses rename, complete, cancel and delete on them.
+  // An admin restarts them instead.
+  const manage = canModify(session);
+  const system = Boolean(session.isSystem);
   const closed = st.key === "completed" || st.key === "cancelled";
   return (
     <li className="group/row relative">
@@ -267,6 +311,7 @@ function SidebarRow({ session, active, tabbable, pinned, onFocusRow, onTogglePin
             <MenuItem icon={<CheckCircle2 />} disabled={closed || !manage} onSelect={() => onAction("complete")}>Complete</MenuItem>
             <MenuItem icon={<Ban />} danger disabled={closed || !manage} onSelect={() => onAction("cancel")}>Cancel</MenuItem>
             <MenuItem icon={<Trash2 />} danger disabled={!manage} onSelect={() => onAction("delete")}>Delete</MenuItem>
+            {system && isAdmin ? (<><MenuSeparator /><MenuItem icon={<RotateCcw />} onSelect={() => onAction("restart")} hint="The way to reset a system session">Restart…</MenuItem></>) : null}
           </MenuContent>
         </Menu>
       </div>

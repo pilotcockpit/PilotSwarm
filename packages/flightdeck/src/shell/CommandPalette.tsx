@@ -3,14 +3,14 @@ import { Command } from "cmdk";
 import { Dialog as D } from "radix-ui";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Bot, Brain, Copy, FileSearch, FolderInput, FolderOutput, Flag, Package, Paperclip, Search, House, KeyRound, Keyboard, LayoutGrid, MessagesSquare, Moon, Plus, RotateCcw, Rows3, Share2, ShieldCheck, SlidersHorizontal, Sun, ToggleLeft, Wrench } from "lucide-react";
+import { Bot, Brain, Copy, FileSearch, FolderInput, FolderOutput, Flag, Package, Paperclip, Search, House, KeyRound, Keyboard, LayoutGrid, MessagesSquare, Plus, RotateCcw, Share2, ShieldCheck, SlidersHorizontal, ToggleLeft, Wrench } from "lucide-react";
 import { useAgents, useProfile, useSessions, useSource } from "@/data/source";
 import { STATE_TONE, sessionState } from "@/data/state";
 import { cn } from "@/lib/utils";
 import { StateGlyph } from "@/components/state";
 import { Kbd } from "@/components/ui/kbd";
 import { useUi } from "./ui-state";
-import { useDensity, useTheme } from "./prefs";
+import { useThemeCommands } from "@/components/theme-setting";
 import { requestIntent, useIntentNavigationGuard, type Intent } from "./intents";
 import { sessionIsViewOnly } from "@/lib/session-access";
 
@@ -21,8 +21,7 @@ export function CommandPalette() {
   const { data: sessions } = useSessions();
   const { data: agents } = useAgents();
   const { data: profile } = useProfile();
-  const [, setTheme] = useTheme();
-  const [density, setDensity] = useDensity();
+  const themeCommands = useThemeCommands();
   const { mode, setMode } = useSource();
   const run = (fn: () => void) => () => { setPaletteOpen(false); fn(); };
   const go = (to: string, search?: Record<string, unknown>) => run(() => navigate({ to, search: search as any }));
@@ -74,12 +73,7 @@ export function CommandPalette() {
                 <Item icon={<KeyRound />} onSelect={act("add-provider", "/providers", { tab: "providers" })} keywords={["model", "key", "openai", "anthropic", "copilot", "azure"]}>Add provider…</Item>
                 <Item icon={<Package />} onSelect={act("add-package", "/library", { tab: "packages" })} keywords={["agent", "upload", "install"]}>Add a package…</Item>
                 <Item icon={<Keyboard />} onSelect={run(() => setShortcutsOpen(true))} shortcut="?">Keyboard shortcuts</Item>
-                {document.documentElement.classList.contains("dark")
-                  ? <Item icon={<Sun />} onSelect={run(() => setTheme("light"))} keywords={["theme", "appearance"]}>Change theme: Light</Item>
-                  : <Item icon={<Moon />} onSelect={run(() => setTheme("dark"))} keywords={["theme", "appearance"]}>Change theme: Dark</Item>}
-                <Item icon={<Rows3 />} onSelect={run(() => setDensity(density === "compact" ? "comfortable" : "compact"))} keywords={["density"]}>
-                  Switch to {density === "compact" ? "comfortable" : "compact"} density
-                </Item>
+                {themeCommands.map((c) => <Item key={c.value} icon={<c.icon />} onSelect={run(c.run)} keywords={c.keywords}>{c.label}</Item>)}
                 <Item icon={<ToggleLeft />} onSelect={run(() => setMode(mode === "demo" ? "live" : "demo"))} keywords={["data", "demo", "live"]}>
                   {mode === "demo" ? "Use live data" : "Use demo data"}
                 </Item>

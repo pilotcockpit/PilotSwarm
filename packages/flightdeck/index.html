@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
@@ -7,13 +7,15 @@
     <title>PilotSwarm · Flight Deck</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <script>
-      // Apply the saved theme before first paint so there is no flash.
+      // Apply the theme before first paint so there is no flash. Nothing chosen means System: follow the
+      // operating system. A stored explicit choice (light or dark) always wins.
       try {
-        var t = localStorage.getItem("fd.theme") || "dark";
-        var dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+        var t = localStorage.getItem("fd.theme") || "system";
+        var dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.classList.toggle("dark", dark);
-        document.documentElement.dataset.density = localStorage.getItem("fd.density") || "compact";
-      } catch (e) {}
+      } catch (e) {
+        try { document.documentElement.classList.toggle("dark", matchMedia("(prefers-color-scheme: dark)").matches); } catch (e2) {}
+      }
     </script>
   </head>
   <body>

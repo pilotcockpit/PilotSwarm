@@ -1,13 +1,14 @@
 import * as React from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  Activity, ArrowUpLeft, Ban, CheckCircle2, ChevronDown, Clock, Copy, Download, Files, FolderGit2, FolderInput, GitBranch, LayoutPanelLeft, Link2, Menu as MenuIcon, MoreHorizontal, PanelRight, Pencil, Pin, PinOff, Share2, Shuffle, Trash2,
+  Activity, ArrowUpLeft, Ban, CheckCircle2, ChevronDown, Clock, Copy, Download, Files, FolderGit2, FolderInput, GitBranch, LayoutPanelLeft, Link2, Menu as MenuIcon, MoreHorizontal, PanelRight, Pencil, Pin, PinOff, RotateCcw, Share2, Shuffle, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { notifyUndo } from "@/lib/undo";
 import { useIntent } from "@/shell/intents";
 import { useUi } from "@/shell/ui-state";
 import { useMediaQuery } from "@/shell/prefs";
-import { useRefresh, useSource } from "@/data/source";
+import { useProfile, useRefresh, useSource } from "@/data/source";
 import { modelShort, sessionState, STATE_TINT, type SessionState } from "@/data/state";
 import type { Session } from "@/data/types";
 import { StateGlyph, StatePill } from "@/components/state";
@@ -21,7 +22,8 @@ import { ShareButton, ShareSheet } from "@/components/session/share-sheet";
 import { MoveToGroupDialog, useCurrentGroupId } from "@/components/session/move-to-group";
 import { ScheduleActions } from "@/components/session/schedule-actions";
 import { WorkingFolderDialog } from "@/components/session/working-folder-dialog";
-import { SessionCloseDialog, canManage, copySessionLink, type CloseKind } from "@/components/session/session-actions";
+import { SessionCloseDialog, canManage, canModify, copySessionLink, type CloseKind } from "@/components/session/session-actions";
+import { RestartDialog } from "@/components/admin/system-sessions-panel";
 import { contextPercent, isStalled } from "@/components/session/session-meta";
 import { usePins } from "@/components/sidebar/prefs";
 import { sessionIsViewOnly } from "@/lib/session-access";
@@ -34,19 +36,23 @@ import type { SessionView } from "@/router";
 // belong to it. On a phone the bar keeps the menu button, the title, the state and one overflow menu.
 
 function TitleEditor({ session }: { session: Session }) {
-  const readOnly = sessionIsViewOnly(session) || session.canManage === false;
+  // The SDK refuses to rename a system session, so its title is text.
+  const readOnly = sessionIsViewOnly(session) || session.canManage === false || Boolean(session.isSystem);
   const { source } = useSource();
   const refresh = useRefresh();
   const [editing, setEditing] = React.useState(false);
   const [title, setTitle] = React.useState(session.title || "");
   const saving = React.useRef(false);
   const cancelled = React.useRef(false);
-  React.useEffect(() => setTitle(session.title || ""), [session.title]);
+  // The title as it was when this edit began. A poll that brings a different title never replaces a draft in progress.
+  const baseline = React.useRef(session.title || "");
+  React.useEffect(() => { if (!editing) { setTitle(session.title || ""); baseline.current = session.title || ""; } }, [session.title, editing]);
+  const begin = () => { cancelled.current = false; baseline.current = session.title || ""; setTitle(session.title || ""); setEditing(true); };
   React.useEffect(() => {
-    const open = () => { if (!readOnly) { cancelled.current = false; setEditing(true); } };
+    const open = () => { if (!readOnly) begin(); };
     window.addEventListener("fd:rename-session", open);
     return () => window.removeEventListener("fd:rename-session", open);
-  }, [readOnly]);
+  }, [readOnly, session.title]); // eslint-disable-line react-hooks/exhaustive-deps
   const save = async () => {
     if (cancelled.current) { cancelled.current = false; return; }
     if (saving.current || readOnly) return;
@@ -54,7 +60,14 @@ function TitleEditor({ session }: { session: Session }) {
     const next = title.trim();
     if (!next || next === session.title) return setTitle(session.title || "");
     saving.current = true;
-    try { await source.renameSession(session.sessionId, next); refresh(session.sessionId); toast.success("Renamed"); }
+    // Someone else renamed it while this edit was open: the draft wins, said out loud, with a way back.
+    const theirs = (session.title || "") !== baseline.current ? session.title || "" : null;
+    try {
+      await source.renameSession(session.sessionId, next);
+      refresh(session.sessionId);
+      if (theirs) notifyUndo("Renamed", () => { void source.renameSession(session.sessionId, theirs).then(() => refresh(session.sessionId)); }, { description: `Replaced “${theirs}”, set by someone else while you were typing.`, resource: `title:${session.sessionId}` });
+      else toast.success("Renamed");
+    }
     catch (e: any) { setTitle(session.title || ""); toast.error("Couldn't rename", { description: e?.message }); }
     finally { saving.current = false; }
   };
@@ -69,7 +82,7 @@ function TitleEditor({ session }: { session: Session }) {
       aria-label="Session title"
     />
   ) : (
-    <button type="button" className="max-w-full truncate rounded-chip text-left tracking-tight hover:bg-raised pointer-coarse:min-h-11" onClick={() => { cancelled.current = false; setEditing(true); }} title="Rename">{session.title || "Untitled session"}</button>
+    <button type="button" className="max-w-full truncate rounded-chip text-left tracking-tight hover:bg-raised pointer-coarse:min-h-11" onClick={begin} title="Rename">{session.title || "Untitled session"}</button>
   );
 }
 
@@ -131,6 +144,11 @@ export function SessionHeader({ session, parent, childCount, view, paneOpen, cou
   useIntent("share-session", `/s/${session.sessionId}`, () => setShareOpen(true));
   useIntent("move-to-group", `/s/${session.sessionId}`, () => setGroupOpen(true));
   const readOnly = !canManage(session);
+  // The SDK refuses rename, complete, cancel and delete on a system session; an admin restarts it instead.
+  const ordinary = canModify(session);
+  const system = Boolean(session.isSystem);
+  const { data: profile } = useProfile();
+  const [restartOpen, setRestartOpen] = React.useState(false);
   const closed = st.key === "completed" || st.key === "cancelled";
   const ctx = contextPercent(session);
   const stalled = isStalled(session);
@@ -165,16 +183,17 @@ export function SessionHeader({ session, parent, childCount, view, paneOpen, cou
           <MenuTrigger asChild><Button variant="quiet" size="icon-sm" aria-label="Session actions" className="shrink-0"><ChevronDown /></Button></MenuTrigger>
         </Tooltip>
         <MenuContent align="start" className="w-65">
-          <MenuItem disabled={readOnly} icon={<Pencil />} onSelect={() => window.dispatchEvent(new Event("fd:rename-session"))}>Rename</MenuItem>
+          <MenuItem disabled={!ordinary} icon={<Pencil />} onSelect={() => window.dispatchEvent(new Event("fd:rename-session"))}>Rename</MenuItem>
           <MenuItem icon={pinned ? <PinOff /> : <Pin />} onSelect={() => pins.toggle(session.sessionId)} hint="Keeps it at the top of your sidebar">{pinned ? "Unpin" : "Pin"}</MenuItem>
           <MenuItem icon={<FolderInput />} onSelect={() => setGroupOpen(true)} hint={currentGroup ? "In a group now" : undefined}>Move to group…</MenuItem>
           <MenuItem icon={<Share2 />} onSelect={() => setShareOpen(true)}>Share…</MenuItem>
           <MenuItem icon={<Link2 />} onSelect={() => copySessionLink(session.sessionId)}>Copy link</MenuItem>
           <MenuItem disabled={readOnly || exporting} icon={<Download />} onSelect={() => void exportHistory()} hint="Saves the full record to Files">Export history</MenuItem>
           <MenuSeparator />
-          <MenuItem icon={<CheckCircle2 />} disabled={closed || readOnly} onSelect={() => setConfirm("complete")} hint="Close as done">Complete session</MenuItem>
-          <MenuItem icon={<Ban />} danger disabled={closed || readOnly} onSelect={() => setConfirm("cancel")} hint={childCount ? `Also cancels ${childCount} sub-agent${childCount === 1 ? "" : "s"}` : "Close as abandoned"}>Cancel session</MenuItem>
-          <MenuItem disabled={readOnly} icon={<Trash2 />} danger onSelect={() => setConfirm("delete")} hint={childCount ? `Also deletes ${childCount} sub-agent${childCount === 1 ? "" : "s"}` : "Remove from every list"}>Delete</MenuItem>
+          <MenuItem icon={<CheckCircle2 />} disabled={closed || !ordinary} onSelect={() => setConfirm("complete")} hint="Close as done">Complete session</MenuItem>
+          <MenuItem icon={<Ban />} danger disabled={closed || !ordinary} onSelect={() => setConfirm("cancel")} hint={childCount ? `Also cancels ${childCount} sub-agent${childCount === 1 ? "" : "s"}` : "Close as abandoned"}>Cancel session</MenuItem>
+          <MenuItem disabled={!ordinary} icon={<Trash2 />} danger onSelect={() => setConfirm("delete")} hint={childCount ? `Also deletes ${childCount} sub-agent${childCount === 1 ? "" : "s"}` : "Remove from every list"}>Delete</MenuItem>
+        {system && profile?.isAdmin ? (<><MenuSeparator /><MenuItem icon={<RotateCcw />} onSelect={() => setRestartOpen(true)} hint="The way to reset a system session">Restart…</MenuItem></>) : null}
         </MenuContent>
       </Menu>
       <div className="flex min-w-0 shrink-0 items-center gap-1.5">
@@ -220,6 +239,7 @@ export function SessionHeader({ session, parent, childCount, view, paneOpen, cou
       <MoveToGroupDialog session={session} open={groupOpen} onOpenChange={setGroupOpen} />
       <WorkingFolderDialog sessionId={session.sessionId} open={folderOpen} onOpenChange={setFolderOpen} />
       <ChangeModelDialog open={modelOpen} onOpenChange={setModelOpen} session={session} />
+      {restartOpen ? <RestartDialog session={session} onClose={() => setRestartOpen(false)} /> : null}
       <SessionCloseDialog session={session} kind={confirm} childCount={childCount} onOpenChange={(o) => !o && setConfirm(null)} />
     </header>
   );

@@ -163,6 +163,8 @@ const timelines: Record<string, DemoEvent[]> = {
 
 /** Test-published documents (dev only, see the `artifacts` demo hook), shared by every copy of the demo source. */
 const published = new Map<string, Array<Artifact & { content?: string }>>();
+/** Server-side changes a test makes behind the page's back. Held outside the source, which the app may build twice. */
+const serverEdits = new Map<string, Record<string, unknown>>();
 
 const artifacts: Record<string, Array<Artifact & { content?: string }>> = {
   [RELEASE]: [
@@ -239,6 +241,13 @@ export function createDemoSource(): DataSource {
   const files = new Map(Object.entries(artifacts).map(([id, list]) => [id, list.map((a) => ({ ...a }))]));
   const listeners = new Map<string, Set<(e: SessionEvent) => void>>();
   published.clear();
+  serverEdits.clear();
+  extendDemoHook("sessions", {
+    /** Someone else renames a session: the next read of the list shows the new title. */
+    setTitle(id: string, title: string) { serverEdits.set(id, { ...serverEdits.get(id), title }); },
+    /** Report how full the context window is, as the SDK does: currentTokens / tokenLimit. */
+    setContextUtilization(id: string, utilization: number) { serverEdits.set(id, { ...serverEdits.get(id), contextUsage: { utilization, tokenLimit: 200000, currentTokens: Math.round(utilization * 200000) } }); },
+  });
   extendDemoHook("artifacts", {
     /** Publish a document into a session as its newest output. `size` overrides the metadata (null: unknown). */
     publishArtifact(sessionId: string, doc: { filename: string; content: string; size?: number | null }) {
@@ -278,8 +287,8 @@ export function createDemoSource(): DataSource {
   return {
     kind: "demo",
     label: "Demo data",
-    listSessions: () => wait([...byId.values()].filter((s) => s.status !== "deleted").map((s) => ({ ...s, groupId: effectiveGroupId(s) }))),
-    getSession: (id) => wait(byId.get(id) ? { ...byId.get(id)!, groupId: effectiveGroupId(byId.get(id)!) } : null),
+    listSessions: () => wait([...byId.values()].filter((s) => s.status !== "deleted").map((s) => ({ ...s, groupId: effectiveGroupId(s), ...serverEdits.get(s.sessionId) }))),
+    getSession: (id) => wait(byId.get(id) ? { ...byId.get(id)!, groupId: effectiveGroupId(byId.get(id)!), ...serverEdits.get(id) } : null),
     getEvents: (id) => wait([...(events.get(id) || [])], 160),
     subscribe(id, onEvent) {
       if (!listeners.has(id)) listeners.set(id, new Set());
@@ -328,11 +337,11 @@ export function createDemoSource(): DataSource {
       }
       return wait(id, 250);
     },
-    async renameSession(id, title) { const s = byId.get(id); if (s) s.title = title; },
+    async renameSession(id, title) { recordDemoCall("renameSession", { id, title }); if (demoShouldFail("renameSession")) throw new Error("The server refused that."); const s = byId.get(id); if (s) s.title = title; const e = serverEdits.get(id); if (e) delete e.title; },
     async setSessionModel(id, model) { const s = byId.get(id); if (s) { s.model = model; if (s.status === "failed") s.error = undefined; } },
-    async completeSession(id) { recordDemoCall("completeSession", { id }); const s = byId.get(id); if (s) { s.status = "completed"; s.pendingQuestion = null; } },
-    async cancelSession(id) { recordDemoCall("cancelSession", { id }); const s = byId.get(id); if (s) { s.status = "cancelled"; s.pendingQuestion = null; } },
-    async deleteSession(id) { recordDemoCall("deleteSession", { id }); byId.delete(id); for (const s of byId.values()) if (s.parentSessionId === id) byId.delete(s.sessionId); },
+    async completeSession(id) { recordDemoCall("completeSession", { id }); if (demoShouldFail("completeSession")) throw new Error("The server refused that."); const s = byId.get(id); if (s) { s.status = "completed"; s.pendingQuestion = null; } },
+    async cancelSession(id) { recordDemoCall("cancelSession", { id }); if (demoShouldFail("cancelSession")) throw new Error("The server refused that."); const s = byId.get(id); if (s) { s.status = "cancelled"; s.pendingQuestion = null; } },
+    async deleteSession(id) { recordDemoCall("deleteSession", { id }); if (demoShouldFail("deleteSession")) throw new Error("The server refused that."); byId.delete(id); for (const s of byId.values()) if (s.parentSessionId === id) byId.delete(s.sessionId); },
     listArtifacts: (id) => wait(filesOf(id).map(({ content: _c, ...a }) => ({ ...a, sessionId: id }))),
     readArtifact: (id, filename) => (recordDemoCall("readArtifact", { id, filename }), wait(filesOf(id).find((f) => f.filename === filename)?.content || "", 140)),
     readArtifactPreview: async (id, filename, maxBytes) => {

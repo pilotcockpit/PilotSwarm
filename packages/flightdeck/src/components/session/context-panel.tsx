@@ -6,8 +6,8 @@ import type { Session } from "@/data/types";
 import { SessionChip } from "@/components/session-chip";
 import { Button } from "@/components/ui/button";
 import { ScheduleActions } from "@/components/session/schedule-actions";
-import { contextPercent, ownerName, VisibilityLabel } from "@/components/session/session-meta";
-import { isCanvasFile } from "@/routes/home";
+import { contextFill, ownerName, VisibilityLabel } from "@/components/session/session-meta";
+import { canvasSlot, isCanvasFile } from "@/routes/home";
 import { ago, bytes, cn, plural, tokens } from "@/lib/utils";
 import type { SessionView } from "@/router";
 
@@ -23,7 +23,7 @@ export function ContextView({ session, onOpen }: { session: Session; onOpen: (vi
   const { data: artifacts } = useArtifacts(session.sessionId);
   const children = (all || []).filter((s) => s.parentSessionId === session.sessionId);
   const ctx = (session as any).contextUsage as { utilization?: number; tokenLimit?: number; currentTokens?: number; usedTokens?: number } | undefined;
-  const pct = contextPercent(session);
+  const fill = contextFill(ctx?.utilization);
   const used = ctx?.currentTokens ?? ctx?.usedTokens;
   const owner = ownerName(session.owner);
   const outputs = (artifacts || []).slice().sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0));
@@ -34,7 +34,7 @@ export function ContextView({ session, onOpen }: { session: Session; onOpen: (vi
     ...(session.agentId ? [["Agent", <span className="font-mono">{session.agentId}</span>] as [string, React.ReactNode]] : []),
     ...(session.model ? [["Model", <span>{modelShort(session.model)}{session.reasoningEffort ? <span className="text-muted"> · {String(session.reasoningEffort)} effort</span> : null}</span>] as [string, React.ReactNode]] : []),
     ...(session.workspace?.repo ? [["Repository", <span className="break-all font-mono">{session.workspace.repo}{session.workspace.branch ? ` @ ${session.workspace.branch}` : ""}</span>] as [string, React.ReactNode]] : session.workspace?.folder ? [["Folder", <span className="break-all font-mono">{session.workspace.folder}</span>] as [string, React.ReactNode]] : []),
-    ["Access", <VisibilityLabel visibility={session.visibility} />],
+    ...(session.visibility ? [["Access", <VisibilityLabel visibility={session.visibility} />] as [string, React.ReactNode]] : []),
     ...(owner ? [["Owner", <span>{owner}</span>] as [string, React.ReactNode]] : []),
     ...(session.createdAt ? [["Started", <span className="tabular-nums">{ago(session.createdAt)}</span>] as [string, React.ReactNode]] : []),
   ];
@@ -59,13 +59,13 @@ export function ContextView({ session, onOpen }: { session: Session; onOpen: (vi
           </dl>
         </Block>
 
-        {pct != null ? (
+        {fill ? (
           <Block title="Context window">
-            <div role="meter" aria-label="Context window used" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} className="h-1.5 overflow-hidden rounded-full bg-raised">
-              <div className={cn("h-full rounded-full", pct >= 90 ? "bg-failed" : pct >= 70 ? "bg-waiting" : "bg-accent")} style={{ width: `${Math.min(100, pct)}%` }} />
+            <div role="meter" aria-label="Context window used" aria-valuemin={0} aria-valuemax={100} aria-valuenow={fill.meter} aria-valuetext={fill.over ? `Over the limit: ${fill.percent}% of the context window` : `${fill.percent}% used`} className="h-1.5 overflow-hidden rounded-full bg-raised">
+              <div className={cn("h-full rounded-full", fill.percent >= 90 ? "bg-failed" : fill.percent >= 70 ? "bg-waiting" : "bg-accent")} style={{ width: `${fill.meter}%` }} />
             </div>
-            <p className="mt-1.5 text-sm text-muted tabular-nums">
-              {pct}% used{used ? ` · ${tokens(used)}${ctx?.tokenLimit ? ` of ${tokens(ctx.tokenLimit)}` : ""} tokens` : ctx?.tokenLimit ? ` of ${tokens(ctx.tokenLimit)} tokens` : ""}
+            <p className={cn("mt-1.5 text-sm tabular-nums", fill.over ? "text-failed" : "text-muted")}>
+              {fill.over ? `Over the limit: ${fill.percent}% of the window` : `${fill.percent}% used`}{used ? ` · ${tokens(used)}${ctx?.tokenLimit ? ` of ${tokens(ctx.tokenLimit)}` : ""} tokens` : ctx?.tokenLimit ? ` of ${tokens(ctx.tokenLimit)} tokens` : ""}
             </p>
           </Block>
         ) : null}
@@ -98,7 +98,7 @@ export function ContextView({ session, onOpen }: { session: Session; onOpen: (vi
                 <li key={a.filename}>
                   <button
                     type="button"
-                    onClick={() => (isCanvasFile(a.filename) ? onOpen("canvas") : onOpen("files", { files: "outputs", file: a.filename }))}
+                    onClick={() => (isCanvasFile(a.filename) ? onOpen("canvas", { slot: canvasSlot(a.filename) }) : onOpen("files", { files: "outputs", file: a.filename }))}
                     className="focus-inset flex min-h-8 w-full items-center gap-2 rounded-control px-1.5 text-left text-sm hover:bg-raised pointer-coarse:min-h-11"
                   >
                     <span className="min-w-0 flex-1 truncate">{a.filename}</span>

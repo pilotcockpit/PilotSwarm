@@ -1,9 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ChevronsLeft, KeyRound, Moon, Rows3, Settings2, ShieldCheck, Sun, ToggleLeft } from "lucide-react";
+import { KeyRound, Settings2, ShieldCheck, ToggleLeft } from "lucide-react";
 import { useConnection, useProfile, useSource } from "@/data/source";
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
-import { useDensity, useMediaQuery, useTheme } from "@/shell/prefs";
+import { ThemeMenuItems } from "@/components/theme-setting";
 import { cn, initials } from "@/lib/utils";
 
 /**
@@ -11,15 +11,11 @@ import { cn, initials } from "@/lib/utils";
  * models and spend, administration, settings, how the app looks, and the connection. It replaces the
  * old "Manage" group, so the sidebar is for work and this is for setup.
  */
-export function AccountMenu({ collapsed = false, onCollapse, onNavigate }: { collapsed?: boolean; onCollapse?: () => void; onNavigate?: () => void }) {
+export function AccountMenu({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const { data: profile } = useProfile();
   const navigate = useNavigate();
   const state = useConnection();
   const { mode, setMode, source } = useSource();
-  const [theme, setTheme] = useTheme();
-  const [density, setDensity] = useDensity();
-  const systemDark = useMediaQuery("(prefers-color-scheme: dark)");
-  const isDark = theme === "dark" || (theme === "system" && systemDark);
   const tone = mode === "demo" ? "bg-waiting" : state === "connected" ? "bg-live" : state === "reconnecting" ? "bg-waiting" : "bg-failed";
   const word = mode === "demo" ? "Demo data" : state === "connected" ? "Connected" : state === "reconnecting" ? "Reconnecting" : "Offline";
   const go = (to: string) => () => { onNavigate?.(); void navigate({ to }); };
@@ -52,15 +48,9 @@ export function AccountMenu({ collapsed = false, onCollapse, onNavigate }: { col
         {profile?.isAdmin ? <MenuItem icon={<ShieldCheck />} onSelect={go("/admin")} hint="Workers, flags, knowledge">Admin</MenuItem> : null}
         <MenuItem icon={<Settings2 />} onSelect={go("/settings")}>Settings</MenuItem>
         <MenuSeparator />
-        <MenuItem icon={isDark ? <Sun /> : <Moon />} onSelect={() => setTheme(isDark ? "light" : "dark")}>{isDark ? "Switch to light theme" : "Switch to dark theme"}</MenuItem>
-        <MenuItem icon={<Rows3 />} onSelect={() => setDensity(density === "compact" ? "comfortable" : "compact")}>Use {density === "compact" ? "comfortable" : "compact"} density</MenuItem>
+        <ThemeMenuItems />
+        <MenuSeparator />
         {mode === "demo" ? <MenuItem icon={<ToggleLeft />} onSelect={() => setMode("live")}>Use live data</MenuItem> : null}
-        {onCollapse ? (
-          <>
-            <MenuSeparator />
-            <MenuItem icon={<ChevronsLeft />} onSelect={onCollapse}>Collapse sidebar</MenuItem>
-          </>
-        ) : null}
       </MenuContent>
     </Menu>
   );

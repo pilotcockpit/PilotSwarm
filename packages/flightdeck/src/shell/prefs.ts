@@ -5,14 +5,22 @@ import * as React from "react";
 // both run side by side.
 
 export type Theme = "dark" | "light" | "system";
-export type Density = "compact" | "comfortable";
+
+// When the browser refuses storage (private windows, a full quota), a change still takes effect for this
+// page: the value is held in memory and read back ahead of storage until a write succeeds again.
+const memory = new Map<string, string>();
 
 function read<T extends string>(key: string, fallback: T): T {
+  if (memory.has(key)) return (memory.get(key) as T) || fallback;
   try { return (localStorage.getItem(key) as T) || fallback; } catch { return fallback; }
 }
 function write(key: string, value: string) {
-  try { localStorage.setItem(key, value); } catch { /* storage unavailable */ }
+  try { localStorage.setItem(key, value); memory.delete(key); } catch { memory.set(key, value); }
 }
+
+// Density was a setting once. There is one layout now: drop what the old setting left behind.
+try { localStorage.removeItem("fd.density"); } catch { /* storage unavailable */ }
+try { delete document.documentElement.dataset.density; } catch { /* no document */ }
 
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
@@ -32,7 +40,7 @@ export function usePref<T extends string>(key: string, fallback: T): [T, (v: T) 
 }
 
 export function useTheme() {
-  const [theme, setTheme] = usePref<Theme>("fd.theme", "dark");
+  const [theme, setTheme] = usePref<Theme>("fd.theme", "system");
   React.useEffect(() => {
     applyTheme(theme);
     if (theme !== "system") return;
@@ -42,12 +50,6 @@ export function useTheme() {
     return () => mq.removeEventListener("change", on);
   }, [theme]);
   return [theme, setTheme] as const;
-}
-
-export function useDensity() {
-  const [density, setDensity] = usePref<Density>("fd.density", "compact");
-  React.useEffect(() => { document.documentElement.dataset.density = density; }, [density]);
-  return [density, setDensity] as const;
 }
 
 export function useMediaQuery(query: string) {

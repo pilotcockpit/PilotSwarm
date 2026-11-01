@@ -2,7 +2,7 @@ import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import {
-  Bot, ChevronsRight, FolderOutput, House, KeyRound, LayoutGrid, Menu as MenuIcon, MessagesSquare, Moon, Plus, Search, ShieldCheck, SlidersHorizontal, Sun,
+  Bot, FolderOutput, House, KeyRound, LayoutGrid, Menu as MenuIcon, MessagesSquare, PanelLeftClose, PanelLeftOpen, Plus, Search, ShieldCheck, SlidersHorizontal,
 } from "lucide-react";
 import { useProfile, useSessions, useSource } from "@/data/source";
 import { sessionState } from "@/data/state";
@@ -12,10 +12,11 @@ import { Badge } from "@/components/ui/misc";
 import { Tooltip, TooltipProvider } from "@/components/ui/tooltip";
 import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog";
 import { SessionsSidebar } from "@/components/sidebar/sessions-sidebar";
+import { ThemeSegmented } from "@/components/theme-setting";
 import { AccountMenu } from "@/components/sidebar/account-menu";
 import { cn, initials } from "@/lib/utils";
 import { useUi, UiStateProvider } from "./ui-state";
-import { useDensity, useMediaQuery, useTheme } from "./prefs";
+import { useMediaQuery, useTheme } from "./prefs";
 import { CommandPalette } from "./CommandPalette";
 import { ShortcutsDialog, useGlobalShortcuts } from "./shortcuts";
 import { useAttentionNotifications } from "./notifications";
@@ -92,13 +93,13 @@ function NavTop({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: ()
             <Button size="icon" className="size-10" aria-label="New session" onClick={() => { onNavigate?.(); openNewSession(); }}><Plus /></Button>
           </Tooltip>
           <Tooltip content={<span className="flex items-center gap-2">Search <Kbd>⌘K</Kbd></span>} side="right">
-            <Button variant="quiet" size="icon" className="size-10" aria-label="Search" onClick={() => setPaletteOpen(true)}><Search /></Button>
+            <Button variant="quiet" size="icon" className="size-10" aria-label="Search" onClick={() => { setPaletteOpen(true); onNavigate?.(); }}><Search /></Button>
           </Tooltip>
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
           <Button className="w-full justify-start" onClick={() => { onNavigate?.(); openNewSession(); }}><Plus /> <span className="flex-1 text-left">New session</span> <Kbd>N</Kbd></Button>
-          <Button variant="quiet" className="w-full justify-start text-muted" aria-label="Search" onClick={() => setPaletteOpen(true)}><Search /> <span className="flex-1 text-left">Search</span> <Kbd>⌘K</Kbd></Button>
+          <Button variant="quiet" className="w-full justify-start text-muted" aria-label="Search" onClick={() => { setPaletteOpen(true); onNavigate?.(); }}><Search /> <span className="flex-1 text-left">Search</span> <Kbd>⌘K</Kbd></Button>
         </div>
       )}
       <nav aria-label="Primary" className={cn("mt-3 flex w-full flex-col gap-0.5", collapsed && "items-center")}>
@@ -119,19 +120,21 @@ function Rail() {
   const setRailCollapsed = (v: boolean) => (tablet ? setTabletOpen(!v) : setPreference(v));
   return (
     <aside aria-label="Sidebar" className={cn("flex h-full shrink-0 flex-col border-r border-line bg-surface py-3", collapsed ? "w-16 items-center px-3" : "w-[272px] px-2.5")}>
-      <div className={cn("mb-3 flex h-8 shrink-0 items-center gap-2", collapsed ? "justify-center" : "px-2")}>
+      <div className={cn("mb-3 flex shrink-0 items-center", collapsed ? "flex-col gap-2" : "h-8 gap-2 px-2")}>
         <Logo />
         {collapsed ? null : <span className="text-prose font-semibold tracking-tight">PilotSwarm</span>}
+        {/* The toggle lives at the top, where the sidebar begins, in both states. */}
+        <Tooltip content={collapsed ? "Expand sidebar" : "Collapse sidebar"} side="right">
+          {/* 30px target (44px on touch) around an 18px glyph: one step above the 16px page icons, because this is chrome, not a destination. */}
+          <Button variant="quiet" size="icon" className={cn("[&_svg]:size-4.5", !collapsed && "-mr-1 ml-auto")} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed} onClick={() => setRailCollapsed(!collapsed)}>
+            {collapsed ? <PanelLeftOpen strokeWidth={1.75} /> : <PanelLeftClose strokeWidth={1.75} />}
+          </Button>
+        </Tooltip>
       </div>
       <NavTop collapsed={collapsed} />
       {collapsed ? <div className="min-h-0 flex-1" /> : <div className="mt-3 flex min-h-0 flex-1 flex-col border-t border-line pt-2"><SessionsSidebar /></div>}
       <div className={cn("mt-2 flex shrink-0 flex-col gap-1 border-t border-line pt-2", collapsed && "items-center")}>
-        <AccountMenu collapsed={collapsed} onCollapse={collapsed ? undefined : () => setRailCollapsed(true)} />
-        {collapsed ? (
-          <Tooltip content="Expand sidebar" side="right">
-            <Button variant="quiet" size="icon-sm" className="mx-auto" aria-label="Expand sidebar" onClick={() => setRailCollapsed(false)}><ChevronsRight /></Button>
-          </Tooltip>
-        ) : null}
+        <AccountMenu collapsed={collapsed} />
       </div>
     </aside>
   );
@@ -177,9 +180,6 @@ function BottomTabs() {
   const [more, setMore] = React.useState(false);
   const { data: profile } = useProfile();
   const { mode, setMode } = useSource();
-  const [theme, setTheme] = useTheme();
-  const systemDark = useMediaQuery("(prefers-color-scheme: dark)");
-  const isDark = theme === "dark" || (theme === "system" && systemDark);
   const tabs = [pages[0], pages[1], pages[2]];
   const moreItems: Array<{ to: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
     { to: "/library", label: "Library", icon: Bot },
@@ -241,7 +241,7 @@ function BottomTabs() {
               <div className="min-w-0"><p className="truncate text-sm font-medium">{profile?.displayName || "Signed-in person"}</p><p className="text-xs text-muted">{profile?.isAdmin ? "Admin" : "Member"}</p></div>
             </div>
             <div className="mt-3 flex flex-col gap-1 border-t border-line pt-3">
-              <Button variant="quiet" className="justify-start" onClick={() => setTheme(isDark ? "light" : "dark")}>{isDark ? <Sun /> : <Moon />} {isDark ? "Switch to light theme" : "Switch to dark theme"}</Button>
+              <div className="flex items-center justify-between gap-3 px-3 py-1 text-sm"><span>Theme</span><ThemeSegmented /></div>
               {mode === "demo" ? <Button variant="quiet" className="justify-start text-accent" onClick={() => setMode("live")}>Use live data</Button> : null}
             </div>
           </DialogBody>
@@ -257,12 +257,7 @@ function BottomTabs() {
  */
 export function TopBar({ crumbs, actions, titleIsHeading = true }: { crumbs: Array<{ label: React.ReactNode; to?: string; params?: any; search?: any }>; actions?: React.ReactNode; titleIsHeading?: boolean }) {
   const { setPaletteOpen, setNavOpen } = useUi();
-  const [theme, setTheme] = useTheme();
   const phone = useMediaQuery("(max-width: 767px)");
-  const systemDark = useMediaQuery("(prefers-color-scheme: dark)");
-  const isDark = theme === "dark" || (theme === "system" && systemDark);
-  // Deep pages (a session) and pages with actions give the title the room: the Home tab and the More sheet carry the logo and the theme switch on a phone.
-  const compact = phone && (crumbs.length > 1 || Boolean(actions));
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line bg-surface px-4 md:gap-3 md:px-6">
       {phone ? <Button variant="quiet" size="icon" aria-label="Open menu and sessions" aria-haspopup="dialog" onClick={() => setNavOpen("menu")}><MenuIcon /></Button> : null}
@@ -297,18 +292,12 @@ export function TopBar({ crumbs, actions, titleIsHeading = true }: { crumbs: Arr
           <span className="hidden min-w-0 flex-1 items-center gap-3 xl:flex"><span className="flex-1 truncate text-left">Search or jump to…</span><Kbd>⌘K</Kbd></span>
         )}
       </Button>
-      {compact ? null : <Tooltip content={isDark ? "Switch to light" : "Switch to dark"}>
-        <Button variant="quiet" size="icon" aria-label="Toggle light and dark theme" onClick={() => setTheme(isDark ? "light" : "dark")}>
-          {isDark ? <Sun /> : <Moon />}
-        </Button>
-      </Tooltip>}
     </header>
   );
 }
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   useTheme();
-  useDensity();
   useGlobalShortcuts();
   useAttentionNotifications();
   const phone = useMediaQuery("(max-width: 767px)");

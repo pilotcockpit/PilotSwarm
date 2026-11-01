@@ -74,9 +74,8 @@
   color-scheme: dark;
 }
 
-/* Density: Compact is the operator default; Comfortable is for reading. */
+/* One layout: 30px rows and controls, 14px/22px body. Coarse pointers raise rows and controls to 44px below. */
 :root { --row: 30px; --control: 30px; --body: 14px; --body-lh: 22px; }
-:root[data-density="comfortable"] { --row: 36px; --control: 32px; --body: 14px; --body-lh: 22px; }
 
 @theme inline {
   --color-bg: var(--bg);
@@ -274,7 +273,7 @@
 ::view-transition-old(fd-output-inspection), ::view-transition-new(fd-output-inspection) { height: 100%; object-fit: cover; }
 @media (max-width: 639px) { .fd-document-dialog { inset: 0; width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; transform: none; translate: none; } }
 
-/* Unlayered on purpose: these must beat the density tokens above and utility classes. */
+/* Unlayered on purpose: these must beat the sizing tokens above and utility classes. */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(fd-output-inspection), ::view-transition-old(fd-output-inspection), ::view-transition-new(fd-output-inspection) { animation: none; }
   .fd-work-card { animation: none; }
@@ -290,7 +289,7 @@
   }
 }
 @media (pointer: coarse) {
-  :root, :root[data-density="comfortable"] { --control: 44px; --row: 44px; }
+  :root { --control: 44px; --row: 44px; }
   /* 16px keeps iOS from zooming the page when a field takes focus. */
   input, textarea, select { font-size: 16px; }
 }
