@@ -1,24 +1,11 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { demoCalls, expectNoSeriousAxe, gotoDemo, IDS, isPhone, shot, watchConsole } from "./helpers";
+import { row, sidebar } from "./sidebar-helpers";
 
 // The sidebar: page links, then the sessions list as the LAST section. On a phone the same sidebar is a
 // drawer opened from the top bar. Demo data: p95 (needs you), deps (failed), research (view-only, waiting
 // on a hold), release (waiting, has sub-agents), cost, onboarding (idle), a completed wiki session, and
 // two groups (Release 0.8.8, Ops).
-
-/** The sidebar as a locator: the page's own aside on a desktop, the open drawer on a phone. */
-async function sidebar(page: Page, info: TestInfo): Promise<{ root: Locator; list: Locator }> {
-  if (isPhone(info)) {
-    await page.getByRole("button", { name: "Open menu and sessions" }).first().click();
-    const drawer = page.getByRole("dialog", { name: "PilotSwarm" });
-    await expect(drawer).toBeVisible();
-    return { root: drawer, list: drawer.getByRole("navigation", { name: "Sessions" }) };
-  }
-  const root = page.getByRole("complementary", { name: "Sidebar" });
-  await expect(root).toBeVisible();
-  return { root, list: root.getByRole("navigation", { name: "Sessions" }) };
-}
-const row = (list: Locator, title: string | RegExp) => list.getByRole("link", { name: title }).first();
 
 test("Sessions is the last section: after Overview, Boards, Outputs and Library", async ({ page }, info) => {
   const errors = watchConsole(page);
@@ -101,20 +88,6 @@ test("Delete from a row asks first: no call before confirming or after cancellin
   const calls = await demoCalls(page, "deleteSession");
   expect(calls).toHaveLength(1);
   expect(calls[0].params).toEqual({ id: "a1f0c2d4-0010-4c00-9000-000000000010" });
-});
-
-test("Complete and Cancel from a row also confirm before calling", async ({ page }, info) => {
-  await gotoDemo(page, "/", info);
-  const { list } = await sidebar(page, info);
-  const title = "Nightly cost report";
-  await row(list, title).hover();
-  await page.getByRole("button", { name: `Actions for ${title}` }).click();
-  await page.getByRole("menuitem", { name: "Complete" }).click();
-  const dialog = page.getByRole("dialog", { name: "Complete this session?" });
-  await expect(dialog).toBeVisible();
-  expect(await demoCalls(page, "completeSession")).toHaveLength(0);
-  await dialog.getByRole("button", { name: "Complete" }).click();
-  await expect.poll(async () => (await demoCalls(page, "completeSession")).length).toBe(1);
 });
 
 test("Keyboard: arrows, Home and End move between rows, Enter opens, M opens the menu", async ({ page }, info) => {

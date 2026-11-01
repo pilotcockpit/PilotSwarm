@@ -8,6 +8,7 @@ export const IDS = {
   research: "a1f0c2d4-0007-4c00-9000-000000000007", // owned by someone else, viewer cannot write
   canvasPort: "a1f0c2d4-0008-4c00-9000-000000000008",
   cost: "a1f0c2d4-0009-4c00-9000-000000000009",
+  sweeper: "a1f0c2d4-0011-4c00-9000-000000000011", // a system session
 } as const;
 
 export const isPhone = (info: TestInfo) => Boolean(info.project.metadata?.phone);
@@ -15,8 +16,11 @@ export const themeOf = (info: TestInfo): "light" | "dark" => (info.project.metad
 
 /** Demo data and the project's theme, set before the app reads them. */
 export async function setTheme(page: Page, theme: "light" | "dark") {
+  // Seeded once per browser context, so a test that changes the theme and reloads keeps what it chose.
   await page.addInitScript((t) => {
     try {
+      if (localStorage.getItem("__fdSeeded")) return;
+      localStorage.setItem("__fdSeeded", "1");
       localStorage.setItem("fd.theme", t);
       localStorage.setItem("fd.data", "demo");
     } catch { /* storage unavailable */ }
