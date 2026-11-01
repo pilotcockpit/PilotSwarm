@@ -3,13 +3,16 @@ import * as React from "react";
 // App-level overlays that any screen can open: the New session sheet, the
 // command palette and the shortcuts list.
 interface UiState {
-  newSession: { open: boolean; agent?: string | null; prompt?: string };
-  openNewSession: (opts?: { agent?: string | null; prompt?: string }) => void;
+  newSession: { open: boolean; agent?: string | null; prompt?: string; group?: string | null };
+  openNewSession: (opts?: { agent?: string | null; prompt?: string; group?: string | null }) => void;
   closeNewSession: () => void;
   paletteOpen: boolean;
   setPaletteOpen: (v: boolean) => void;
   shortcutsOpen: boolean;
   setShortcutsOpen: (v: boolean) => void;
+  /** The phone navigation drawer: closed, the menu, or the menu scrolled to the sessions list. */
+  navOpen: false | "menu" | "sessions";
+  setNavOpen: (v: false | "menu" | "sessions") => void;
   railCollapsed: boolean;
   setRailCollapsed: (v: boolean) => void;
   /** Overlays opened from state have no Radix trigger, so they return focus here on close. */
@@ -30,6 +33,7 @@ export function UiStateProvider({ children }: { children: React.ReactNode }) {
   const [newSession, setNewSession] = React.useState<UiState["newSession"]>({ open: false });
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [shortcutsOpen, setShortcutsOpen] = React.useState(false);
+  const [navOpen, setNavOpenState] = React.useState<false | "menu" | "sessions">(false);
   const [railCollapsed, setRailCollapsedState] = React.useState(() => {
     try { return localStorage.getItem("fd.rail") === "collapsed"; } catch { return false; }
   });
@@ -39,7 +43,7 @@ export function UiStateProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const value = React.useMemo<UiState>(() => ({
     newSession,
-    openNewSession: (opts) => { remember(); setNewSession({ open: true, agent: opts?.agent ?? null, prompt: opts?.prompt ?? "" }); },
+    openNewSession: (opts) => { remember(); setNewSession({ open: true, agent: opts?.agent ?? null, prompt: opts?.prompt ?? "", group: opts?.group ?? null }); },
     closeNewSession: () => setNewSession((s) => ({ ...s, open: false })),
     paletteOpen,
     setPaletteOpen: (v: boolean) => { if (v) remember(); setPaletteOpen(v); },
@@ -53,9 +57,11 @@ export function UiStateProvider({ children }: { children: React.ReactNode }) {
       returnTo = null;
       target?.focus();
     },
+    navOpen,
+    setNavOpen: (v) => { if (v) remember(); setNavOpenState(v); },
     railCollapsed,
     setRailCollapsed,
-  }), [newSession, paletteOpen, shortcutsOpen, railCollapsed, setRailCollapsed]);
+  }), [newSession, paletteOpen, shortcutsOpen, navOpen, railCollapsed, setRailCollapsed]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

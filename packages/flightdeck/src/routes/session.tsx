@@ -1,42 +1,37 @@
 import * as React from "react";
 import { useIntent } from "@/shell/intents";
-import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import { Group, Panel as SplitPanel, Separator, useDefaultLayout } from "react-resizable-panels";
 import {
-  Activity, ArrowUp, Ban, Download, FolderInput, PanelRightClose, CheckCircle2, Clock, Copy, FolderGit2, Files, GitBranch, Globe, Info, LayoutPanelLeft, ListPlus, Lock, MoreHorizontal, Navigation, Paperclip, Pencil, Share2, Shuffle, Square, Trash2, Users,
+  Activity, ArrowUp, PanelRight, PanelRightClose, Files, GitBranch, LayoutPanelLeft, ListPlus, Lock, Navigation, Paperclip, Square,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TopBar } from "@/shell/AppShell";
-import { useMediaQuery } from "@/shell/prefs";
+import { useMediaQuery, usePref } from "@/shell/prefs";
 import { useArtifacts, useRefresh, useSession, useSessions, useSource, useTranscript } from "@/data/source";
-import { describeError, modelShort, questionKey, sessionState, STATE_TINT, type SessionState } from "@/data/state";
+import { describeError, questionKey, sessionState } from "@/data/state";
 import type { PendingQuestion, Session } from "@/data/types";
-import { StateGlyph, StatePill } from "@/components/state";
 import { QuestionCard, Transcript } from "@/components/chat";
 import { useRetry } from "@/lib/retry";
 import { StructuredErrorCard } from "@/components/structured-error";
 import { EmptyState } from "@/components/empty";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input, Textarea } from "@/components/ui/input";
-import { Skeleton, Popover, PopoverContent, PopoverTrigger, Tag } from "@/components/ui/misc";
+import { Textarea } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/misc";
 import { ChangeModelDialog } from "@/components/model-switch";
-import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
-import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ActivityView, CanvasView, DelegationView, FilesView, useCanvases } from "./session-views";
-import { ago, cn, plural, shortId } from "@/lib/utils";
+import { cn, shortId } from "@/lib/utils";
 import type { SessionView } from "@/router";
 import { isCanvasFile } from "./home";
 import { rovingKeyDown } from "@/lib/roving";
 import { sessionIsViewOnly } from "@/lib/session-access";
 import { createSessionComposerMemory } from "@/lib/session-composer";
 import { fillComposer } from "@/lib/composer";
-import { ShareButton, ShareSheet } from "@/components/session/share-sheet";
-import { MoveToGroupDialog, useCurrentGroupId } from "@/components/session/move-to-group";
+import { SessionHeader } from "@/components/session/session-header";
+import { ContextView } from "@/components/session/context-panel";
 import { AttachmentTray } from "@/components/session/attachment-tray";
-import { ScheduleActions } from "@/components/session/schedule-actions";
-import { WorkingFolderDialog } from "@/components/session/working-folder-dialog";
 import { buildAttachedMessage, sendWithAttachments, useAttachments } from "@/data/ops/attachments";
 
 const route = getRouteApi("/s/$sessionId");
@@ -46,6 +41,7 @@ type Companion = Exclude<SessionView, "chat">;
 const VIEW_META: Record<SessionView, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   chat: { label: "Chat", icon: Navigation },
   canvas: { label: "Canvas", icon: LayoutPanelLeft },
+  context: { label: "Context", icon: PanelRight },
   files: { label: "Files", icon: Files },
   delegation: { label: "Delegation", icon: GitBranch },
   activity: { label: "Activity", icon: Activity },
@@ -87,11 +83,17 @@ function SessionPageContent() {
   const outputCount = (artifacts || []).filter((a) => !isCanvasFile(a.filename)).length;
   const counts: Partial<Record<SessionView, number>> = { canvas: canvases.length, files: outputCount, delegation: children.length };
 
-  // The companion opens by itself only when the session has a canvas.
-  const view: SessionView = search.view || (canvases.length && !tabsMode ? "canvas" : "chat");
+  // The right-hand pane opens by itself: on the canvas when the session has one, otherwise on Context when the
+  // screen is wide. Someone who closed it (or opened it) keeps that choice for every session.
+  const wideScreen = useMediaQuery("(min-width: 1280px)");
+  const [paneChoice, setPaneChoice] = usePref<string>("fd.contextPane", "");
+  const paneWanted = paneChoice === "open" || (paneChoice === "" && wideScreen);
+  const view: SessionView = search.view || (tabsMode || paneChoice === "closed" ? "chat" : canvases.length ? "canvas" : paneWanted ? "context" : "chat");
   const companion: Companion | null = view === "chat" ? null : view;
   const setSearch = React.useCallback((patch: Record<string, unknown>, replace = false) => navigate({ search: (prev: any) => ({ ...prev, ...patch }), replace }), [navigate]);
   const setView = (v: SessionView) => setSearch({ view: v, focus: undefined });
+  /** From the header icons and the pane's close button: open a view, or close the pane and remember it. */
+  const chooseView = (v: SessionView) => { setPaneChoice(v === "chat" ? "closed" : "open"); setView(v); };
 
   React.useEffect(() => {
     if (!search.focus) return;
@@ -126,14 +128,6 @@ function SessionPageContent() {
     );
   }
 
-  // One row: the session's own title is the page heading (rename in place), its state,
-  // details and actions sit on the same bar, so the conversation starts right under it.
-  const crumbs = [
-    { label: "Sessions", to: "/sessions" },
-    ...(parent ? [{ label: parent.title || "Parent", to: "/s/$sessionId", params: { sessionId: parent.sessionId } }] : []),
-    { label: session ? <TitleEditor session={session} /> : <Skeleton className="h-6 w-48" /> },
-  ];
-
   const chat = <ChatPane key={sessionId} session={session} sessionId={sessionId} history={history} transcriptError={transcriptError} onRetryTranscript={retryTranscript} onOpenCanvas={(slot) => setSearch({ view: "canvas", slot })} />;
   const companionNode = companion ? (
     <CompanionPane
@@ -149,7 +143,7 @@ function SessionPageContent() {
 
   return (
     <>
-      <TopBar crumbs={crumbs} actions={session ? <SessionBarActions session={session} childCount={children.length} /> : null} />
+      {session ? <SessionHeader session={session} parent={parent} childCount={children.length} view={view} paneOpen={Boolean(companion) && !tabsMode} counts={counts} onView={chooseView} /> : <TopBar crumbs={[{ label: "Sessions", to: "/sessions" }, { label: <Skeleton className="h-6 w-48" /> }]} />}
       {detailFailed && session ? <div role="status" className="flex flex-wrap items-center gap-2 border-b border-line bg-raised px-4 py-2 text-sm"><span className="min-w-0 flex-1 text-muted">Session details could not refresh. Showing the last available state.</span><Button size="sm" disabled={refreshingDetail} onClick={() => void retryDetail()}>Try again</Button></div> : null}
       <div ref={bodyRef} className="flex min-h-0 flex-1 flex-col">
         {tabsMode ? (
@@ -164,7 +158,7 @@ function SessionPageContent() {
               <div id="session-view-panel" role="tabpanel" aria-labelledby={`view-tab-${view}`} className="min-h-0 flex-1">{companionNode}</div>
             </div>
           ) : (
-            <SplitLayout chat={chat} companion={<div className="flex h-full min-h-0 flex-col"><ViewTabs view={view} counts={counts} onView={setView} closable onClose={() => setView("chat")} /><div id="session-view-panel" role="tabpanel" aria-labelledby={`view-tab-${view}`} className="min-h-0 flex-1">{companionNode}</div></div>} />
+            <SplitLayout chat={chat} companion={<div className="flex h-full min-h-0 flex-col"><ViewTabs view={view} counts={counts} onView={setView} closable onClose={() => chooseView("chat")} /><div id="session-view-panel" role="tabpanel" aria-labelledby={`view-tab-${view}`} className="min-h-0 flex-1">{companionNode}</div></div>} />
           )
         ) : (
           <div className="flex min-h-0 flex-1 flex-col">
@@ -191,11 +185,11 @@ function SplitLayout({ chat, companion }: { chat: React.ReactNode; companion: Re
 }
 
 function ViewTabs({ view, counts, onView, includeChat = false, closable = false, onClose, attention = null, canvasUpdated = false }: { view: SessionView; counts: Partial<Record<SessionView, number>>; onView: (v: SessionView) => void; includeChat?: boolean; closable?: boolean; onClose?: () => void; attention?: "needs" | "failed" | null; canvasUpdated?: boolean }) {
-  const views: SessionView[] = includeChat ? ["chat", "canvas", "files", "delegation", "activity"] : ["canvas", "files", "delegation", "activity"];
+  const views: SessionView[] = includeChat ? ["chat", "context", "canvas", "files", "delegation", "activity"] : ["context", "canvas", "files", "delegation", "activity"];
   return (
     <div className={cn("flex h-10 shrink-0 items-center gap-0.5 border-b border-line px-2", includeChat && "max-sm:h-12 max-sm:px-0")}>
      {/* The tablist holds only tabs (an ARIA requirement): the close button sits beside it, not inside it. */}
-     <div role="tablist" aria-label="Session views" onKeyDown={rovingKeyDown("tab")} className={cn("flex items-center gap-0.5", includeChat && "max-sm:grid max-sm:flex-1 max-sm:grid-cols-5 max-sm:gap-0")}>
+     <div role="tablist" aria-label="Session views" onKeyDown={rovingKeyDown("tab")} className={cn("flex items-center gap-0.5", includeChat && "max-sm:grid max-sm:flex-1 max-sm:grid-cols-6 max-sm:gap-0")}>
       {views.map((v) => {
         const Icon = VIEW_META[v].icon;
         const active = v === view;
@@ -231,280 +225,6 @@ function ViewTabs({ view, counts, onView, includeChat = false, closable = false,
         </Tooltip>
       ) : null}
     </div>
-  );
-}
-
-// ── Header ──────────────────────────────────────────────────────────────
-// The session's identity lives in the top bar: its title is the page heading (click to
-// rename), its state, stall and context flags and its actions share the same row.
-
-/** A session owner is an object on the API and a plain name in fixtures. */
-function ownerName(owner: unknown): string {
-  if (!owner) return "";
-  if (typeof owner === "string") return owner;
-  const o = owner as Record<string, unknown>;
-  return String(o.displayName || o.email || o.subject || "");
-}
-
-/** Context-window fill as a percentage, from either a 0–1 or a 0–100 utilization. */
-function contextPercent(session: Session): number | null {
-  const u = (session as any).contextUsage?.utilization;
-  if (typeof u !== "number" || !Number.isFinite(u)) return null;
-  return Math.round(u <= 1 ? u * 100 : u);
-}
-
-const STALL_MS = 10 * 60_000;
-const isStalled = (session: Session) => sessionState(session).key === "running" && Boolean(session.updatedAt) && Date.now() - Number(session.updatedAt) > STALL_MS;
-
-function TitleEditor({ session }: { session: Session }) {
-  const readOnly = sessionIsViewOnly(session) || session.canManage === false;
-  const { source } = useSource();
-  const refresh = useRefresh();
-  const [editing, setEditing] = React.useState(false);
-  const [title, setTitle] = React.useState(session.title || "");
-  const saving = React.useRef(false);
-  const cancelled = React.useRef(false);
-  React.useEffect(() => setTitle(session.title || ""), [session.title]);
-  React.useEffect(() => {
-    const open = () => { if (!readOnly) { cancelled.current = false; setEditing(true); } };
-    window.addEventListener("fd:rename-session", open);
-    return () => window.removeEventListener("fd:rename-session", open);
-  }, [readOnly]);
-  const save = async () => {
-    if (cancelled.current) { cancelled.current = false; return; }
-    if (saving.current || readOnly) return;
-    setEditing(false);
-    const next = title.trim();
-    if (!next || next === session.title) return setTitle(session.title || "");
-    saving.current = true;
-    try { await source.renameSession(session.sessionId, next); refresh(session.sessionId); toast.success("Renamed"); }
-    catch (e: any) { setTitle(session.title || ""); toast.error("Couldn't rename", { description: e?.message }); }
-    finally { saving.current = false; }
-  };
-  return readOnly ? <span className="max-w-full truncate">{session.title || "Untitled session"}</span> : editing ? (
-    <Input
-      autoFocus
-      value={title}
-      onChange={(e) => setTitle(e.target.value)}
-      onBlur={save}
-      onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") { cancelled.current = true; setTitle(session.title || ""); setEditing(false); } }}
-      className="h-8 max-w-[520px] text-lg font-semibold"
-      aria-label="Session title"
-    />
-  ) : (
-    <button type="button" className="max-w-full truncate rounded-chip text-left tracking-tight hover:bg-raised pointer-coarse:min-h-11" onClick={() => { cancelled.current = false; setEditing(true); }} title="Rename">{session.title || "Untitled session"}</button>
-  );
-}
-
-function VisibilityLabel({ visibility }: { visibility?: string }) {
-  const v = visibility || "private";
-  const Icon = v === "private" ? Lock : v === "shared_write" ? Users : Globe;
-  const label = v === "private" ? "Private" : v === "shared_write" ? "Shared · can reply" : "Shared · view only";
-  return <span className="inline-flex items-center gap-1 text-sm"><Icon className="size-3.5" aria-hidden />{label}</span>;
-}
-
-function SessionBarActions({ session, childCount }: { session: Session; childCount: number }) {
-  const st = sessionState(session);
-  const phone = useMediaQuery("(max-width: 767px)");
-  const wide = useMediaQuery("(min-width: 1536px)");
-  const [modelOpen, setModelOpen] = React.useState(false);
-  const [detailsOpen, setDetailsOpen] = React.useState(false);
-  const [shareOpen, setShareOpen] = React.useState(false);
-  const [groupOpen, setGroupOpen] = React.useState(false);
-  useIntent("share-session", `/s/${session.sessionId}`, () => setShareOpen(true));
-  useIntent("move-to-group", `/s/${session.sessionId}`, () => setGroupOpen(true));
-  const [folderOpen, setFolderOpen] = React.useState(false);
-  const ctx = contextPercent(session);
-  const stalled = isStalled(session);
-  return (
-    <div className="flex min-w-0 shrink-0 items-center gap-1.5">
-      <StatePillWithSchedule state={st} session={session} showReason={wide} compact={phone} />
-      {stalled && !phone ? (
-        <Tooltip content="This turn is marked running but nothing has been recorded for a while. It may be stuck on a slow tool, or the worker may have stopped.">
-          <span><Tag tone="waiting"><Clock aria-hidden />No activity for {ago(session.updatedAt).replace(/ ago$/, "")}</Tag></span>
-        </Tooltip>
-      ) : null}
-      {ctx != null && ctx >= 70 && !phone ? (
-        <Tooltip content="How much of the model's context window this session has used. Near the limit the agent compacts earlier turns."><span><Tag tone={ctx >= 90 ? "failed" : "waiting"}>Context {ctx}%</Tag></span></Tooltip>
-      ) : null}
-      {phone ? null : (
-        <>
-          <Popover open={detailsOpen} onOpenChange={setDetailsOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="quiet" aria-label="Session details"><Info /> <span className="max-2xl:hidden">Details</span></Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-80">
-              <SessionDetails session={session} onChangeModel={() => { setDetailsOpen(false); setModelOpen(true); }} />
-            </PopoverContent>
-          </Popover>
-          <ShareButton session={session} onOpen={() => setShareOpen(true)} />
-        </>
-      )}
-      <SessionMenu session={session} childCount={childCount} onChangeModel={() => setModelOpen(true)} onDetails={() => setDetailsOpen(true)} onShare={() => setShareOpen(true)} onMoveToGroup={() => setGroupOpen(true)} onWorkingFolder={() => setFolderOpen(true)} phone={phone} />
-      {phone ? (
-        <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-          <DialogContent title="Session details"><DialogBody><SessionDetails session={session} onChangeModel={() => { setDetailsOpen(false); setModelOpen(true); }} /></DialogBody></DialogContent>
-        </Dialog>
-      ) : null}
-      <ShareSheet session={session} open={shareOpen} onOpenChange={setShareOpen} />
-      <MoveToGroupDialog session={session} open={groupOpen} onOpenChange={setGroupOpen} />
-      <WorkingFolderDialog sessionId={session.sessionId} open={folderOpen} onOpenChange={setFolderOpen} />
-      <ChangeModelDialog open={modelOpen} onOpenChange={setModelOpen} session={session} />
-    </div>
-  );
-}
-
-/** Everything that identifies a session but does not need to be on screen all the time. */
-function SessionDetails({ session, onChangeModel }: { session: Session; onChangeModel: () => void }) {
-  const ctx = (session as any).contextUsage;
-  const ctxPct = contextPercent(session);
-  const owner = ownerName(session.owner);
-  const rows: Array<[string, React.ReactNode]> = [
-    ["Agent", <span className="font-mono">{session.agentId || "generic"}</span>],
-    ["Model", (
-      <span className="flex items-center gap-2">
-        <span className="min-w-0 truncate">{modelShort(session.model)}{session.reasoningEffort ? <span className="text-muted"> · {String(session.reasoningEffort)} effort</span> : null}</span>
-        <Button variant="link" size="sm" disabled={sessionIsViewOnly(session) || session.canManage === false} className="ml-auto shrink-0" onClick={onChangeModel}>Change</Button>
-      </span>
-    )],
-    ...(session.workspace?.repo ? [["Repository", <span className="inline-flex min-w-0 items-center gap-1"><FolderGit2 className="size-3.5 shrink-0" aria-hidden /><span className="truncate font-mono">{session.workspace.repo}{session.workspace.branch ? ` @ ${session.workspace.branch}` : ""}</span></span>] as [string, React.ReactNode]] : session.workspace?.folder ? [["Folder", <span className="truncate font-mono">{session.workspace.folder}</span>] as [string, React.ReactNode]] : []),
-    ["Access", <VisibilityLabel visibility={session.visibility} />],
-    ...(owner ? [["Owner", owner] as [string, React.ReactNode]] : []),
-    ["Turns", <span className="tabular-nums">{session.iterations ?? "—"}</span>],
-    ...(ctxPct != null ? [["Context window", <span className="tabular-nums">{ctxPct}% used{ctx?.tokenLimit ? ` of ${Number(ctx.tokenLimit).toLocaleString()} tokens` : ""}</span>] as [string, React.ReactNode]] : []),
-    ["Started", <span className="tabular-nums">{session.createdAt ? `${ago(session.createdAt)}` : "—"}</span>],
-    ["Last activity", <span className="tabular-nums">{session.updatedAt ? ago(session.updatedAt) : "—"}</span>],
-    ["Session ID", (
-      <span className="flex items-center gap-1.5">
-        <span className="min-w-0 truncate font-mono text-xs">{session.sessionId}</span>
-        <Button variant="quiet" size="icon-sm" className="shrink-0" aria-label="Copy session ID" onClick={() => { void navigator.clipboard?.writeText(session.sessionId); toast.success("Session ID copied"); }}><Copy /></Button>
-      </span>
-    )],
-  ];
-  return (
-    <dl className="grid grid-cols-[104px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-sm">
-      {rows.map(([k, v]) => (
-        <React.Fragment key={k}>
-          <dt className="text-muted">{k}</dt>
-          <dd className="min-w-0">{v}</dd>
-        </React.Fragment>
-      ))}
-    </dl>
-  );
-}
-
-/** When a session runs on a schedule, its state pill opens the schedule. */
-function StatePillWithSchedule({ state, session, showReason, compact = false }: { state: SessionState; session: Session; showReason: boolean; compact?: boolean }) {
-  // Phones: the glyph in its tint, so the title keeps its room. The word stays for screen readers.
-  const pill = compact ? (
-    <span className={cn("grid size-7 place-items-center rounded-full pointer-coarse:size-11", STATE_TINT[state.key])} title={state.word}>
-      <StateGlyph state={state.key} />
-      <span className="sr-only">{state.word}{state.reason ? `, ${state.reason}` : ""}</span>
-    </span>
-  ) : <StatePill state={state} size="sm" showReason={showReason} />;
-  if (state.waitKind !== "schedule" && state.waitKind !== "timer") return pill;
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button type="button" className="rounded-full" aria-label={`${state.word}, ${state.reason}. Show schedule`}>
-          {pill}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="end">
-        <div className="text-sm font-semibold">{state.waitKind === "schedule" ? "Runs on a schedule" : "Waiting on a timer"}</div>
-        <dl className="mt-2 grid grid-cols-[100px_1fr] gap-y-1 text-sm">
-          <dt className="text-muted">Next run</dt><dd className="tabular-nums">{state.next || "—"}</dd>
-          {state.waitKind === "schedule" ? <><dt className="text-muted">Interval</dt><dd>{state.reason?.replace(/^schedule · /, "")}</dd></> : null}
-          <dt className="text-muted">Time zone</dt><dd>{Intl.DateTimeFormat().resolvedOptions().timeZone}</dd>
-          <dt className="text-muted">Runs so far</dt><dd className="tabular-nums">{session.iterations ?? "—"}</dd>
-        </dl>
-        <ScheduleActions session={session} />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function SessionMenu({ session, childCount, onChangeModel, onDetails, onShare, onMoveToGroup, onWorkingFolder, phone }: { session: Session; childCount: number; onChangeModel: () => void; onDetails: () => void; onShare: () => void; onMoveToGroup: () => void; onWorkingFolder: () => void; phone: boolean }) {
-  const { source } = useSource();
-  const refresh = useRefresh();
-  const navigate = useNavigate();
-  const [confirm, setConfirm] = React.useState<null | "complete" | "cancel" | "delete">(null);
-  const [busy, setBusy] = React.useState(false);
-  const inFlight = React.useRef(false);
-  const readOnly = sessionIsViewOnly(session) || session.canManage === false;
-  const cascade = childCount ? `Also ${confirm === "delete" ? "deletes" : "cancels"} ${plural(childCount, "sub-agent")}.` : "";
-  const run = async (kind: "complete" | "cancel" | "delete") => {
-    if (inFlight.current || readOnly) return;
-    inFlight.current = true;
-    setBusy(true);
-    try {
-      if (kind === "complete") await source.completeSession(session.sessionId);
-      if (kind === "cancel") await source.cancelSession(session.sessionId);
-      if (kind === "delete") await source.deleteSession(session.sessionId);
-      refresh(session.sessionId);
-      setConfirm(null);
-      toast.success(kind === "complete" ? "Session completed" : kind === "cancel" ? "Session cancelled" : "Session deleted", { description: session.title });
-      if (kind === "delete") void navigate({ to: "/sessions" });
-    } catch (e: any) {
-      toast.error("That didn't work", { description: e?.message });
-    } finally { inFlight.current = false; setBusy(false); }
-  };
-  const closed = ["completed", "cancelled"].includes(sessionState(session).key);
-  const currentGroup = useCurrentGroupId(session);
-  const [exporting, setExporting] = React.useState(false);
-  const exportHistory = async () => {
-    setExporting(true);
-    try {
-      const meta: any = await source.call("exportExecutionHistory", { sessionId: session.sessionId });
-      const filename = String(meta?.filename || meta?.name || "");
-      toast.success("History exported", {
-        description: filename || "Saved to this session's files.",
-        ...(filename ? { action: { label: "Open", onClick: () => void navigate({ to: "/s/$sessionId", params: { sessionId: session.sessionId }, search: { view: "files", files: "outputs", file: filename } as any }) } } : {}),
-      });
-    } catch (e: any) { toast.error("Couldn't export the history", { description: e?.message }); }
-    finally { setExporting(false); }
-  };
-  return (
-    <>
-      <Menu>
-        <MenuTrigger asChild><Button variant="quiet" size="icon" aria-label="Session menu"><MoreHorizontal /></Button></MenuTrigger>
-        <MenuContent className="w-[260px]">
-          {phone ? <MenuItem icon={<Info />} onSelect={onDetails}>Details</MenuItem> : null}
-          {phone ? <MenuItem icon={<Share2 />} onSelect={onShare}>Share</MenuItem> : null}
-          <MenuItem disabled={readOnly} icon={<Pencil />} onSelect={() => window.dispatchEvent(new Event("fd:rename-session"))}>Rename</MenuItem>
-          <MenuItem icon={<Copy />} onSelect={() => { void navigator.clipboard?.writeText(window.location.href); toast.success("Link copied"); }}>Copy link</MenuItem>
-          <MenuItem disabled={readOnly} icon={<Shuffle />} onSelect={onChangeModel} hint={modelShort(session.model)}>Change model</MenuItem>
-          <MenuItem icon={<FolderInput />} onSelect={onMoveToGroup} hint={currentGroup ? "In a group now" : undefined}>Move to group…</MenuItem>
-          <MenuItem disabled={readOnly} icon={<FolderGit2 />} onSelect={onWorkingFolder} hint={session.workspace?.repo ? String(session.workspace.repo) : "Where the agent reads and writes files"}>Working folder…</MenuItem>
-          <MenuItem disabled={readOnly || exporting} icon={<Download />} onSelect={() => void exportHistory()} hint="Saves the full record to Files">Export history</MenuItem>
-          <MenuSeparator />
-          <MenuLabel>{readOnly ? "Management requires owner access" : "Close the session"}</MenuLabel>
-          <MenuItem icon={<CheckCircle2 />} disabled={closed || readOnly} onSelect={() => setConfirm("complete")} hint="Close as done">Complete</MenuItem>
-          <MenuItem icon={<Ban />} danger disabled={closed || readOnly} onSelect={() => setConfirm("cancel")} hint={childCount ? `Also cancels ${plural(childCount, "sub-agent")}` : "Close as abandoned"}>Cancel</MenuItem>
-          <MenuItem disabled={readOnly} icon={<Trash2 />} danger onSelect={() => setConfirm("delete")} hint={childCount ? `Also deletes ${plural(childCount, "sub-agent")}` : "Remove from every list"}>Delete</MenuItem>
-        </MenuContent>
-      </Menu>
-      <Dialog open={Boolean(confirm)} onOpenChange={(o) => !o && !busy && setConfirm(null)}>
-        {confirm ? (
-          <DialogContent title={confirm === "complete" ? "Complete this session?" : confirm === "cancel" ? "Cancel this session?" : "Delete this session?"}>
-            <DialogBody>
-              <p className="text-sm text-muted">
-                {confirm === "complete" && "It closes as done. The transcript, canvases and outputs stay. "}
-                {confirm === "cancel" && "It closes as abandoned and stops any running turn. "}
-                {confirm === "delete" && "It disappears from every list and stops. Session facts are removed; a deleted summary is kept until an admin prunes it. "}
-                {cascade ? <strong className="font-semibold text-fg">{cascade}</strong> : null}
-              </p>
-            </DialogBody>
-            <DialogFooter>
-              <Button disabled={busy} onClick={() => setConfirm(null)}>Keep it</Button>
-              <Button disabled={busy} variant={confirm === "complete" ? "primary" : "danger"} onClick={() => run(confirm)}>
-                {busy ? "Updating session…" : confirm === "complete" ? "Complete" : confirm === "cancel" ? "Cancel session" : "Delete"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        ) : null}
-      </Dialog>
-    </>
   );
 }
 
@@ -787,6 +507,12 @@ function Composer({ session }: { session: Session }) {
 function CompanionPane({ view, session, history, search, setSearch, tabsMode, phone }: { view: Companion; session?: Session; history: ReturnType<typeof useTranscript>["history"]; search: ReturnType<typeof route.useSearch>; setSearch: (p: Record<string, unknown>, replace?: boolean) => void; tabsMode: boolean; phone: boolean }) {
   if (!session) return <div className="p-4"><Skeleton className="h-64" /></div>;
   switch (view) {
+    case "context":
+      return <ContextView session={session} onOpen={(v, patch) => {
+        // "Answer in chat" with the chat already beside the pane: put the cursor in the composer instead of closing the pane.
+        if (v === "chat" && !tabsMode) { document.querySelector<HTMLTextAreaElement>(".fd-composer textarea")?.focus(); return; }
+        setSearch({ view: v, focus: undefined, ...patch });
+      }} />;
     case "canvas":
       return <CanvasView session={session} slot={search.slot} focus={Boolean(search.focus)} phone={phone} onSlot={(slot) => setSearch({ slot }, true)} onFocus={(v) => setSearch({ focus: v || undefined })} onUsePrompt={(prompt) => { if (tabsMode) { setSearch({ view: "chat", focus: undefined }); window.setTimeout(() => fillComposer(prompt), 80); } else fillComposer(prompt); }} />;
     case "files":

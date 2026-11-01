@@ -56,6 +56,28 @@ export async function settle(page: Page, info: TestInfo) {
   }));
 }
 
+/**
+ * Finish every finite animation, and keep finishing until none has started for 200ms. Data that arrives a
+ * moment after the page (a list that fades in) starts its own animation; measuring contrast mid-fade is
+ * measuring a blend of text and background, not the design.
+ */
+export async function quietAnimations(page: Page) {
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    let quietSince = performance.now();
+    const tick = () => {
+      let any = false;
+      for (const a of document.getAnimations()) {
+        if (a.effect?.getTiming().iterations === Infinity) continue;
+        if (a.playState !== "finished") { any = true; try { a.finish(); } catch { /* infinite */ } }
+      }
+      if (any) quietSince = performance.now();
+      if (performance.now() - quietSince >= 200) resolve();
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }));
+}
+
 /** Finite animations jump to their end; infinite ones (pulses) are left alone. */
 export async function finishAnimations(page: Page) {
   await page.evaluate(() => document.getAnimations().forEach((a) => { try { a.finish(); } catch { /* infinite */ } }));
@@ -71,7 +93,7 @@ export async function shot(page: Page, info: TestInfo, state: string) {
 /** Fail on serious or critical axe violations inside `scope` (default the whole page). */
 export async function expectNoSeriousAxe(page: Page, scope?: Locator | string, label = "page", info?: TestInfo) {
   if (info && withMotion(info)) await settle(page, info);
-  else await finishAnimations(page);
+  else await quietAnimations(page);
   let builder = new AxeBuilder({ page })
     // The sandboxed canvas frame renders agent-drawn documents, not Flight Deck's own UI.
     .exclude("iframe")

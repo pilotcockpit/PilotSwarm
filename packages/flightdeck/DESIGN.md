@@ -236,6 +236,35 @@ Counts use sans with tabular numerals. Text does not go below the 12px metadata 
 
 ## Layout
 
+### Shell layout
+
+Sessions live in the sidebar, as in Claude Code and Codex. Top to bottom: New session, Search
+(⌘K), the page links Overview, Boards, Outputs and Library, then the Sessions section, which is
+always the last section and scrolls on its own. Its heading is a link to the Sessions table, with
+the total and a filter button (state facets, group by My groups or Agent, and for admins system
+sessions). Sections: Needs you (derived, always first and expanded), Pinned, one per group the
+person made, then Recent (12, "Show more"). A session appears once, in the first section that
+claims it. Providers, Admin (admins) and Settings, the theme, density, demo/live and collapse
+live in the account menu at the foot; there is no "Manage" group. Rows are one line (state glyph,
+title, unseen-canvas dot); hover or focus reveals pin and a menu (rename, pin, move to group,
+share, copy link, complete, cancel, delete with a confirmation). The list is one tab stop with
+roving focus: arrows, Home and End move, Enter opens, `p` pins, `m` opens the menu, Delete asks to
+delete. Pins, collapsed sections, group-by and the state filter are per person in this browser
+(`fd.pins`, `fd.sidebar.*`): the API has no pin and no per-person sidebar state. Collapsed, the
+sidebar is an icon rail with a Sessions icon carrying the Needs-you count. On a phone the same
+sidebar is a left drawer, opened by the menu button or the Sessions tab; the bottom tabs stay.
+
+A session has three zones: the title bar (title, a chevron menu with Rename, Pin, Move to
+group, Share, Copy link, Export history, Complete, Cancel and Delete; the state; icon buttons for
+Share, Canvas, Files, Activity, Delegation and Context; a More menu), the conversation in the
+middle, and a right pane with tabs Context, Canvas, Files, Delegation and Activity. Context shows
+only what the server returned: environment (agent, model, folder or repo, access, owner), a context
+meter, usage, what happens next with its schedule actions, sub-agents, outputs and a waiting
+question. The pane opens on the canvas when there is one, otherwise on Context at 1280px and wider,
+and remembers when it was closed. On a phone the pane is the tab strip under the title.
+
+### Overview
+
 Overview leads with welcome and New session, then a featured decision alongside a
 recent real output. Recovery cards, work in motion, more outputs and a quiet
 upcoming list follow. Capacity remains in the footer; system failures are an
@@ -363,8 +392,7 @@ Chip toggles a filter with `aria-pressed`; Badge counts navigation. Heading coun
 are plain tabular text. Segmented changes a view in place, Tabs change panes, and
 SideNav organizes Admin and Settings. Keep one level of each per surface.
 
-The rail groups Work, Build and Manage and carries connection state and the signed-in
-person. Demo mode is explicit and synthetic; show its label and exit. Deep links
+The sidebar is for work; setup lives behind one account menu (see Shell layout). Demo mode is explicit and synthetic; the account menu shows its label and the way back to live data. Deep links
 and browser history retain their behavior. Loading, successful-empty, error,
 offline, stale, read-only and partial permission states remain distinct. UI
 presentation does not widen server authorization. Reversible changes use Undo;

@@ -29,6 +29,8 @@ Still open:
 |---|---|---|
 | G1 | No Web API operation to pause, resume or fire a session's schedule (cron) outside a turn | Controls ask the agent in chat |
 | G2 | No operation to list canvas apps | Library shows a note linking to Outputs |
+| G11 | No server-side pin, and no per-person sidebar state: pins, collapsed sections, group-by and the state filter live in this browser (`fd.pins`, `fd.sidebar.*`) | A pin follows the browser, not the person |
+| G12 | Session list rows carry no working folder, so the sidebar cannot group by project folder (Claude Code's default) | Groups are the person's own; agent grouping is offered |
 | G3 | `listSessions` rows omit `pendingQuestion`, wait fields and a live `step`; spine, `waitUntil` and pause state are demo-only | Home and Boards read `getSession` for needs-you sessions |
 | G4 | Per-turn metrics (`getSessionTurnMetrics`, hourly token buckets) exist in the catalog but are not exposed as operations | Not shown |
 | G5 | Server-side saved boards do not exist | Boards live in localStorage |

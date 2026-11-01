@@ -68,7 +68,7 @@ const sessions: Session[] = [
     createdAt: m(96), updatedAt: m(43), model: "anthropic-wif:claude-sonnet-5", iterations: 3, spine: ["run", "run", "done"],
   },
   {
-    sessionId: CANVAS_PORT, owner: "Mo Said", canWrite: true, title: "Port canvas host to TSX", agentId: "coder", status: "running", groupId: "g-release", createdAt: m(70), updatedAt: m(0),
+    sessionId: CANVAS_PORT, owner: "Mo Said", canWrite: true, title: "Port canvas host to TSX", agentId: "coder", status: "running", groupId: "g-release", contextUsage: { utilization: 0.38, tokenLimit: 200000, currentTokens: 76000 }, createdAt: m(70), updatedAt: m(0),
     model: "anthropic-wif:claude-opus-5", step: "Editing CanvasFrame.tsx", iterations: 22, workspace: { repo: "pilotswarm", branch: "canvas-host", root: "main" },
     spine: ["run", "run", "run", "sleep", "run", "run", "run", "run"],
   },
@@ -330,9 +330,9 @@ export function createDemoSource(): DataSource {
     },
     async renameSession(id, title) { const s = byId.get(id); if (s) s.title = title; },
     async setSessionModel(id, model) { const s = byId.get(id); if (s) { s.model = model; if (s.status === "failed") s.error = undefined; } },
-    async completeSession(id) { const s = byId.get(id); if (s) { s.status = "completed"; s.pendingQuestion = null; } },
-    async cancelSession(id) { const s = byId.get(id); if (s) { s.status = "cancelled"; s.pendingQuestion = null; } },
-    async deleteSession(id) { byId.delete(id); for (const s of byId.values()) if (s.parentSessionId === id) byId.delete(s.sessionId); },
+    async completeSession(id) { recordDemoCall("completeSession", { id }); const s = byId.get(id); if (s) { s.status = "completed"; s.pendingQuestion = null; } },
+    async cancelSession(id) { recordDemoCall("cancelSession", { id }); const s = byId.get(id); if (s) { s.status = "cancelled"; s.pendingQuestion = null; } },
+    async deleteSession(id) { recordDemoCall("deleteSession", { id }); byId.delete(id); for (const s of byId.values()) if (s.parentSessionId === id) byId.delete(s.sessionId); },
     listArtifacts: (id) => wait(filesOf(id).map(({ content: _c, ...a }) => ({ ...a, sessionId: id }))),
     readArtifact: (id, filename) => (recordDemoCall("readArtifact", { id, filename }), wait(filesOf(id).find((f) => f.filename === filename)?.content || "", 140)),
     readArtifactPreview: async (id, filename, maxBytes) => {

@@ -46,7 +46,7 @@ const sessionsRoute = createRoute({
   component: SessionsPage,
 });
 
-export const SESSION_VIEWS = ["chat", "canvas", "files", "delegation", "activity"] as const;
+export const SESSION_VIEWS = ["chat", "context", "canvas", "files", "delegation", "activity"] as const;
 export type SessionView = (typeof SESSION_VIEWS)[number];
 export const ACTIVITY_TABS = ["timeline", "logs", "nodes", "history", "stats"] as const;
 const sessionRoute = createRoute({

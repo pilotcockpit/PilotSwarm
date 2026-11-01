@@ -23,14 +23,14 @@ export function NewSessionSheet() {
     <Dialog open={newSession.open} onOpenChange={(o) => !o && closeNewSession()}>
       {newSession.open ? (
         <DialogContent side="right" onCloseAutoFocus={restoreFocus} title="New session" description="Say what you want done. Everything else has a sensible default.">
-          <NewSessionForm initialAgent={newSession.agent || null} initialPrompt={newSession.prompt || ""} onDone={closeNewSession} />
+          <NewSessionForm initialAgent={newSession.agent || null} initialPrompt={newSession.prompt || ""} initialGroup={newSession.group || ""} onDone={closeNewSession} />
         </DialogContent>
       ) : null}
     </Dialog>
   );
 }
 
-function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent: string | null; initialPrompt: string; onDone: () => void }) {
+function NewSessionForm({ initialAgent, initialPrompt, initialGroup = "", onDone }: { initialAgent: string | null; initialPrompt: string; initialGroup?: string; onDone: () => void }) {
   const { source } = useSource();
   const navigate = useNavigate();
   const refresh = useRefresh();
@@ -44,7 +44,7 @@ function NewSessionForm({ initialAgent, initialPrompt, onDone }: { initialAgent:
   const [model, setModel] = React.useState<string>("");
   const [effort, setEffort] = React.useState<string>("");
   const [repo, setRepo] = React.useState("");
-  const [group, setGroup] = React.useState("");
+  const [group, setGroup] = React.useState(initialGroup);
   const [busy, setBusy] = React.useState(false);
   const inFlight = React.useRef(false);
   const [allAgents, setAllAgents] = React.useState(false);

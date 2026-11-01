@@ -13,11 +13,11 @@ import { ago, cn } from "@/lib/utils";
  * folder; phones keep the title on its own line so the identity column is never the one
  * that truncates.
  */
-export function SessionRow({ session, childCount = 0, depth = 0, active = false, leading, columns = false }: { session: Session; childCount?: number; depth?: number; active?: boolean; leading?: React.ReactNode; columns?: boolean }) {
+export function SessionRow({ session, pinned = Boolean(session.pinned), childCount = 0, depth = 0, active = false, leading, columns = false }: { session: Session; pinned?: boolean; childCount?: number; depth?: number; active?: boolean; leading?: React.ReactNode; columns?: boolean }) {
   const st = sessionState(session);
   const chips = (
     <>
-      {session.pinned ? <Pin className="size-3 shrink-0 text-faint" aria-label="Pinned" /> : null}
+      {pinned ? <Pin className="size-3 shrink-0 text-faint" aria-label="Pinned" /> : null}
       {session.unseenCanvas ? <span className="size-1.5 shrink-0 rounded-full bg-accent" role="img" aria-label="Canvas updated" title="Canvas updated since you looked" /> : null}
       {childCount > 0 ? (
         <Tag title={`${childCount} sub-agents`}>

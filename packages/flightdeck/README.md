@@ -78,8 +78,8 @@ state, unverified because no demo session is view-only).
 
 ## What is in
 
-Everything the classic portal does has a Flight Deck screen. App shell (labeled
-rail, phone tab bar, ⌘K with page actions, `?` shortcuts, connection status),
+Everything the classic portal does has a Flight Deck screen. App shell (sidebar with the
+sessions list as its last section, pins and groups, an account menu, a phone drawer and tab bar, ⌘K with page actions, `?` shortcuts, connection status),
 Home (inline answers, failure groups, since-you-left), Sessions, Session (Chat
 with attachments, Share, Move to group, Switch model, schedule actions; Canvas
 with a public-link sheet; Files over outputs and working folders with edit,
@@ -111,7 +111,8 @@ the shared Playwright cache; install them once with `npx playwright install chro
 What each spec covers: `files` (browse, edit, conflict, unsaved-changes guards, Changes, create, rename,
 delete, upload), `knowledge` (typed confirms for purge, namespaces, prune, restart), `providers-hold`
 (hold, allowance, limits, remove, add, paused work), `sharing` (Share sheet, Move to group, canvas public
-link, working-folder conflict), `a11y-smoke` (axe, overflow, console errors and phone tap targets on every
+link, working-folder conflict), `sidebar` (Sessions last, Needs you first, pins and collapse state that survive
+a reload, row and title menus with call counts, keyboard roving, account menu, the Context tab, the phone drawer), `a11y-smoke` (axe, overflow, console errors and phone tap targets on every
 route and tab).
 
 Writing a spec:

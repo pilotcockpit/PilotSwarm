@@ -4,6 +4,7 @@ import { ArrowDownUp, Check, ChevronRight, ListChecks, Plus, Search, X } from "l
 import { toast } from "sonner";
 import { TopBar } from "@/shell/AppShell";
 import { useUi } from "@/shell/ui-state";
+import { usePins } from "@/components/sidebar/prefs";
 import { useGroups, useProfile, useRefresh, useSessions, useSource } from "@/data/source";
 import { sessionState, type StateKey } from "@/data/state";
 import type { Session } from "@/data/types";
@@ -48,6 +49,8 @@ export function SessionsPage() {
   const [agentFilter, setAgentFilter] = React.useState<string | null>(null);
   const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
   const { data: groups } = useGroups();
+  const pins = usePins();
+  const isPinned = React.useCallback((s: Session) => pins.isPinned(s.sessionId) || Boolean(s.pinned), [pins]);
   const agentIds = React.useMemo(() => [...new Set((sessions || []).filter((s) => !s.isSystem).map((s) => s.agentId || "generic"))].sort(), [sessions]);
   const q = (search.q || "").trim().toLowerCase();
   const who = search.who || "all";
@@ -71,17 +74,17 @@ export function SessionsPage() {
     const roots = filtered.filter((s) => !s.parentSessionId || !ids.has(s.parentSessionId)).sort(cmp);
     const regular = roots.filter((s) => !s.isSystem);
     const groupOf = (s: Session) => String(s.groupId ?? (s as any).viewerGroupId ?? "") || null;
-    const grouped = (groups || []).map((g) => ({ group: g, rows: regular.filter((s) => !s.pinned && groupOf(s) === g.id) })).filter((g) => g.rows.length);
+    const grouped = (groups || []).map((g) => ({ group: g, rows: regular.filter((s) => !isPinned(s) && groupOf(s) === g.id) })).filter((g) => g.rows.length);
     const known = new Set((groups || []).map((g) => g.id));
     return {
-      pinned: regular.filter((s) => s.pinned),
+      pinned: regular.filter((s) => isPinned(s)),
       grouped,
-      rest: regular.filter((s) => !s.pinned && !(groupOf(s) && known.has(groupOf(s)!))),
+      rest: regular.filter((s) => !isPinned(s) && !(groupOf(s) && known.has(groupOf(s)!))),
       system: roots.filter((s) => s.isSystem),
       childrenOf: (id: string) => (childrenOf.get(id) || []).filter((c) => ids.has(c.sessionId)).sort(cmp),
       count: filtered.filter((s) => !s.isSystem).length,
     };
-  }, [sessions, groups, who, search.state, agentFilter, q, sort]);
+  }, [sessions, groups, who, search.state, agentFilter, q, sort, isPinned]);
 
   // Counts for the state row ignore the state filter itself, so each facet shows what choosing it would give.
   const facetCounts = React.useMemo(() => {
@@ -121,6 +124,7 @@ export function SessionsPage() {
       <React.Fragment key={s.sessionId}>
         <SessionRow
           session={s}
+          pinned={isPinned(s)}
           columns
           depth={depth}
           childCount={depth === 0 ? kids.length : 0}

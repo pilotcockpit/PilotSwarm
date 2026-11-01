@@ -25,7 +25,7 @@ export function DialogContent({
   onPointerDownOutside,
   onInteractOutside,
   ...props
-}: Omit<React.ComponentProps<typeof D.Content>, "title"> & { title: React.ReactNode; description?: React.ReactNode; side?: "center" | "right"; hideClose?: boolean; undoHost?: boolean }) {
+}: Omit<React.ComponentProps<typeof D.Content>, "title"> & { title: React.ReactNode; description?: React.ReactNode; side?: "center" | "right" | "left"; hideClose?: boolean; undoHost?: boolean }) {
   // Most dialogs here are opened from code (a menu item, a button's handler), with no Trigger for Radix
   // to hand focus back to. The tracker remembers what had focus when the content MOUNTED (the moment the
   // dialog opens, not when this component first renders closed) and returns it on close.
@@ -40,6 +40,8 @@ export function DialogContent({
             "left-1/2 top-[12vh] max-h-[76vh] w-[calc(100vw-24px)] max-w-[520px] -translate-x-1/2 rounded-dialog data-[state=open]:animate-pop",
           side === "right" &&
             "inset-y-0 right-0 h-full w-full max-w-[600px] border-y-0 border-r-0 sm:rounded-l-dialog data-[state=open]:animate-sheet",
+          side === "left" &&
+            "inset-y-0 left-0 h-full w-full max-w-80 border-y-0 border-l-0 sm:rounded-r-dialog data-[state=open]:animate-sheet-left",
           className,
         )}
         {...props}

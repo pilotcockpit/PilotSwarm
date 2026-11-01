@@ -162,6 +162,7 @@
   --animate-pop: fd-pop var(--duration-base) var(--ease-emphasized) backwards;
   --animate-fade: fd-fade var(--duration-base) var(--ease-out-fd) backwards;
   --animate-sheet: fd-sheet var(--duration-slow) var(--ease-emphasized) backwards;
+  --animate-sheet-left: fd-sheet-left var(--duration-slow) var(--ease-emphasized) backwards;
   @keyframes fd-enter {
     from { opacity: 0; transform: translateY(var(--fd-rise)); }
   }
@@ -170,6 +171,9 @@
   }
   @keyframes fd-fade {
     from { opacity: 0; }
+  }
+  @keyframes fd-sheet-left {
+    from { opacity: 0; transform: translateX(calc(var(--fd-slide) * -1)); }
   }
   @keyframes fd-sheet {
     from { opacity: 0; transform: translateX(var(--fd-slide)); }

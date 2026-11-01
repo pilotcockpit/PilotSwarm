@@ -14,7 +14,7 @@
   "src/routes/new-session.tsx": 2,
   "src/routes/providers.tsx": 1,
   "src/routes/session-views.tsx": 4,
-  "src/routes/session.tsx": 5,
+  "src/routes/session.tsx": 3,
   "src/routes/sessions.tsx": 2,
   "src/routes/settings.tsx": 1,
   "src/shell/AppShell.tsx": 2,
