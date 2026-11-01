@@ -25,7 +25,7 @@ import { TitleEditor } from "@/components/session/session-header";
 
 describe("the draft rules", () => {
   it("a draft starts from the server title and notices when the server moves on", () => {
-    const d = beginDraft("Alpha");
+    const d = { ...beginDraft("Alpha"), text: "Mine" };
     expect(changedUnderneath(d, "Alpha")).toBe(false);
     expect(changedUnderneath(d, "Beta")).toBe(true);
   });
@@ -33,6 +33,11 @@ describe("the draft rules", () => {
   it("saving means what was typed, and says whose title it replaces", () => {
     expect(saveOutcome({ baseline: "Alpha", text: "Mine" }, "Alpha")).toEqual({ kind: "rename", next: "Mine", replaced: null });
     expect(saveOutcome({ baseline: "Alpha", text: "Mine" }, "Theirs")).toEqual({ kind: "rename", next: "Mine", replaced: "Theirs" });
+  });
+
+  it("a draft nobody typed in is no rename, whatever the server's title did meanwhile", () => {
+    expect(saveOutcome({ baseline: "Alpha", text: "Alpha" }, "Theirs")).toEqual({ kind: "noop" });
+    expect(changedUnderneath({ baseline: "Alpha", text: "Alpha" }, "Theirs")).toBe(false);
   });
 
   it("does nothing when the title is empty or unchanged", () => {
@@ -57,6 +62,15 @@ describe("the draft hook", () => {
     await act(() => out.current.useTheirs());
     expect(out.current.text).toBe("Theirs");
     expect(out.current.changedUnderneath).toBe(false);
+    await r.unmount();
+  });
+
+  it("an untouched draft adopts the server's new title instead of holding the old one", async () => {
+    const out: any = {};
+    const r = await render(<Probe title="Alpha" active out={out} />);
+    await r.rerender(<Probe title="Theirs" active out={out} />);
+    expect(out.current.text).toBe("Theirs");
+    expect(out.current.outcome()).toEqual({ kind: "noop" });
     await r.unmount();
   });
 
@@ -120,6 +134,32 @@ describe("inline title editor against polling", () => {
     expect(t.renames).toEqual([{ id: "s1", title: "Mine" }]);
     expect(notifyUndo).toHaveBeenCalledTimes(1);
     expect(String((notifyUndo.mock.calls[0][2] as any).description)).toContain("Theirs");
+    await r.unmount();
+  });
+
+  it("blurring an untouched editor after someone else renamed does NOT write the old title back", async () => {
+    const t = mountWith((title) => <TitleEditor session={session(title)} />);
+    const r = await t.mount("Alpha");
+    await r.fire(r.find((n) => n.type === "button" && r.text(n).includes("Alpha")), "onClick");
+    await r.rerender(t.wrap("Theirs"));
+    await r.fire(input(r), "onBlur");
+    await r.flush();
+    expect(t.renames).toEqual([]);
+    await r.unmount();
+  });
+
+  it("says before saving that their title would be replaced, and 'Use theirs' resolves it", async () => {
+    const t = mountWith((title) => <TitleEditor session={session(title)} />);
+    const r = await t.mount("Alpha");
+    await r.fire(r.find((n) => n.type === "button" && r.text(n).includes("Alpha")), "onClick");
+    await typeInto(r, "Mine");
+    expect(r.findAll((n: HostNode) => n.props["data-title-changed"] !== undefined)).toHaveLength(0);
+    await r.rerender(t.wrap("Theirs"));
+    expect(r.findAll((n: HostNode) => n.props["data-title-changed"] !== undefined)).toHaveLength(1);
+    expect(r.text()).toContain("“Theirs”");
+    await r.fire(r.find((n) => n.type === "button" && r.text(n).trim() === "Use theirs"), "onClick");
+    expect((input(r).props as any).value).toBe("Theirs");
+    expect(r.findAll((n: HostNode) => n.props["data-title-changed"] !== undefined)).toHaveLength(0);
     await r.unmount();
   });
 

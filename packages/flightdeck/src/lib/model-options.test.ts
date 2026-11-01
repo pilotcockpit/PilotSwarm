@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Model } from "@/data/types";
-import { changeRequest, currentSelection, folderChipLabel, folderWarning, groupModels, modelChipLabel, normaliseSelection, settingsLockedReason } from "./model-options";
+import { changeRequest, changedElsewhere, currentSelection, effectiveSelection, emptyPicker, finalSelection, folderChip, folderChipLabel, folderWarning, groupModels, modelChipLabel, normaliseSelection, pickModel, settingsLockedReason, touchField } from "./model-options";
 
 const sonnet: Model = { qualifiedName: "a:claude-sonnet-5", providerId: "a", modelName: "claude-sonnet-5", supportedReasoningEfforts: ["low", "high"], supportedContextTiers: ["standard", "extended"], credentialAvailable: true };
 const plain: Model = { qualifiedName: "b:gpt-5.6", providerId: "b", modelName: "gpt-5.6", credentialAvailable: true };
@@ -64,5 +64,49 @@ describe("who can change the settings", () => {
     expect(settingsLockedReason({ canWrite: false })).toMatch(/View-only/);
     expect(settingsLockedReason({ canManage: false })).toMatch(/owner or an admin/);
     expect(settingsLockedReason({ canWrite: true, owner: "me" })).toBeNull();
+  });
+});
+
+
+describe("the picker's touched fields", () => {
+  const server = { model: "a:claude-sonnet-5", effort: "high", tier: "standard" };
+  it("untouched fields follow the server; touched fields keep the person's choice", () => {
+    let st = touchField(server, emptyPicker(), "effort", "low");
+    expect(effectiveSelection(server, st)).toEqual({ ...server, effort: "low" });
+    expect(effectiveSelection({ ...server, tier: "extended" }, st)).toEqual({ model: server.model, effort: "low", tier: "extended" });
+  });
+  it("a poll alone changes nothing to send", () => {
+    const st = emptyPicker();
+    const polled = { ...server, tier: "extended" };
+    expect(changeRequest({ model: polled.model, reasoningEffort: polled.effort, contextTier: polled.tier }, finalSelection(polled, st, sonnet)).changed).toBe(false);
+  });
+  it("choosing a model clears the effort and tier it does not offer, and counts that as the person's change", () => {
+    const st = pickModel(server, emptyPicker(), "b:gpt-5.6", plain);
+    expect(effectiveSelection(server, st)).toEqual({ model: "b:gpt-5.6", effort: null, tier: null });
+    expect(changeRequest({ model: server.model, reasoningEffort: server.effort, contextTier: server.tier }, finalSelection(server, st, plain)).options).toEqual({ reasoningEffort: null, contextTier: null });
+  });
+  it("reports a touched field whose server value moved since it was first touched", () => {
+    const st = touchField(server, emptyPicker(), "effort", "low");
+    expect(changedElsewhere(server, st)).toEqual([]);
+    expect(changedElsewhere({ ...server, effort: null }, st)).toEqual(["effort"]);
+    expect(changedElsewhere({ ...server, tier: "extended" }, st)).toEqual([]); // untouched fields are not conflicts
+  });
+  it("revalidates against the model as it is now: an effort the model no longer offers is cleared, never sent", () => {
+    const st = touchField(server, emptyPicker(), "effort", "low");
+    const narrowed: Model = { ...sonnet, supportedReasoningEfforts: ["high"] };
+    expect(finalSelection(server, st, narrowed).effort).toBeNull();
+    expect(finalSelection(server, st, sonnet).effort).toBe("low");
+  });
+});
+
+describe("the folder chip's wording", () => {
+  it("prefers the session's own folder, then names the deployment default as the default, then says none", () => {
+    expect(folderChip({ workspace: { root: "/r", folder: "mine" }, defaults: { workingFolder: { root: "/d", folder: "dflt" } } }, null)).toEqual({ label: "mine", isDefault: false });
+    expect(folderChip({ workspace: null, defaults: { workingFolder: { root: "/d", folder: "dflt" } } }, null)).toEqual({ label: "Default: dflt", isDefault: true });
+    expect(folderChip({ workspace: null }, null)).toEqual({ label: "No folder", isDefault: false });
+  });
+  it("uses the session row's record only until the workspace has loaded; an authoritative null wins afterwards", () => {
+    expect(folderChip(undefined, { root: "/old", folder: "row" }).label).toBe("row");
+    expect(folderChip({ workspace: null }, { root: "/old", folder: "row" }).label).toBe("No folder");
   });
 });

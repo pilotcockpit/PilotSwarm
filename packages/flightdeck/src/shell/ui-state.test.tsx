@@ -77,3 +77,33 @@ describe("phone drawer to Search", () => {
     expect(open).toHaveBeenCalledWith(true);
   });
 });
+
+// ── The real Search buttons call the hand-off ────────────────────────────────────────────────────────────────
+// The tests above prove handOffToSearch. These prove the buttons the person presses actually USE it: a button that
+// opened the palette directly would leave the drawer covering whatever Search leads to.
+import { NavTop } from "./AppShell";
+import { Providers, stubSource } from "@/test/harness";
+
+vi.mock("@tanstack/react-router", async (orig) => ({ ...(await orig<any>()), Link: ({ children, onClick }: any) => <a onClick={onClick}>{children}</a>, useRouterState: () => "/", useNavigate: () => () => undefined }));
+vi.mock("@/components/ui/tooltip", () => ({ Tooltip: ({ children }: any) => children, TooltipProvider: ({ children }: any) => children }));
+(globalThis as any).matchMedia ??= () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+(globalThis as any).window ??= globalThis;
+
+describe("the real Search buttons", () => {
+  for (const collapsed of [false, true]) {
+    it(`${collapsed ? "the icon" : "the labelled"} button opens the palette and closes the drawer`, async () => {
+      const { source } = stubSource({});
+      source.listSessions = async () => [];
+      let ui!: ReturnType<typeof useUi>;
+      const closeDrawer = vi.fn();
+      const r = await render(
+        <Providers source={source}><UiStateProvider><Probe onUi={(u) => { ui = u; }} /><NavTop collapsed={collapsed} onNavigate={closeDrawer} /></UiStateProvider></Providers>,
+      );
+      const search = r.find((n) => n.type === "button" && n.props["aria-label"] === "Search");
+      await act(async () => { (search.props as any).onClick(); });
+      expect(ui.paletteOpen).toBe(true);
+      expect(closeDrawer).toHaveBeenCalledTimes(1);
+      await r.unmount();
+    });
+  }
+});

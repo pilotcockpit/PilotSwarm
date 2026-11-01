@@ -81,7 +81,7 @@ function RailLink({ item, collapsed, path, onNavigate }: { item: NavItem; collap
 }
 
 /** New session, Search and the page links: the same in the desktop rail and the phone drawer. */
-function NavTop({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+export function NavTop({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
   const { openNewSession, setPaletteOpen } = useUi();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { pages, sessionsLink } = useNav();

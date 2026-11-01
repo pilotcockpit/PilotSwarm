@@ -7,13 +7,42 @@ import { ConcurrentRoot, DefaultEventPriority, NoEventPriority } from "react-rec
 // Components are found by their host element (button, input, ...) and their props, and "events" are the
 // handlers the component passed down, called the way React would.
 
-export interface HostNode { type: string; props: Record<string, any>; children: Array<HostNode | HostText>; parent: HostNode | null }
+export interface HostNode {
+  type: string; props: Record<string, any>; children: Array<HostNode | HostText>; parent: HostNode | null;
+  // The few DOM members components touch through refs (autosizing a textarea, moving focus, opening a file picker,
+  // finding a row by attribute). Selectors support a tag and [attr] / [attr="value"] parts, comma separated: enough
+  // for the components under test, deliberately not a CSS engine.
+  style: Record<string, string>; scrollHeight: number; focus(): void; click(): void;
+  contains(other: unknown): boolean; closest(selector: string): HostNode | null; querySelector(selector: string): HostNode | null;
+  getAttribute(name: string): string | null; readonly dataset: Record<string, string>;
+}
 export interface HostText { type: "#text"; text: string; parent: HostNode | null }
 type Child = HostNode | HostText;
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
-const remove = (parent: HostNode, child: Child) => { parent.children = parent.children.filter((c) => c !== child); child.parent = null; };
+const attrOf = (n: HostNode, name: string): string | undefined => { const v = n.props[name]; return v === undefined || v === false || v === null ? undefined : v === true ? "" : String(v); };
+function matchesSelector(n: HostNode, selector: string): boolean {
+  return selector.split(",").some((part) => {
+    const m = part.trim().match(/^([a-z0-9]*)((?:\[[^\]]+\])*)$/i);
+    if (!m) return false;
+    if (m[1] && n.type !== m[1]) return false;
+    for (const a of m[2].matchAll(/\[([^\]=]+)(?:=["']?([^"'\]]*)["']?)?\]/g)) {
+      const v = attrOf(n, a[1]);
+      if (v === undefined || (a[2] !== undefined && v !== a[2])) return false;
+    }
+    return true;
+  });
+}
+const inside = (root: HostNode | HostText, node: unknown): boolean => { for (let n: any = node; n; n = n.parent) if (n === root) return true; return false; };
+const remove = (parent: HostNode, child: Child) => {
+  parent.children = parent.children.filter((c) => c !== child);
+  child.parent = null;
+  // A real document hands focus back to the page when the focused element leaves it.
+  const d = (globalThis as any).document;
+  if (d && "activeElement" in d && d.activeElement && (d.activeElement === child || inside(child, d.activeElement) || !d.activeElement.parent && d.activeElement !== d.body && containsDetached(child, d.activeElement))) d.activeElement = d.body ?? null;
+};
+const containsDetached = (root: HostNode | HostText, node: HostNode): boolean => { let found = false; const visit = (n: any) => { if (n === node) found = true; (n.children || []).forEach(visit); }; visit(root); return found; };
 const append = (parent: HostNode, child: Child) => { remove(parent, child); parent.children.push(child); child.parent = parent; };
 const insertBefore = (parent: HostNode, child: Child, before: Child) => { remove(parent, child); const i = parent.children.indexOf(before); parent.children.splice(i < 0 ? parent.children.length : i, 0, child); child.parent = parent; };
 
@@ -30,7 +59,19 @@ const reconciler = createReconciler({
   preparePortalMount() {},
   clearContainer(root: HostNode) { root.children = []; },
   shouldSetTextContent: () => false,
-  createInstance: (type: string, props: Record<string, any>): HostNode => ({ type, props, children: [], parent: null }),
+  createInstance: (type: string, props: Record<string, any>): HostNode => {
+    const node: HostNode = {
+      type, props, children: [], parent: null, style: {}, scrollHeight: 0,
+      focus() { const d = (globalThis as any).document; if (d && "activeElement" in d) d.activeElement = node; },
+      click() {},
+      contains: (other) => inside(node, other),
+      closest(selector) { for (let n: HostNode | null = node; n; n = n.parent) if (matchesSelector(n, selector)) return n; return null; },
+      querySelector(selector) { let hit: HostNode | null = null; const visit = (n: HostNode | HostText) => { if (hit || n.type === "#text") return; const h = n as HostNode; if (h !== node && matchesSelector(h, selector)) { hit = h; return; } h.children.forEach(visit); }; visit(node); return hit; },
+      getAttribute: (name) => attrOf(node, name) ?? null,
+      get dataset() { return Object.fromEntries(Object.keys(node.props).filter((k) => k.startsWith("data-")).map((k) => [k.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase()), String(node.props[k] === true ? "" : node.props[k])])); },
+    };
+    return node;
+  },
   createTextInstance: (text: string): HostText => ({ type: "#text", text, parent: null }),
   appendInitialChild: append,
   appendChild: append,
@@ -88,7 +129,7 @@ export interface Rendered {
 export async function act<T>(fn: () => T | Promise<T>): Promise<void> { await (React as any).act(async () => { await fn(); }); }
 
 export async function render(element: React.ReactElement): Promise<Rendered> {
-  const root: HostNode = { type: "#root", props: {}, children: [], parent: null };
+  const root = { type: "#root", props: {}, children: [], parent: null } as unknown as HostNode;
   const fail = (e: unknown) => { throw e; };
   const container = reconciler.createContainer(root, ConcurrentRoot, null, false, null, "", fail, fail, fail, null, null);
   await act(() => reconciler.updateContainer(element, container, null, null));

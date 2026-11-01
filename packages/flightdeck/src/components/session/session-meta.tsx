@@ -22,7 +22,8 @@ export interface ContextFill { percent: number; meter: number; over: boolean }
 export function contextFill(utilization: unknown): ContextFill | null {
   if (typeof utilization !== "number" || !Number.isFinite(utilization) || utilization < 0) return null;
   const percent = Math.round(utilization * 100);
-  return { percent, meter: Math.min(100, percent), over: percent > 100 };
+  // `over` comes from the ratio, not the rounded number: 1.0001 is over the limit even though it rounds to 100.
+  return { percent, meter: Math.min(100, percent), over: utilization > 1 };
 }
 export function contextPercent(session: Session): number | null {
   return contextFill((session as any).contextUsage?.utilization)?.percent ?? null;

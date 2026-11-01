@@ -46,11 +46,18 @@ export const allowanceIs = (src: Src, provider: string, pct: number) => async ()
   return Number(rows.find((r) => r.providerName === provider && r.rowKind === "provider")?.allowancePct) === pct;
 };
 
-/** The session still runs the model (and, where the change touched them, the effort and tier) the change produced. */
-export const sessionModelIs = (src: Pick<DataSource, "getSession">, sessionId: string, want: { model: string; reasoningEffort?: string | null; contextTier?: string | null }) => async () => {
+/** One complete model setting: the model, its reasoning effort and its context tier. Null means "none chosen". */
+export interface ModelTuple { model: string; effort?: string | null; tier?: string | null }
+const sameModelTuple = (s: { model?: string; reasoningEffort?: string | null; contextTier?: string | null }, t: ModelTuple) =>
+  s.model === t.model && (s.reasoningEffort ?? null) === (t.effort ?? null) && (s.contextTier ?? null) === (t.tier ?? null);
+
+/**
+ * The session's COMPLETE setting is one of these tuples. A change passes [what it produced, what it replaced]:
+ * the server adopts a model change later, so until then the session still shows the old tuple and Undo is
+ * honest (it cancels the pending change). Any other tuple, in any of the three dimensions, means someone
+ * else changed it, and Undo refuses.
+ */
+export const sessionTupleIn = (src: Pick<DataSource, "getSession">, sessionId: string, allowed: ModelTuple[]) => async () => {
   const s = await src.getSession(sessionId);
-  if (!s || s.model !== want.model) return false;
-  if ("reasoningEffort" in want && (s.reasoningEffort ?? null) !== (want.reasoningEffort ?? null)) return false;
-  if ("contextTier" in want && (s.contextTier ?? null) !== (want.contextTier ?? null)) return false;
-  return true;
+  return !!s && allowed.some((t) => sameModelTuple(s, t));
 };

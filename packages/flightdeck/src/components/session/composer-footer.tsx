@@ -9,7 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/misc";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useWorkspaceView } from "@/data/ops/workspace";
 import type { Session } from "@/data/types";
-import { AGENT_FIXED_NOTE, folderChipLabel, folderWarning, modelChipLabel, settingsLockedReason } from "@/lib/model-options";
+import { AGENT_FIXED_NOTE, folderChip, folderWarning, modelChipLabel, settingsLockedReason } from "@/lib/model-options";
+import { usePendingModel } from "@/lib/pending-model";
 import { useMediaQuery } from "@/shell/prefs";
 import { cn } from "@/lib/utils";
 
@@ -22,21 +23,24 @@ import { cn } from "@/lib/utils";
 export function ComposerSettings({ session, running }: { session: Session; running: boolean }) {
   const phone = useMediaQuery("(max-width: 639px)");
   const locked = settingsLockedReason(session);
-  const [changed, setChanged] = React.useState(false);
-  // "Applies to the next turn" is only worth saying while a turn is running.
-  React.useEffect(() => { if (!running) setChanged(false); }, [running]);
+  // A model change is queued, not instant: say so until the session reports the new setting.
+  const pending = usePendingModel(session);
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-      {phone ? <PhoneSettings session={session} locked={locked} onApplied={() => setChanged(true)} /> : (
+      {phone ? <PhoneSettings session={session} locked={locked} /> : (
         <>
           <AgentLabel agent={session.agentId} />
-          <ModelChip session={session} locked={locked} onApplied={() => setChanged(true)} />
+          <ModelChip session={session} locked={locked} />
           <FolderChip session={session} locked={locked} />
         </>
       )}
       <ContextMeter session={session} />
-      {changed && running ? <span className="text-xs text-muted" role="status">applies to the next turn</span> : null}
+      {pending ? (
+        <span className="text-xs text-waiting" role="status" data-model-pending>
+          Switching to {modelChipLabel({ model: pending.want.model, reasoningEffort: pending.want.effort ?? undefined })}: applies {running ? "after the current turn" : "from the next turn"}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -56,7 +60,7 @@ export function AgentLabel({ agent }: { agent?: string }) {
 
 const chip = "max-w-48 gap-1 px-2 text-xs";
 
-export function ModelChip({ session, locked, onApplied }: { session: Session; locked: string | null; onApplied: () => void }) {
+export function ModelChip({ session, locked, onApplied }: { session: Session; locked: string | null; onApplied?: () => void }) {
   const [open, setOpen] = React.useState(false);
   const label = modelChipLabel(session);
   if (locked) return <span className="inline-flex max-w-48 items-center truncate px-2 text-xs text-muted" title={locked}>{label}<span className="sr-only">. {locked}.</span></span>;
@@ -68,7 +72,7 @@ export function ModelChip({ session, locked, onApplied }: { session: Session; lo
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="max-h-[70vh] w-96 overflow-y-auto">
-        {open ? <ModelPicker session={session} onApplied={() => { setOpen(false); onApplied(); }} /> : null}
+        {open ? <ModelPicker session={session} onApplied={() => { setOpen(false); onApplied?.(); }} /> : null}
       </PopoverContent>
     </Popover>
   );
@@ -77,7 +81,8 @@ export function ModelChip({ session, locked, onApplied }: { session: Session; lo
 export function FolderChip({ session, locked }: { session: Session; locked: string | null }) {
   const { data: view } = useWorkspaceView(session.sessionId);
   const [open, setOpen] = React.useState(false);
-  const label = folderChipLabel(view?.workspace ?? session.workspace, view?.path) ?? "No folder";
+  // Not loaded yet: the session row's own record. Loaded: the server's answer, including "none" and the default folder.
+  const { label } = folderChip(view, session.workspace);
   const warning = folderWarning(view);
   const body = (
     <>
@@ -114,7 +119,7 @@ export function ContextMeter({ session }: { session: Session }) {
 }
 
 /** Phones: one button, and a bottom sheet holding the same controls. */
-function PhoneSettings({ session, locked, onApplied }: { session: Session; locked: string | null; onApplied: () => void }) {
+function PhoneSettings({ session, locked }: { session: Session; locked: string | null }) {
   const [open, setOpen] = React.useState(false);
   const label = modelChipLabel(session);
   return (
@@ -130,7 +135,7 @@ function PhoneSettings({ session, locked, onApplied }: { session: Session; locke
               <span className="text-muted">Working folder</span>
               <FolderChip session={session} locked={locked} />
             </div>
-            {locked ? <p className="text-sm text-muted">{label}. {locked}.</p> : <ModelPicker session={session} onApplied={() => { setOpen(false); onApplied(); }} />}
+            {locked ? <p className="text-sm text-muted">{label}. {locked}.</p> : <ModelPicker session={session} onApplied={() => setOpen(false)} />}
           </DialogBody>
         </DialogContent>
       </Dialog>

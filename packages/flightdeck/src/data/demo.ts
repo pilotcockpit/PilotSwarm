@@ -188,9 +188,9 @@ const models: Model[] = [
 ];
 
 const agents: Agent[] = [
-  { name: "pilotswarm", title: "PilotSwarm Agent", description: "General-purpose agent with sub-agents, canvases and working folders.", tools: ["bash", "write_canvas", "spawn_agent"], skills: ["html-visuals"], source: "builtin", package: "Built in" },
-  { name: "release-captain", title: "Release captain", description: "Coordinates a release: tests, changelog, images, sign-off canvas.", tools: ["spawn_agent", "write_canvas", "git"], skills: ["release"], source: "package", package: "pilotswarm-release 1.4.0" },
-  { name: "sre-investigator", title: "SRE investigator", description: "Finds the cause of latency and error spikes from metrics and deploys.", tools: ["kusto_query", "list_deployments", "write_canvas"], skills: ["incident"], source: "package", package: "ops-toolkit 0.9.2" },
+  { name: "pilotswarm", title: "PilotSwarm Agent", description: "General-purpose agent with sub-agents, canvases and working folders.", tools: ["bash", "write_canvas", "spawn_agent"], source: "builtin", package: "Built in" },
+  { name: "release-captain", title: "Release captain", description: "Coordinates a release: tests, changelog, images, sign-off canvas.", tools: ["spawn_agent", "write_canvas", "git"], source: "package", package: "pilotswarm-release 1.4.0" },
+  { name: "sre-investigator", title: "SRE investigator", description: "Finds the cause of latency and error spikes from metrics and deploys.", tools: ["kusto_query", "list_deployments", "write_canvas"], source: "package", package: "ops-toolkit 0.9.2" },
   { name: "deepwiki", title: "DeepWiki Code Explorer", description: "Answers questions about any public GitHub repository using DeepWiki.", tools: ["deepwiki"], source: "builtin", package: "Built in" },
   { name: "generic-crawler", title: "Generic Crawler", description: "Scopes a source, designs the fact and graph schema, then runs and refreshes the crawl.", tools: ["fetch", "store_fact"], source: "builtin", package: "Built in" },
 ];
@@ -383,6 +383,10 @@ export function createDemoSource(): DataSource {
       return () => window.clearInterval(t);
     },
     call: ((op: string, params?: Record<string, unknown>) => callDemoOp(op, params)) as DataSource["call"],
+    // Demo data has no archives to serve: a small note stands in so the control can be tried.
+    async downloadPackage(name, opts) {
+      return { blob: new Blob([`Demo data: ${name}${opts?.semver ? `@${opts.semver}` : ""} has no archive to download.\n`], { type: "text/plain" }), filename: `${name}${opts?.semver ? `@${opts.semver}` : ""}-demo.txt` };
+    },
     connection(onChange: (s: ConnectionState) => void) {
       onChange("connected");
       return () => {};

@@ -70,15 +70,25 @@ export function TitleEditor({ session }: { session: Session }) {
     finally { saving.current = false; }
   };
   return readOnly ? <span className="max-w-full truncate">{session.title || "Untitled session"}</span> : editing ? (
-    <Input
-      autoFocus
-      value={draft.text}
-      onChange={(e) => draft.setText(e.target.value)}
-      onBlur={save}
-      onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") { cancelled.current = true; draft.reset(); setEditing(false); } }}
-      className="h-8 max-w-130 text-lg font-semibold"
-      aria-label="Session title"
-    />
+    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      <Input
+        autoFocus
+        value={draft.text}
+        onChange={(e) => draft.setText(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") { cancelled.current = true; draft.reset(); setEditing(false); } }}
+        className="h-8 max-w-130 text-lg font-semibold"
+        aria-label="Session title"
+      />
+      {/* Said before saving, not after: someone else renamed it while this edit was open, and saving replaces their title. */}
+      {draft.changedUnderneath ? (
+        <span role="status" data-title-changed className="flex items-center gap-1.5 text-xs font-normal text-muted">
+          Now “{session.title}” elsewhere. Saving replaces it.
+          {/* mouse-down is cancelled so the input keeps focus: a blur would save the draft before this click lands */}
+          <Button type="button" variant="link" size="sm" onMouseDown={(e) => e.preventDefault()} onClick={draft.useTheirs}>Use theirs</Button>
+        </span>
+      ) : null}
+    </span>
   ) : (
     <button type="button" className="max-w-full truncate rounded-chip text-left tracking-tight hover:bg-raised pointer-coarse:min-h-11" onClick={begin} title="Rename">{session.title || "Untitled session"}</button>
   );

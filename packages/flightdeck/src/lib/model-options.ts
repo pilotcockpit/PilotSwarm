@@ -37,6 +37,60 @@ export function currentSelection(session: Pick<Session, "model" | "reasoningEffo
   return { model: session.model || "", effort: session.reasoningEffort ?? null, tier: session.contextTier ?? null };
 }
 
+// ── The picker's state: what the person TOUCHED, apart from what the server says ─────────────────────────────
+// Untouched fields always show the server's current value (a poll updates them); a touched field keeps the
+// person's choice. Without this split a poll arriving mid-edit would either reset the choice or, worse, turn an
+// untouched field into an explicit write of a stale value.
+
+export type PickerField = "model" | "effort" | "tier";
+const FIELDS: PickerField[] = ["model", "effort", "tier"];
+export interface PickerState {
+  choice: Partial<ModelSelection>;
+  touched: Partial<Record<PickerField, boolean>>;
+  /** The server's value for a field at the moment it was first touched: what the person was looking at. */
+  base: Partial<Record<PickerField, string | null>>;
+}
+export const emptyPicker = (): PickerState => ({ choice: {}, touched: {}, base: {} });
+
+/** What the picker shows and would send: the person's choice where they made one, the server's value elsewhere. */
+export function effectiveSelection(server: ModelSelection, st: PickerState): ModelSelection {
+  return {
+    model: st.touched.model ? (st.choice.model ?? server.model) : server.model,
+    effort: st.touched.effort ? (st.choice.effort ?? null) : server.effort,
+    tier: st.touched.tier ? (st.choice.tier ?? null) : server.tier,
+  };
+}
+
+export function touchField(server: ModelSelection, st: PickerState, field: PickerField, value: string | null): PickerState {
+  return {
+    choice: { ...st.choice, [field]: value },
+    touched: { ...st.touched, [field]: true },
+    base: st.touched[field] ? st.base : { ...st.base, [field]: server[field] },
+  };
+}
+
+/** Choosing a model also clears an effort or tier the new model does not offer: that clearing is the person's change too. */
+export function pickModel(server: ModelSelection, st: PickerState, model: string, info: Model | undefined): PickerState {
+  let next = touchField(server, st, "model", model);
+  const eff = effectiveSelection(server, next);
+  const fixed = normaliseSelection(eff, info);
+  if (fixed.effort !== eff.effort) next = touchField(server, next, "effort", fixed.effort);
+  if (fixed.tier !== eff.tier) next = touchField(server, next, "tier", fixed.tier);
+  return next;
+}
+
+/** Fields the person changed whose server value is no longer the one they were looking at: someone else changed it. */
+export function changedElsewhere(server: ModelSelection, st: PickerState): PickerField[] {
+  return FIELDS.filter((f) => st.touched[f] && st.base[f] !== server[f]);
+}
+
+/** The tuple to send, checked against the model's CURRENT capabilities (the list may have refreshed since the choice). */
+export function finalSelection(server: ModelSelection, st: PickerState, info: Model | undefined): ModelSelection {
+  return normaliseSelection(effectiveSelection(server, st), info);
+}
+
+export const sameTuple = (a: ModelSelection, b: ModelSelection) => a.model === b.model && (a.effort ?? null) === (b.effort ?? null) && (a.tier ?? null) === (b.tier ?? null);
+
 export interface ModelChange { model: string; options: ModelChangeOptions; changed: boolean }
 
 /**
@@ -70,6 +124,21 @@ export function folderChipLabel(workspace: { root?: string; folder?: string } | 
   const full = String(path || [workspace?.root, workspace?.folder].filter(Boolean).join("/") || "").replace(/\/+$/, "");
   if (!full) return null;
   return full.split("/").filter(Boolean).pop() || full;
+}
+
+/**
+ * What the folder chip says. The session's own working folder wins; failing that the deployment's default folder
+ * (reported as `defaults.workingFolder`) is said to be the default; failing that there is none. `loaded` is false
+ * until the workspace view has been read: then the session's own record is the best we have, but once the view is
+ * in, an authoritative `workspace: null` means NO folder, however the session list row last looked.
+ */
+export function folderChip(view: { workspace?: { root?: string; folder?: string } | null; path?: string | null; defaults?: { workingFolder?: { root?: string; folder?: string } | null } | null } | null | undefined, fallback: { root?: string; folder?: string } | null | undefined): { label: string; isDefault: boolean } {
+  if (!view) { const l = folderChipLabel(fallback, null); return { label: l ?? "No folder", isDefault: false }; }
+  const own = folderChipLabel(view.workspace, view.path);
+  if (own) return { label: own, isDefault: false };
+  const dflt = folderChipLabel(view.defaults?.workingFolder, null);
+  if (dflt) return { label: `Default: ${dflt}`, isDefault: true };
+  return { label: "No folder", isDefault: false };
 }
 
 /** A reason to warn on the folder chip, or null when the folder is fine (or there is none). */

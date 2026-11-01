@@ -287,6 +287,11 @@ export function createLiveSource(): DataSource {
       return api.subscribeLogs((entry: unknown) => onEntry(entry as LogEntry));
     },
     call: (op, params) => api.call(op, params) as Promise<any>,
+    async downloadPackage(name, opts) {
+      const response = await api.downloadAgentPackageResponse(name, opts || {});
+      const filename = /filename="?([^";]+)"?/i.exec(response.headers.get("content-disposition") || "")?.[1] || `${name}.tar.gz`;
+      return { blob: await response.blob(), filename };
+    },
     connection(onChange) {
       connectionListeners.add(onChange);
       onChange(connection);

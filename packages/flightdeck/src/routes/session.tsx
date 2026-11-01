@@ -357,7 +357,7 @@ function sessionComposer(source: object, sessionId: string) {
   return memory.session(sessionId);
 }
 
-function Composer({ session }: { session: Session }) {
+export function Composer({ session }: { session: Session }) {
   const { source } = useSource();
   const refresh = useRefresh();
   const composer = React.useMemo(() => sessionComposer(source, session.sessionId), [source, session.sessionId]);

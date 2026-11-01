@@ -4,7 +4,8 @@ import * as React from "react";
 // Deck must not overwrite the classic portal's roaming profile settings while
 // both run side by side.
 
-export type Theme = "dark" | "light" | "system";
+import { normaliseTheme, resolveDark, type Theme } from "./theme-pref";
+export type { Theme };
 
 // When the browser refuses storage (private windows, a full quota), a change still takes effect for this
 // page: the value is held in memory and read back ahead of storage until a write succeeds again.
@@ -26,8 +27,7 @@ const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
 export function applyTheme(theme: Theme) {
-  const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.classList.toggle("dark", dark);
+  document.documentElement.classList.toggle("dark", resolveDark(normaliseTheme(theme), matchMedia("(prefers-color-scheme: dark)").matches));
 }
 
 export function usePref<T extends string>(key: string, fallback: T): [T, (v: T) => void] {
@@ -40,7 +40,9 @@ export function usePref<T extends string>(key: string, fallback: T): [T, (v: T) 
 }
 
 export function useTheme() {
-  const [theme, setTheme] = usePref<Theme>("fd.theme", "system");
+  const [stored, setTheme] = usePref<Theme>("fd.theme", "system");
+  // An invalid stored value is System, and System follows the operating system, exactly as the pre-paint script does.
+  const theme = normaliseTheme(stored);
   React.useEffect(() => {
     applyTheme(theme);
     if (theme !== "system") return;

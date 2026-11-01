@@ -93,7 +93,6 @@ export interface Agent {
   description?: string;
   initialPrompt?: string;
   tools?: string[];
-  skills?: string[];
   source?: string;
   package?: string;
   packageName?: string;
@@ -101,6 +100,10 @@ export interface Agent {
   packageSemver?: string;
   scope?: "shared" | "user";
   mine?: boolean;
+  /** Agents that create this one (a package's composition). Not reported for built-in agents. */
+  startedBy?: string[];
+  /** False for an agent that only another agent creates. Absent means derive it from `startedBy`. */
+  supportsDirectStart?: boolean;
 }
 
 export interface Provider {
@@ -217,6 +220,8 @@ export interface DataSource {
   connection(onChange: (state: ConnectionState) => void): () => void;
   /** Any Web API operation by name. Areas wrap it in hooks (data/ops/use-op.ts); demo mode answers from data/ops/*.demo.ts. */
   call<T = any>(op: string, params?: Record<string, unknown>): Promise<T>;
+  /** The published archive of one package version (a binary download, not an operation: it needs the sign-in headers). */
+  downloadPackage(name: string, opts?: { semver?: string; scope?: "shared" | "user"; ownerProvider?: string; ownerSubject?: string }): Promise<{ blob: Blob; filename: string }>;
 }
 
 export type ConnectionState = "connected" | "reconnecting" | "offline";

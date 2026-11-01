@@ -27,4 +27,10 @@ describe("context window fill", () => {
     expect(contextPercent({ contextUsage: { utilization: -0.1 } } as any)).toBeNull();
     expect(contextPercent({} as any)).toBeNull();
   });
+
+  it("is over the limit as soon as the ratio passes 1, even when it still rounds to 100", () => {
+    expect(contextFill(1.0001)).toEqual({ percent: 100, meter: 100, over: true });
+    expect(contextFill(1)).toEqual({ percent: 100, meter: 100, over: false });
+    expect(contextFill(0.996)).toEqual({ percent: 100, meter: 100, over: false });
+  });
 });
