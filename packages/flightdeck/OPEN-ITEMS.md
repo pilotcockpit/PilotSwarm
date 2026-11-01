@@ -85,6 +85,12 @@ exactly this split.
 Open: composer footer behaviour is covered by unit and component tests only; Playwright coverage waits for
 the e2e pass.
 
+Phone composer: one line to start, 113px tall at 390px and at 320px (was 141px), with every control at 44px. The
+session view tabs on a phone share the width equally while they fit (390px) and scroll sideways with edge hints
+when they do not (320px), so labels never overlap. Board-tile composers keep their plain input: a tile is about
+296px wide at 320px, its row is already full, and the model popover is wider than the tile, so changing a model
+stays a session-level act.
+
 ## E2E paused
 
 The Playwright suite (`e2e/`, `playwright.config.ts`) is intentionally not maintained while the UX settles. Nothing was
@@ -101,8 +107,10 @@ Known stale or unverified, from the sidebar, density and theme work:
   top-bar toggle, and the default is System. `e2e/helpers.ts` `setTheme` now seeds the project's theme once per browser
   context, not on every load.
 - **Findings from the sidebar review without browser coverage yet**: focus after a row moves or disappears, per-person
-  preference keys and malformed stored values, system-session menus, rename drafts under polling, the phone Search
-  handoff, Needs-you announcements, the Context panel's over-limit meter, missing Access row and canvas slot.
+  preference keys and malformed stored values, system-session menus, Needs-you announcements, the Context panel's
+  over-limit meter, missing Access row and canvas slot. (Rename drafts under polling and the phone Search handoff now
+  have unit and component tests, `src/lib/rename-draft.test.tsx` and `src/shell/ui-state.test.tsx`; the browser pass
+  still owes the end-to-end version.)
 
 Specs written during this work and **not yet run as a full suite** (they passed when run alone on `desktop-light` and,
 for the phone one, `phone-light`): `e2e/sidebar-actions.spec.ts` (the destructive-action matrix, finding 12: complete,

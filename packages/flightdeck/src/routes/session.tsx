@@ -30,6 +30,7 @@ import { rovingKeyDown } from "@/lib/roving";
 import { sessionIsViewOnly } from "@/lib/session-access";
 import { createSessionComposerMemory } from "@/lib/session-composer";
 import { fillComposer } from "@/lib/composer";
+import { composerRows } from "@/lib/composer-layout";
 import { SessionHeader } from "@/components/session/session-header";
 import { ContextView } from "@/components/session/context-panel";
 import { AttachmentTray } from "@/components/session/attachment-tray";
@@ -190,7 +191,7 @@ function ViewTabs({ view, counts, onView, includeChat = false, closable = false,
   return (
     <div className={cn("flex h-10 shrink-0 items-center gap-0.5 border-b border-line px-2", includeChat && "max-sm:h-12 max-sm:px-0")}>
      {/* The tablist holds only tabs (an ARIA requirement): the close button sits beside it, not inside it. */}
-     <div role="tablist" aria-label="Session views" onKeyDown={rovingKeyDown("tab")} className={cn("flex items-center gap-0.5", includeChat && "max-sm:grid max-sm:flex-1 max-sm:grid-cols-6 max-sm:gap-0")}>
+     <div role="tablist" aria-label="Session views" onKeyDown={rovingKeyDown("tab")} className={cn("flex items-center gap-0.5", includeChat && "fd-scroll-x max-sm:min-w-0 max-sm:flex-1 max-sm:gap-0 max-sm:overflow-x-auto")}>
       {views.map((v) => {
         const Icon = VIEW_META[v].icon;
         const active = v === view;
@@ -205,8 +206,8 @@ function ViewTabs({ view, counts, onView, includeChat = false, closable = false,
             onClick={() => onView(v)}
             className={cn(
               "focus-inset relative inline-flex h-10 shrink-0 items-center gap-1.5 px-2.5 text-sm font-medium",
-              // Phones: five equal columns, icon over a short label, so every view fits without scrolling.
-              includeChat && "max-sm:h-12 max-sm:flex-col max-sm:justify-center max-sm:gap-0.5 max-sm:px-0 max-sm:text-xs",
+              // Phones: icon over a short label, equal widths while they fit; below that the strip scrolls sideways (with edge hints) instead of letting labels overlap.
+              includeChat && "max-sm:h-12 max-sm:min-w-16 max-sm:flex-1 max-sm:flex-col max-sm:justify-center max-sm:gap-0.5 max-sm:px-1 max-sm:text-xs",
               active ? "text-fg" : "text-muted hover:text-fg",
             )}
           >
@@ -365,6 +366,7 @@ function Composer({ session }: { session: Session }) {
   const running = st.key === "running";
   const closed = st.key === "completed" || st.key === "cancelled";
   const readOnly = sessionIsViewOnly(session);
+  const phoneBox = useMediaQuery("(max-width: 639px)");
   const ref = React.useRef<HTMLTextAreaElement>(null);
   const att = useAttachments(session.sessionId);
   const fileInput = React.useRef<HTMLInputElement>(null);
@@ -435,7 +437,7 @@ function Composer({ session }: { session: Session }) {
   }
 
   return (
-    <div className="fd-composer shrink-0 border-t border-line bg-bg px-3 pb-3 pt-2 md:px-5">
+    <div className="fd-composer shrink-0 border-t border-line bg-bg px-3 pb-2 pt-2 md:px-5 md:pb-3">
       <div className="mx-auto max-w-[760px]">
         {queued.length ? <p className="mb-2 text-xs text-muted">Messages below are already queued. Dismissing a notice does not cancel delivery.</p> : null}
         {queued.map((q, i) => (
@@ -457,7 +459,7 @@ function Composer({ session }: { session: Session }) {
           <AttachmentTray items={att.items} onRemove={att.remove} />
           <Textarea
             ref={ref}
-            rows={2}
+            rows={composerRows(phoneBox)}
             value={text}
             disabled={Boolean(readOnly)}
             onChange={(e) => composer.setText(e.target.value)}
@@ -475,9 +477,9 @@ function Composer({ session }: { session: Session }) {
             }}
             placeholder={readOnly ? "Replies are off for you" : running ? `Add to the queue, or steer ${session.agentId || "the agent"}…` : `Message ${session.agentId || "the agent"}…`}
             aria-label="Message"
-            className="min-h-[52px] border-0 bg-transparent focus-visible:ring-0"
+            className="min-h-10 border-0 bg-transparent focus-visible:ring-0 sm:min-h-[52px]"
           />
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2 pb-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2 pb-1 sm:pb-2">
             <ComposerSettings session={session} running={running} />
             {/* The key hint shows while you are typing and there is room; it never takes space from the chips. */}
             <span className="hidden min-w-0 flex-1 basis-0 truncate text-xs text-muted sm:group-focus-within:block">{running ? "Enter queues it · Steer adds it to this turn" : "Enter to send · Shift+Enter for a new line"}</span>

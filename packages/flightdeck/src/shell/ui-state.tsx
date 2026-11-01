@@ -27,6 +27,16 @@ function remember() {
   returnTo = el && el !== document.body ? el : null;
 }
 
+/**
+ * The phone drawer's Search button. The palette opens FIRST, while the drawer is still an open dialog, so
+ * remember() keeps the drawer's own opener (the menu button) instead of capturing the Search button that is
+ * about to unmount; then the drawer closes so the palette's result is not left behind it.
+ */
+export function handOffToSearch(ui: Pick<UiState, "setPaletteOpen">, closeDrawer?: () => void) {
+  ui.setPaletteOpen(true);
+  closeDrawer?.();
+}
+
 const Ctx = React.createContext<UiState | null>(null);
 
 export function UiStateProvider({ children }: { children: React.ReactNode }) {

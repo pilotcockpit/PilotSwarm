@@ -220,6 +220,17 @@
 }
 
 @layer components {
+  /* A strip that scrolls sideways says so: a soft edge appears only on the side that has more. No scrollbar. */
+  .fd-scroll-x {
+    scrollbar-width: none;
+    background:
+      linear-gradient(to right, var(--bg) 30%, transparent) left center / 20px 100% no-repeat local,
+      linear-gradient(to left, var(--bg) 30%, transparent) right center / 20px 100% no-repeat local,
+      linear-gradient(to right, var(--line-strong), transparent) left center / 8px 100% no-repeat scroll,
+      linear-gradient(to left, var(--line-strong), transparent) right center / 8px 100% no-repeat scroll;
+  }
+  .fd-scroll-x::-webkit-scrollbar { display: none; }
+
   /* One shared arrival for work objects; refreshes preserve their stable keys.
      Hover/press explains which whole cards open. Articles with answer buttons
      stay still, and reduced motion removes travel and staggering. */

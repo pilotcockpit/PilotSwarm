@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { useRenameDraft } from "@/lib/rename-draft";
 
 // Actions on one session that two surfaces offer: the sidebar row menu and the session's title menu.
 // Each dialog is rendered only while it is open, so a long list does not mount dozens of them.
@@ -82,19 +83,15 @@ export function SessionCloseDialog({ session, kind, childCount = 0, onOpenChange
 export function SessionRenameDialog({ session, open, onOpenChange }: { session: Session; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { source } = useSource();
   const refresh = useRefresh();
-  const [title, setTitle] = React.useState(session.title || "");
-  const baseline = React.useRef(session.title || "");
-  const [busy, setBusy] = React.useState(false);
   const current = session.title || "";
-  // Only opening starts a draft. A title that changes while it is open is a notice, not a reset.
-  React.useEffect(() => { if (open) { baseline.current = current; setTitle(current); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  const changedUnderneath = open && current !== baseline.current;
+  const draft = useRenameDraft(current, open);
+  const [busy, setBusy] = React.useState(false);
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    const next = title.trim();
-    if (!next || next === current) return onOpenChange(false);
+    const outcome = draft.outcome();
+    if (outcome.kind === "noop") return onOpenChange(false);
     setBusy(true);
-    try { await source.renameSession(session.sessionId, next); refresh(session.sessionId); toast.success("Renamed"); onOpenChange(false); }
+    try { await source.renameSession(session.sessionId, outcome.next); refresh(session.sessionId); toast.success("Renamed"); onOpenChange(false); }
     catch (err: any) { toast.error("Couldn't rename", { description: err?.message }); }
     finally { setBusy(false); }
   };
@@ -103,17 +100,17 @@ export function SessionRenameDialog({ session, open, onOpenChange }: { session: 
       <DialogContent title="Rename session">
         <form onSubmit={save}>
           <DialogBody className="flex flex-col gap-2">
-            <Field label="Title"><Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} /></Field>
-            {changedUnderneath ? (
+            <Field label="Title"><Input autoFocus value={draft.text} onChange={(e) => draft.setText(e.target.value)} maxLength={200} /></Field>
+            {draft.changedUnderneath ? (
               <p role="status" className="text-sm text-muted" data-title-changed>
                 Someone renamed this to “{current}” while you were typing. Saving replaces it with your title.{" "}
-                <Button type="button" variant="link" size="sm" onClick={() => { baseline.current = current; setTitle(current); }}>Use theirs</Button>
+                <Button type="button" variant="link" size="sm" onClick={draft.useTheirs}>Use theirs</Button>
               </p>
             ) : null}
           </DialogBody>
           <DialogFooter>
             <Button type="button" disabled={busy} onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={busy || !title.trim()}>Save</Button>
+            <Button type="submit" variant="primary" disabled={busy || !draft.text.trim()}>Save</Button>
           </DialogFooter>
         </form>
       </DialogContent>

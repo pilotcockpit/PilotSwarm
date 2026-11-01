@@ -15,7 +15,7 @@ import { SessionsSidebar } from "@/components/sidebar/sessions-sidebar";
 import { ThemeSegmented } from "@/components/theme-setting";
 import { AccountMenu } from "@/components/sidebar/account-menu";
 import { cn, initials } from "@/lib/utils";
-import { useUi, UiStateProvider } from "./ui-state";
+import { handOffToSearch, useUi, UiStateProvider } from "./ui-state";
 import { useMediaQuery, useTheme } from "./prefs";
 import { CommandPalette } from "./CommandPalette";
 import { ShortcutsDialog, useGlobalShortcuts } from "./shortcuts";
@@ -93,13 +93,13 @@ function NavTop({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: ()
             <Button size="icon" className="size-10" aria-label="New session" onClick={() => { onNavigate?.(); openNewSession(); }}><Plus /></Button>
           </Tooltip>
           <Tooltip content={<span className="flex items-center gap-2">Search <Kbd>⌘K</Kbd></span>} side="right">
-            <Button variant="quiet" size="icon" className="size-10" aria-label="Search" onClick={() => { setPaletteOpen(true); onNavigate?.(); }}><Search /></Button>
+            <Button variant="quiet" size="icon" className="size-10" aria-label="Search" onClick={() => handOffToSearch({ setPaletteOpen }, onNavigate)}><Search /></Button>
           </Tooltip>
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
           <Button className="w-full justify-start" onClick={() => { onNavigate?.(); openNewSession(); }}><Plus /> <span className="flex-1 text-left">New session</span> <Kbd>N</Kbd></Button>
-          <Button variant="quiet" className="w-full justify-start text-muted" aria-label="Search" onClick={() => { setPaletteOpen(true); onNavigate?.(); }}><Search /> <span className="flex-1 text-left">Search</span> <Kbd>⌘K</Kbd></Button>
+          <Button variant="quiet" className="w-full justify-start text-muted" aria-label="Search" onClick={() => handOffToSearch({ setPaletteOpen }, onNavigate)}><Search /> <span className="flex-1 text-left">Search</span> <Kbd>⌘K</Kbd></Button>
         </div>
       )}
       <nav aria-label="Primary" className={cn("mt-3 flex w-full flex-col gap-0.5", collapsed && "items-center")}>

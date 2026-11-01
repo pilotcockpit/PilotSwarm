@@ -27,6 +27,7 @@ import { RestartDialog } from "@/components/admin/system-sessions-panel";
 import { contextPercent, isStalled } from "@/components/session/session-meta";
 import { usePins } from "@/components/sidebar/prefs";
 import { sessionIsViewOnly } from "@/lib/session-access";
+import { useRenameDraft } from "@/lib/rename-draft";
 import { ago, cn } from "@/lib/utils";
 import type { SessionView } from "@/router";
 
@@ -35,49 +36,46 @@ import type { SessionView } from "@/router";
 // opens everything you can do to the session), then its state, then icon buttons for the views that
 // belong to it. On a phone the bar keeps the menu button, the title, the state and one overflow menu.
 
-function TitleEditor({ session }: { session: Session }) {
+export function TitleEditor({ session }: { session: Session }) {
   // The SDK refuses to rename a system session, so its title is text.
   const readOnly = sessionIsViewOnly(session) || session.canManage === false || Boolean(session.isSystem);
   const { source } = useSource();
   const refresh = useRefresh();
   const [editing, setEditing] = React.useState(false);
-  const [title, setTitle] = React.useState(session.title || "");
+  const draft = useRenameDraft(session.title || "", editing);
   const saving = React.useRef(false);
   const cancelled = React.useRef(false);
-  // The title as it was when this edit began. A poll that brings a different title never replaces a draft in progress.
-  const baseline = React.useRef(session.title || "");
-  React.useEffect(() => { if (!editing) { setTitle(session.title || ""); baseline.current = session.title || ""; } }, [session.title, editing]);
-  const begin = () => { cancelled.current = false; baseline.current = session.title || ""; setTitle(session.title || ""); setEditing(true); };
+  const begin = () => { cancelled.current = false; setEditing(true); };
   React.useEffect(() => {
     const open = () => { if (!readOnly) begin(); };
     window.addEventListener("fd:rename-session", open);
     return () => window.removeEventListener("fd:rename-session", open);
-  }, [readOnly, session.title]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
   const save = async () => {
     if (cancelled.current) { cancelled.current = false; return; }
     if (saving.current || readOnly) return;
     setEditing(false);
-    const next = title.trim();
-    if (!next || next === session.title) return setTitle(session.title || "");
+    const outcome = draft.outcome();
+    if (outcome.kind === "noop") return draft.reset();
     saving.current = true;
     // Someone else renamed it while this edit was open: the draft wins, said out loud, with a way back.
-    const theirs = (session.title || "") !== baseline.current ? session.title || "" : null;
+    const theirs = outcome.replaced;
     try {
-      await source.renameSession(session.sessionId, next);
+      await source.renameSession(session.sessionId, outcome.next);
       refresh(session.sessionId);
       if (theirs) notifyUndo("Renamed", () => { void source.renameSession(session.sessionId, theirs).then(() => refresh(session.sessionId)); }, { description: `Replaced “${theirs}”, set by someone else while you were typing.`, resource: `title:${session.sessionId}` });
       else toast.success("Renamed");
     }
-    catch (e: any) { setTitle(session.title || ""); toast.error("Couldn't rename", { description: e?.message }); }
+    catch (e: any) { draft.reset(); toast.error("Couldn't rename", { description: e?.message }); }
     finally { saving.current = false; }
   };
   return readOnly ? <span className="max-w-full truncate">{session.title || "Untitled session"}</span> : editing ? (
     <Input
       autoFocus
-      value={title}
-      onChange={(e) => setTitle(e.target.value)}
+      value={draft.text}
+      onChange={(e) => draft.setText(e.target.value)}
       onBlur={save}
-      onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") { cancelled.current = true; setTitle(session.title || ""); setEditing(false); } }}
+      onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") { cancelled.current = true; draft.reset(); setEditing(false); } }}
       className="h-8 max-w-130 text-lg font-semibold"
       aria-label="Session title"
     />
