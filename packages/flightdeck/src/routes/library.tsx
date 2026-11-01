@@ -61,11 +61,11 @@ export function LibraryPage() {
           <div className="mb-5 flex flex-wrap items-end gap-4">
             <div className="min-w-0 flex-1 basis-64">
               <h2 className="text-lg font-semibold">{tab === "agents" ? "Choose the right agent for the task" : "What agents can do"}</h2>
-              <p className="mt-1 text-sm text-muted">{tab === "agents" ? "Compare what each agent does and the tools it can use, then start a session." : "Packages give agents skills, tools and workflows. Add one, update it, or roll it back."}</p>
+              <p className="mt-1 text-sm text-muted">{tab === "agents" ? "Compare what each agent does and the tools it can use, then start a session." : "Packages give agents, skills, tools and MCP servers. Add one, update it, or roll it back."}</p>
             </div>
             <div className="relative w-full sm:w-72">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-faint" aria-hidden />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} className="pl-8" placeholder={tab === "agents" ? "Find an agent or capability" : "Find a package"} aria-label={tab === "agents" ? "Find an agent by name, description, tool or skill" : "Find a package by name or description"} />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} className="pl-8" placeholder={tab === "agents" ? "Find an agent or tool" : "Find a package"} aria-label={tab === "agents" ? "Find an agent by name, description or tool" : "Find a package by name or description"} />
             </div>
           </div>
           <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -76,7 +76,7 @@ export function LibraryPage() {
           {tab === "agents" ? (
             <>
               <AgentRows query={query} packages={list} onOpenPackage={openByName} onClear={() => setQuery("")} />
-              <p className="mt-2 border-t border-line pt-4 text-sm text-muted">Canvases that agents publish appear in <Link to="/outputs" className="text-accent hover:underline">Outputs</Link>.</p>
+              <p className="mt-2 border-t border-line pt-4 text-sm text-muted">A package that adds only skills, tools or MCP servers has no agent here: start any session and ask for them. Canvases that agents publish appear in <Link to="/outputs" className="text-accent hover:underline">Outputs</Link>.</p>
             </>
           ) : (
             <PackagesTab query={query} profile={profile} onOpen={(p) => setSelected(packageKey(p))} onAdd={() => startAdd()} onDropped={(r) => startAdd(r)} />

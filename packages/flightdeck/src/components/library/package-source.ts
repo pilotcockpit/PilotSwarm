@@ -1,6 +1,13 @@
 // Reading a package on the user's machine: a dropped folder, a chosen folder, or a .zip, turned into
 // the [{path, contentBase64}] list the Web API takes. Nothing here talks to the server; the preview
 // is computed from the files themselves so a mistake shows before anything is published.
+//
+// The preview checks the rules that can be checked WITHOUT the deployment: the manifest, the name, the
+// version, paths, limits and the files the server never accepts. It cannot know the deployment's reserved
+// agent and MCP server names, whether the name is taken by a baked agent, or how a manifest-mode layout
+// resolves, so a package that passes here can still be refused by the server; that answer is shown in the
+// dialog in the server's own words.
+import { isValidSemver } from "@/lib/semver";
 
 export const MAX_BYTES = 2 * 1024 * 1024;
 export const MAX_FILES = 2000;
@@ -31,6 +38,7 @@ export interface PackageAnalysis {
   description: string | null;
   agents: string[];
   skills: string[];
+  mcpServers: string[];
   tools: boolean;
   mcp: boolean;
   fileCount: number;
@@ -38,10 +46,13 @@ export interface PackageAnalysis {
   issues: PackageIssue[];
 }
 
-const SKIP = [/(^|\/)\.git(\/|$)/, /(^|\/)node_modules(\/|$)/, /(^|\/)\.DS_Store$/, /(^|\/)__MACOSX(\/|$)/, /(^|\/)Thumbs\.db$/];
+// The server itself ignores only .git and .DS_Store. node_modules is NOT junk: a package that vendors its
+// dependencies needs them (a worker-module.js imports them by bare name), so it ships. __MACOSX and
+// Thumbs.db are zip and Windows leftovers that no package wants.
+const SKIP = [/(^|\/)\.git(\/|$)/, /(^|\/)\.DS_Store$/, /(^|\/)__MACOSX(\/|$)/, /(^|\/)Thumbs\.db$/];
 const skipped = (path: string) => SKIP.some((re) => re.test(path));
 
-/** Drop what never belongs in a package, then lift a single wrapping folder (my-kit/plugin.json) to the root. */
+/** Drop OS and version-control leftovers, then lift a single wrapping folder (my-kit/plugin.json) to the root. */
 export function normalizeFiles(input: LocalFile[]): ReadResult {
   const kept = input.filter((f) => !skipped(f.path));
   let files = kept;
@@ -57,7 +68,30 @@ export function normalizeFiles(input: LocalFile[]): ReadResult {
 
 const decoder = new TextDecoder();
 
-/** Name, version and contents from the files, plus everything the server is known to refuse, said plainly. */
+/** Package names the Web API reserves for its own routes (agent-package-service.ts RESERVED_PACKAGE_NAMES). */
+const RESERVED_NAMES = new Set(["sources", "upload", "worker-state"]);
+/** A DNS label: what plugin.json "name" must be (agent-package-format.ts DNS_LABEL_RE). */
+const DNS_LABEL = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/;
+
+/** The value of a top-level `key:` in a markdown file's YAML frontmatter, without a YAML parser. */
+export function frontmatterField(text: string, key: string): string | null {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+  if (!m) return null;
+  const line = new RegExp(`^${key}:\\s*(.+?)\\s*$`, "m").exec(m[1]);
+  return line ? line[1].replace(/^["']|["']$/g, "") : null;
+}
+
+/** MCP server names declared in a .mcp.json (the keys of "mcpServers"). */
+function mcpNames(text: string): string[] {
+  try { const j = JSON.parse(text); return Object.keys(j?.mcpServers && typeof j.mcpServers === "object" ? j.mcpServers : {}); } catch { return []; }
+}
+
+/**
+ * Name, version and contents from the files, plus what the server is known to refuse, said plainly.
+ * Agent, skill and MCP server NAMES come from the files' own frontmatter and config (that is where the
+ * server reads them), never from file names. The default layout is assumed (agents/*.agent.md,
+ * skills/<name>/SKILL.md); a manifest that relocates them is checked by the server.
+ */
 export function analyzePackage(files: LocalFile[]): PackageAnalysis {
   const issues: PackageIssue[] = [];
   const paths = files.map((f) => f.path);
@@ -71,17 +105,27 @@ export function analyzePackage(files: LocalFile[]): PackageAnalysis {
   const name = typeof manifest?.name === "string" && manifest.name.trim() ? manifest.name.trim() : null;
   const version = typeof manifest?.version === "string" && manifest.version.trim() ? manifest.version.trim() : null;
   if (manifest && !name) issues.push({ level: "error", message: "plugin.json needs a name.", file: "plugin.json" });
+  else if (name && !DNS_LABEL.test(name)) issues.push({ level: "error", message: `The name "${name}" must be lowercase letters, digits and hyphens (no dots, underscores, capitals, or a leading or trailing hyphen), up to 64 characters.`, file: "plugin.json" });
+  else if (name && (name.startsWith("__") || RESERVED_NAMES.has(name))) issues.push({ level: "error", message: `"${name}" is a reserved name. Pick another.`, file: "plugin.json" });
   if (manifest && !version) issues.push({ level: "error", message: "plugin.json needs a version, for example 1.0.0.", file: "plugin.json" });
-  if (version && !/^\d+\.\d+\.\d+([-+].+)?$/.test(version)) issues.push({ level: "warning", message: `"${version}" is not a three-part version (1.2.3). The server may refuse it.`, file: "plugin.json" });
+  else if (version && !isValidSemver(version)) issues.push({ level: "error", message: `"${version}" is not a concrete version such as 1.2.3 or 1.2.3-dev.1 (no ranges, no "v" prefix).`, file: "plugin.json" });
   if (files.length > MAX_FILES) issues.push({ level: "error", message: `${files.length} files is over the limit of ${MAX_FILES}.` });
   if (totalBytes > MAX_BYTES) issues.push({ level: "error", message: `${(totalBytes / 1048576).toFixed(1)} MB is over the 2 MB limit. Remove build output, images or data files that agents do not read.` });
-  for (const p of paths) if (p.startsWith("/") || p.includes("\\") || p.split("/").includes("..")) issues.push({ level: "error", message: "This path is not allowed in a package.", file: p });
-  const agents = [...new Set(paths.filter((p) => /\.agent\.md$/i.test(p)).map((p) => p.split("/").pop()!.replace(/\.agent\.md$/i, "")))].sort();
-  const skills = [...new Set(paths.filter((p) => /(^|\/)SKILL\.md$/i.test(p)).map((p) => p.split("/").slice(-2, -1)[0] || "skill"))].sort();
+  for (const p of paths) {
+    if (p.startsWith("/") || p.includes("\\") || p.split("/").includes("..")) issues.push({ level: "error", message: "This path is not allowed in a package.", file: p });
+    else if (/[^\x20-\x7e]/.test(p)) issues.push({ level: "error", message: "Paths must be plain ASCII. Rename this file.", file: p });
+  }
+  if (paths.includes("session-policy.json")) issues.push({ level: "error", message: "session-policy.json is not allowed in a package: session policy belongs to the deployment, not to a package.", file: "session-policy.json" });
+
+  const text = (path: string) => decoder.decode(files.find((f) => f.path === path)!.bytes);
+  const agents = [...new Set(paths.filter((p) => /^agents\/.*\.agent\.md$/i.test(p) || /\.agent\.md$/i.test(p)).map((p) => frontmatterField(text(p), "name") || p.split("/").pop()!.replace(/\.agent\.md$/i, "")))].sort();
+  const skills = [...new Set(paths.filter((p) => /(^|\/)SKILL\.md$/i.test(p)).map((p) => frontmatterField(text(p), "name") || p.split("/").slice(-2, -1)[0] || "skill"))].sort();
+  const mcpFiles = paths.filter((p) => /(^|\/)\.mcp\.json$/.test(p));
+  const mcpServers = [...new Set(mcpFiles.flatMap((p) => mcpNames(text(p))))].sort();
   const tools = paths.some((p) => /(^|\/)worker-module\.js$/.test(p));
-  const mcp = paths.some((p) => /(^|\/)\.mcp\.json$/.test(p));
-  if (pj && !agents.length && !skills.length && !tools && !mcp) issues.push({ level: "warning", message: "No agents, skills, tools or MCP servers found. The package would be empty." });
-  return { name, version, description: typeof manifest?.description === "string" ? manifest.description : null, agents, skills, tools, mcp, fileCount: files.length, totalBytes, issues };
+  const mcp = mcpFiles.length > 0;
+  if (pj && !agents.length && !skills.length && !tools && !mcp) issues.push({ level: "warning", message: "No agents, skills, tools or MCP servers found in the default layout. The package would be empty unless plugin.json points to them elsewhere." });
+  return { name, version, description: typeof manifest?.description === "string" ? manifest.description : null, agents, skills, mcpServers, tools, mcp, fileCount: files.length, totalBytes, issues };
 }
 
 export function toBase64(bytes: Uint8Array): string {

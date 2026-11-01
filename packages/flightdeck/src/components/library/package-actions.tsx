@@ -5,7 +5,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import type { PackageSummary, PackageVersion } from "@/data/ops/packages";
-import { plural } from "@/lib/utils";
+import { deleteConsequences } from "./package-rules";
 
 /** Deleting a package removes every version. Typing its name makes that a decision, not a click. */
 export function DeletePackageDialog({ pkg, versions, liveSessions, open, onOpenChange, onDelete }: {
@@ -30,9 +30,7 @@ export function DeletePackageDialog({ pkg, versions, liveSessions, open, onOpenC
       <DialogContent title={`Delete ${pkg.name}?`} description="This cannot be undone.">
         <DialogBody className="flex flex-col gap-3">
           <ul className="list-disc pl-5 text-sm">
-            <li>Removes {plural(versions || 1, "version")} and their files{pkg.scope === "shared" ? " for everyone" : ""}.</li>
-            {liveSessions ? <li className="text-failed">{plural(liveSessions, "session")} use its agents and will fail on their next turn.</li> : <li>No running sessions use its agents.</li>}
-            {pkg.scope === "shared" ? <li>Editors lose access.</li> : null}
+            {deleteConsequences(pkg, versions || 1, liveSessions).map((line, n) => <li key={n} className={n === 1 && liveSessions ? "text-failed" : undefined}>{line}</li>)}
           </ul>
           <Field label={<>Type <span className="font-mono">{pkg.name}</span> to confirm</>} error={error}>
             <Input value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" spellCheck={false} />
@@ -77,7 +75,7 @@ export function RepublishDialog({ pkg, versions, open, onOpenChange, onRepublish
               {versions.map((v) => <option key={v.versionId} value={v.semver}>{v.semver}{v.versionId === pkg.active?.versionId ? " (active)" : ""}</option>)}
             </select>
           </Field>
-          {target === "shared" ? <p className="text-sm text-muted">The shared package must already exist and you must be allowed to edit it. To share this one for the first time, use Share with everyone.</p> : null}
+          {target === "shared" ? <p className="text-sm text-muted">The shared package must already exist and you must be allowed to publish to it. To share this one for the first time, use Share with everyone. The version you pick becomes the shared package's active version.</p> : null}
         </DialogBody>
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>

@@ -23,8 +23,9 @@ const ver = (name: string, semver: string, hoursAgo: number, size: number, by: s
 const releaseFiles: Record<string, string> = {
   "plugin.json": JSON.stringify({ name: "pilotswarm-release", version: "1.4.0", description: "Release captain and the agents that test, build and sign off a PilotSwarm release." }, null, 2),
   "README.md": "# pilotswarm-release\n\nAgents that run a release end to end.\n\n## What you get\n\n- **Release captain** coordinates tests, changelog, images and the sign-off canvas.\n- **Test runner** runs the local test campaign and reports failures.\n\n## Using it\n\nStart a *Release captain* session and tell it the version. It spawns the test runner and image verifier itself.\n",
-  "agents/release-captain.agent.md": "---\nname: release-captain\ndescription: Coordinates a release: tests, changelog, images, sign-off canvas.\ntools: [spawn_agent, write_canvas, git]\n---\nYou coordinate a PilotSwarm release. Ask for the target version, then delegate.\n",
-  "agents/test-runner.agent.md": "---\nname: test-runner\ndescription: Runs the local test campaign and reports failures.\ntools: [bash]\n---\nRun the suites in order and stop at the first red one.\n",
+  "agents/release-captain.agent.md": "---\nname: release-captain\ntitle: Release captain\ndescription: Coordinates a release: tests, changelog, images, sign-off canvas.\ntools: [spawn_agent, write_canvas, git]\n---\nYou coordinate a PilotSwarm release. Ask for the target version, then delegate.\n",
+  "agents/test-runner.agent.md": "---\nname: test-runner\nstartedBy: [release-captain]\ndescription: Runs the local test campaign and reports failures.\ntools: [bash]\n---\nRun the suites in order and stop at the first red one.\n",
+  "CHANGELOG.md": "# Changelog\n\n## 1.4.0\n\n- The release captain now waits for the image check before asking for sign-off.\n- Added the tag_release tool.\n\n## 1.3.2\n\n- Fixed a stuck test campaign when a suite was skipped.\n",
   "skills/changelog/SKILL.md": "---\nname: changelog\ndescription: Draft a changelog entry from merged pull requests.\n---\nGroup entries by user-facing area. Lead with what changes for the reader.\n",
   "worker-module.js": "export default { tools: [{ name: 'tag_release', description: 'Create and push a release tag' }] };\n",
 };
@@ -52,14 +53,14 @@ const store: Pkg[] = [
     activeVersionId: "pilotswarm-release@1.4.0", editors: [{ ...priya, grantedAt: ago(900), grantedByDisplay: "Maya Chen" }], files: releaseFiles,
   },
   {
-    packageId: "p-ops-shared", name: "ops-toolkit", scope: "shared", owner: alex, enabled: true, shadowed: true, description: "Incident response agents and runbooks.",
-    versions: [ver("ops-toolkit", "0.9.2", 30, size(opsFiles), "Alex Rivera", "Incident response agents and runbooks."), ver("ops-toolkit", "0.9.0", 300, 3000, "Alex Rivera", "First runbooks.")],
-    activeVersionId: "ops-toolkit@0.9.2", editors: [], files: opsFiles,
-  },
-  {
     packageId: "p-ops-mine", name: "ops-toolkit", scope: "user", owner: me, enabled: true, description: "My tweaked copy of the ops toolkit.",
     versions: [ver("ops-toolkit", "0.9.3-sam.1", 3, size(opsFiles) + 200, "Sam Lee", "My tweaked copy of the ops toolkit.")],
     activeVersionId: "ops-toolkit@0.9.3-sam.1", editors: [], files: { ...opsFiles, "plugin.json": JSON.stringify({ name: "ops-toolkit", version: "0.9.3-sam.1", description: "My tweaked copy of the ops toolkit." }, null, 2) },
+  },
+  {
+    packageId: "p-ops-shared", name: "ops-toolkit", scope: "shared", owner: alex, enabled: true, shadowed: true, description: "Incident response agents and runbooks.",
+    versions: [ver("ops-toolkit", "0.9.2", 30, size(opsFiles), "Alex Rivera", "Incident response agents and runbooks."), ver("ops-toolkit", "0.9.0", 300, 3000, "Alex Rivera", "First runbooks.")],
+    activeVersionId: "ops-toolkit@0.9.2", editors: [], files: opsFiles,
   },
   {
     packageId: "p-mine", name: "my-experiments", scope: "user", owner: me, enabled: true, description: "Scratch skills I am trying out.",
@@ -73,6 +74,24 @@ const store: Pkg[] = [
   },
 ];
 
+/** What the server stores with a version (agent-package-format.ts): agents with their own frontmatter, skills, MCP servers, tools. */
+function contentsOf(files: Record<string, string>) {
+  const field = (text: string, name: string) => text.match(new RegExp(`^${name}:\\s*(.+)$`, "m"))?.[1]?.trim().replace(/^["']|["']$/g, "");
+  const list = (v?: string) => v?.replace(/^\[|\]$/g, "").split(",").map((t) => t.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
+  const agents = Object.entries(files).filter(([path]) => /^agents\/.*\.agent\.md$/.test(path)).flatMap(([, text]) => {
+    const name = field(text, "name");
+    if (!name) return [];
+    const startedBy = list(field(text, "startedBy"));
+    return [{ name, ...(field(text, "title") ? { title: field(text, "title") } : {}), description: field(text, "description"), tools: list(field(text, "tools")),
+      ...(startedBy?.length ? { startedBy } : {}), ...(field(text, "supportsDirectStart") ? { supportsDirectStart: field(text, "supportsDirectStart") === "true" } : {}) }];
+  });
+  const skills = Object.entries(files).filter(([path]) => /(^|\/)SKILL\.md$/.test(path)).map(([path, text]) => ({ name: field(text, "name") || path.split("/").slice(-2, -1)[0], description: field(text, "description") }));
+  let mcpServers: string[] = [];
+  try { mcpServers = Object.keys(JSON.parse(files[".mcp.json"] || "{}").mcpServers || {}); } catch { /* none */ }
+  return { agents, skills, mcpServers, hasTools: "worker-module.js" in files, fileCount: Object.keys(files).length, rawBytes: Object.values(files).reduce((n, t) => n + t.length, 0) };
+}
+for (const p of store) for (const v of p.versions) v.manifest = { ...v.manifest, ...contentsOf(p.files) };
+
 const byId = (p: any) =>
   store.find((x) => x.name === p.name && (!p.scope || x.scope === p.scope) && (x.scope === "shared" || x.owner.subject === (p.ownerSubject || "sam")));
 const need = (p: any) => {
@@ -84,20 +103,30 @@ const active = (p: Pkg) => p.versions.find((v) => v.versionId === p.activeVersio
 const shadowed = (p: Pkg) => p.scope === "shared" && store.some((other) => other.scope === "user" && other.owner.subject === me.subject && other.enabled && other.name === p.name);
 const summary = (p: Pkg) => ({ packageId: p.packageId, name: p.name, scope: p.scope, owner: p.owner, enabled: p.enabled, shadowed: shadowed(p), canEdit: true, createdAt: p.versions.at(-1)?.createdAt, active: active(p) });
 
-/** Mirror the SDK's creatable catalog as fixture versions/availability change.
- * This parser is fixture-only; production eligibility always comes from the API.
+/**
+ * The creatable catalog as the server builds it (app/tui/src/node-sdk-transport.js listCreatableAgents): every
+ * ENABLED package with an active version, shared copies first, other people's private copies left out, the
+ * manifest's agents with their composition, and a name that appears twice kept once (the first one listed,
+ * which is the shared copy: a private copy's same-named agent never shows here, though starting by name
+ * resolves to the viewer's own copy). Fixture-only: production always asks the API.
  */
 export function demoPackageAgents(): Agent[] {
-  const field = (text: string, name: string) => text.match(new RegExp(`^${name}:\\s*(.+)$`, "m"))?.[1]?.trim().replace(/^["']|["']$/g, "");
-  return store.filter((p) => p.enabled && !shadowed(p) && (p.scope === "shared" || p.owner.subject === me.subject)).flatMap((p) =>
-    Object.entries(p.files).filter(([path]) => /^agents\/.*\.agent\.md$/.test(path)).flatMap(([, content]) => {
-      const name = field(content, "name");
-      if (!name) return [];
-      const tools = field(content, "tools")?.replace(/^\[|\]$/g, "").split(",").map((t) => t.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
-      return [{ name, ...(field(content, "title") ? { title: field(content, "title") } : {}), description: field(content, "description"), tools,
-        source: "package", packageName: p.name, package: `${p.name} ${active(p).semver}`, packageSemver: active(p).semver,
-        scope: p.scope, mine: p.owner.subject === me.subject }];
-    }));
+  const seen = new Set<string>();
+  const out: Agent[] = [];
+  const ordered = [...store].sort((a, b) => Number(b.scope === "shared") - Number(a.scope === "shared"));
+  for (const p of ordered) {
+    if (!p.enabled || (p.scope === "user" && p.owner.subject !== me.subject)) continue;
+    const v = active(p);
+    for (const a of (v.manifest.agents || []) as Array<Record<string, any>>) {
+      const key = String(a.name).toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ name: a.name, ...(a.title ? { title: a.title } : {}), description: a.description, tools: a.tools,
+        ...(a.startedBy ? { startedBy: a.startedBy } : {}), ...(typeof a.supportsDirectStart === "boolean" ? { supportsDirectStart: a.supportsDirectStart } : {}),
+        source: "package", packageName: p.name, packageSemver: v.semver, scope: p.scope, mine: p.owner.subject === me.subject } as Agent);
+    }
+  }
+  return out;
 }
 
 registerDemoOps(import.meta.url, {
@@ -187,8 +216,18 @@ registerDemoOps(import.meta.url, {
     const files: Record<string, string> = Object.fromEntries((p.files || []).map((f: any) => [f.path, (() => { try { return atob(f.contentBase64); } catch { return ""; } })()]));
     const total = (p.files || []).reduce((n: number, f: any) => n + f.contentBase64.length, 0);
     let pkg = store.find((x) => x.name === m.name && x.scope === scope && (scope === "shared" || x.owner.subject === "sam"));
-    const v: Ver = { versionId: `${m.name}@${m.version}`, semver: m.version, sha256: `sha-${m.name}-${m.version}-${total}`, sizeBytes: total, createdAt: new Date().toISOString(), createdBy: "Sam Lee", manifest: m };
-    if (pkg?.versions.some((x) => x.semver === m.version)) return { status: "noop", packageId: pkg.packageId, versionId: v.versionId };
+    const v: Ver = { versionId: `${m.name}@${m.version}`, semver: m.version, sha256: `sha-${m.name}-${m.version}-${total}`, sizeBytes: total, createdAt: new Date().toISOString(), createdBy: "Sam Lee", manifest: { ...m, ...contentsOf(files) } };
+    const same = pkg?.versions.find((x) => x.semver === m.version);
+    if (same) {
+      // Published versions are immutable: identical files change nothing, different files are refused.
+      if (same.sha256 === v.sha256) return { status: "noop", packageId: pkg!.packageId, versionId: v.versionId };
+      throw new Error(`${m.name}@${m.version} is already published with different contents. Raise the version to publish changes.`);
+    }
+    const mine = ((v.manifest.agents || []) as Array<{ name: string }>).map((a) => a.name.toLowerCase());
+    const warnings = store.filter((o) => o !== pkg && o.enabled && (o.scope === "shared" || o.owner.subject === me.subject) && o.name !== m.name).flatMap((o) => {
+      const overlap = (((active(o).manifest.agents || []) as Array<{ name: string }>).map((a) => a.name)).filter((n) => mine.includes(n.toLowerCase()));
+      return overlap.length ? [{ code: "AGENT_NAME_COLLISION", message: `agent name(s) ${overlap.map((n) => `"${n}"`).join(", ")} also exist in enabled package "${o.name}" (${o.scope}). Bare-name session creation is ambiguous while both are enabled: rename the agent or disable one copy.` }] : [];
+    });
     if (!pkg) {
       pkg = { packageId: `p-${m.name}-${scope}`, name: m.name, scope, owner: me, enabled: true, description: m.description || "", versions: [], activeVersionId: v.versionId, editors: [], files };
       store.push(pkg);
@@ -196,6 +235,6 @@ registerDemoOps(import.meta.url, {
     pkg.versions.unshift(v);
     pkg.activeVersionId = v.versionId;
     pkg.files = files;
-    return { status: "published", packageId: pkg.packageId, versionId: v.versionId };
+    return { status: "published", packageId: pkg.packageId, versionId: v.versionId, warnings };
   },
 });

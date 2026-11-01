@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { initials } from "@/lib/utils";
 import { isSamePerson, type PackageEditor, type Principal, useKnownUsers } from "@/data/ops/packages";
 import { notifyUndo } from "@/lib/undo";
+import { EDITOR_PICKER_NOTE } from "./package-rules";
 
 const label = (p: Principal) => p.displayName || p.email || p.subject || "Unknown";
 
@@ -69,6 +70,7 @@ export function PackageEditors({ editors, owner, canManage, onGrant, onRevoke }:
               {!matches.length ? <li className="px-3 py-2 text-sm text-muted">{users.isLoading ? "Looking…" : "No one matches. They need to have signed in once."}</li> : null}
             </ul>
           ) : null}
+          <p className="mt-1 text-xs text-muted">{EDITOR_PICKER_NOTE}</p>
         </div>
       ) : null}
     </div>

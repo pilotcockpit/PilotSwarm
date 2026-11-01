@@ -7,6 +7,7 @@ import { DataReadNotice, EmptyState, Panel } from "@/components/empty";
 import { adoption, isSamePerson, packageKey, packageRights, usePackages, useWorkerPackageState, type PackageSummary } from "@/data/ops/packages";
 import type { Profile } from "@/data/types";
 import { readDropped, type ReadResult } from "./package-source";
+import { sameNameTag } from "./package-rules";
 import { ago, bytes, cn, plural } from "@/lib/utils";
 
 type Filter = "all" | "shared" | "mine" | "off";
@@ -15,11 +16,11 @@ export const ownerLabel = (p: PackageSummary, profile?: Profile | null) =>
   p.scope === "shared" ? "Shared" : !p.owner || isSamePerson(p.owner, profile) ? "Yours" : `${p.owner.displayName || p.owner.email || "Someone"}'s`;
 
 /** Quiet fleet adoption for admins: how many workers run the active version. */
-function Adoption({ on, failed, total }: { on: number; failed: number; total: number }) {
+function Adoption({ on, failed, total, errors }: { on: number; failed: number; total: number; errors?: Array<{ worker: string; message: string }> }) {
   const pct = total ? Math.round((on / total) * 100) : 0;
   const tone = failed ? "text-failed" : on === total ? "text-muted" : "text-waiting";
   return (
-    <div className="flex shrink-0 items-center gap-2" title={`${on} of ${plural(total, "worker")} run the active version${failed ? `, ${failed} failed to load it` : ""}`}>
+    <div className="flex shrink-0 items-center gap-2" title={`${on} of ${plural(total, "worker")} run the active version${failed ? `, ${failed} failed to load it` : ""}${errors?.length ? `. ${errors[0].worker}: ${errors[0].message}` : ""}`}>
       <span className="h-1.5 w-12 overflow-hidden rounded-full bg-raised" aria-hidden><span className={cn("block h-full", failed ? "bg-failed" : on === total ? "bg-live" : "bg-waiting")} style={{ width: `${pct}%` }} /></span>
       <span className={cn("text-xs tabular-nums", tone)}>{failed ? `${plural(failed, "worker")} failed` : on === total ? "All workers" : `${on} of ${total}`}</span>
     </div>
@@ -51,7 +52,6 @@ export function PackagesTab({ query, profile, onOpen, onAdd, onDropped }: {
     .filter((p) => filter === "all" || (filter === "shared" && p.scope === "shared") || (filter === "mine" && p.scope === "user" && packageRights(p, profile).mine) || (filter === "off" && !p.enabled))
     .filter((p) => !q || [p.name, p.active?.manifest?.description, p.owner?.displayName].join(" ").toLowerCase().includes(q))
     .sort((a, b) => Number(!a.enabled) - Number(!b.enabled) || a.name.localeCompare(b.name));
-  const sharedNames = new Set(all.filter((p) => p.scope === "shared").map((p) => p.name));
 
   const drop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -80,7 +80,7 @@ export function PackagesTab({ query, profile, onOpen, onAdd, onDropped }: {
           <ul>
             {rows.map((p) => {
               const a = admin ? adoption(p, workers.data) : null;
-              const overrides = p.scope === "user" && sharedNames.has(p.name);
+              const same = sameNameTag(p, all, profile);
               return (
                 <li key={packageKey(p)} className="border-t border-line-subtle first:border-t-0">
                   <button type="button" onClick={() => onOpen(p)} className="focus-inset flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-left transition-colors duration-(--duration-fast) hover:bg-raised/70 pointer-coarse:min-h-11">
@@ -89,8 +89,7 @@ export function PackagesTab({ query, profile, onOpen, onAdd, onDropped }: {
                         <span className="text-sm font-semibold">{p.name}</span>
                         <Tag tone={p.scope === "shared" ? "accent" : "neutral"}>{ownerLabel(p, profile)}</Tag>
                         {!p.enabled ? <Tag tone="waiting">Turned off</Tag> : null}
-                        {overrides ? <Tag>Overrides the shared one</Tag> : null}
-                        {p.shadowed ? <Tag>Your copy takes over</Tag> : null}
+                        {same ? <Tag>{same.text}</Tag> : null}
                       </span>
                       {p.active?.manifest?.description ? <span className="mt-0.5 line-clamp-1 block text-sm text-muted">{String(p.active.manifest.description)}</span> : null}
                       <span className="mt-0.5 block text-xs text-muted">

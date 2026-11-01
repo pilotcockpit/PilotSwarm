@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PackageSummary } from "@/data/ops/packages";
 import type { Agent } from "@/data/types";
-import { creatablePackageAgents } from "./package-eligibility";
+import { creatablePackageAgents, notStartableReason } from "./package-eligibility";
 
 const pkg = { name: "ops", scope: "shared", enabled: true, active: { semver: "1.0.0" } } as PackageSummary;
 const agent: Agent = { name: "frontmatter-name", source: "package", packageName: "ops", packageSemver: "1.0.0", scope: "shared" };
@@ -25,5 +25,15 @@ describe("package launch eligibility", () => {
     expect(creatablePackageAgents({ ...pkg, enabled: false }, [agent], true)).toEqual([]);
     expect(creatablePackageAgents({ ...pkg, shadowed: true }, [agent], true)).toEqual([]);
     expect(creatablePackageAgents(pkg, [{ name: "filename-guess", source: "package", packageName: "ops" }], false)).toEqual([]);
+  });
+});
+
+describe("why an agent cannot be started from a package copy", () => {
+  it("names the rule that applies", () => {
+    expect(notStartableReason({ ...pkg, enabled: false }, true)).toBe("Package turned off");
+    expect(notStartableReason({ ...pkg, shadowed: true }, true)).toMatch(/private copy takes over/);
+    expect(notStartableReason({ ...pkg, scope: "user" }, false)).toMatch(/Only its owner/);
+    expect(notStartableReason({ ...pkg, scope: "user" }, true)).toMatch(/shared agent with this name/);
+    expect(notStartableReason(pkg, false)).toMatch(/installing/);
   });
 });

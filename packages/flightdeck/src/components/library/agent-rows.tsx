@@ -7,8 +7,9 @@ import { useUi } from "@/shell/ui-state";
 import { useAgents, useSessions } from "@/data/source";
 import { sessionState } from "@/data/state";
 import type { Agent } from "@/data/types";
+import { composeAgents } from "@/lib/agent-composition";
 import type { PackageSummary } from "@/data/ops/packages";
-import { ago, plural } from "@/lib/utils";
+import { ago, cn, plural } from "@/lib/utils";
 
 /**
  * The agents you can start, grouped by the package that provides them. Each group says which
@@ -32,7 +33,7 @@ export function AgentRows({ query, packages, onOpenPackage, onClear }: { query: 
     return m;
   }, [sessions]);
   const byPackage = new Map<string, Agent[]>();
-  const matching = (agents || []).filter((a) => !q || [a.title, a.name, a.description, a.package, ...(a.tools || []), ...(a.skills || [])].join(" ").toLowerCase().includes(q));
+  const matching = (agents || []).filter((a) => !q || [a.title, a.name, a.description, a.package, ...(a.tools || [])].join(" ").toLowerCase().includes(q));
   for (const a of matching) {
     const k = a.package || a.packageTitle || a.packageName || (a.source === "builtin" ? "Built in" : "Other agents");
     byPackage.set(k, [...(byPackage.get(k) || []), a]);
@@ -56,31 +57,30 @@ export function AgentRows({ query, packages, onOpenPackage, onClear }: { query: 
             <section key={pkgKey} className="mb-6" aria-label={pkgKey}>
               <SectionTitle count={list.length} action={pkg ? <button type="button" onClick={() => onOpenPackage(pkg.name)} className="inline-flex min-h-6 items-center text-accent hover:underline pointer-coarse:min-h-11">{pkg.active ? `v${pkg.active.semver} · ` : ""}Open package</button> : undefined}>{pkgKey}</SectionTitle>
               <Panel enter>
-                {list.map((a) => {
+                {composeAgents(list).map((a) => {
                   const u = usage.get(a.name);
                   const tools = a.tools || [];
-                  const skills = a.skills || [];
                   return (
-                    <div key={a.name} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line-subtle px-4 py-3 first:border-t-0">
+                    <div key={a.name} style={a.depth ? { paddingLeft: `${1 + Math.min(a.depth, 3) * 1.5}rem` } : undefined} className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line-subtle px-4 py-3 first:border-t-0", a.depth && "bg-raised/40")}>
                       <div className="min-w-0 flex-1 basis-64">
                         <div className="flex min-w-0 items-baseline gap-2">
                           <h3 className="truncate text-sm font-semibold">{a.title || a.name}</h3>
                           <span className="truncate font-mono text-xs text-faint">{a.name}</span>
                         </div>
                         <p className="mt-0.5 line-clamp-2 text-sm text-muted">{a.description || "No description."}</p>
-                        {tools.length || skills.length ? (
+                        {tools.length ? (
                           <details className="mt-2 text-xs text-muted">
-                            <summary className="min-h-6 cursor-pointer py-1 underline-offset-2 hover:text-fg hover:underline pointer-coarse:min-h-11">{[tools.length ? plural(tools.length, "tool") : null, skills.length ? plural(skills.length, "skill") : null].filter(Boolean).join(" · ")} · View capabilities</summary>
+                            <summary className="min-h-6 cursor-pointer py-1 underline-offset-2 hover:text-fg hover:underline pointer-coarse:min-h-11">{plural(tools.length, "tool")} · View tools</summary>
                             <dl className="mt-1 grid gap-2 border-l border-line pl-3">
-                              {tools.length ? <div><dt className="font-medium text-fg">Tools</dt><dd className="mt-0.5 break-words font-mono">{tools.join(", ")}</dd></div> : null}
-                              {skills.length ? <div><dt className="font-medium text-fg">Skills</dt><dd className="mt-0.5 break-words font-mono">{skills.join(", ")}</dd></div> : null}
+                              <div><dt className="font-medium text-fg">Tools</dt><dd className="mt-0.5 break-words font-mono">{tools.join(", ")}</dd></div>
                             </dl>
                           </details>
-                        ) : <p className="mt-1 text-xs text-faint">Tool and skill details are not reported.</p>}
+                        ) : <p className="mt-1 text-xs text-faint">Tool details are not reported.</p>}
+                        {!a.startable && a.parentName ? <p className="mt-1 text-xs text-muted">Started by {a.parentName}. It cannot be started on its own.</p> : null}
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
                         {u?.active ? <Tag>{plural(u.active, "active session")}</Tag> : u?.last ? <span className="text-xs text-faint">Used {ago(u.last)}</span> : null}
-                        <Button onClick={() => openNewSession({ agent: a.name })}><Play /> Start session</Button>
+                        {a.startable ? <Button onClick={() => openNewSession({ agent: a.name })}><Play /> Start session</Button> : null}
                       </div>
                     </div>
                   );

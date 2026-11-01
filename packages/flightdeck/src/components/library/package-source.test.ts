@@ -6,10 +6,15 @@ const f = (path: string, text = ""): LocalFile => ({ path, bytes: enc.encode(tex
 const manifest = (o: object) => f("plugin.json", JSON.stringify(o));
 
 describe("normalizeFiles", () => {
-  it("lifts a single wrapping folder and drops junk", () => {
-    const r = normalizeFiles([f("kit/plugin.json", "{}"), f("kit/skills/a/SKILL.md"), f("kit/.git/HEAD"), f("kit/node_modules/x/index.js"), f("kit/.DS_Store")]);
+  it("lifts a single wrapping folder and drops only OS and git leftovers", () => {
+    const r = normalizeFiles([f("kit/plugin.json", "{}"), f("kit/skills/a/SKILL.md"), f("kit/.git/HEAD"), f("kit/.DS_Store"), f("kit/__MACOSX/x")]);
     expect(r.files.map((x) => x.path)).toEqual(["plugin.json", "skills/a/SKILL.md"]);
     expect(r.skipped).toBe(3);
+  });
+  it("ships node_modules: a package that vendors its dependencies needs them", () => {
+    const r = normalizeFiles([f("kit/plugin.json", "{}"), f("kit/node_modules/left-pad/index.js")]);
+    expect(r.files.map((x) => x.path)).toEqual(["plugin.json", "node_modules/left-pad/index.js"]);
+    expect(r.skipped).toBe(0);
   });
   it("keeps paths when plugin.json is already at the root", () => {
     expect(normalizeFiles([f("plugin.json", "{}"), f("agents/x.agent.md")]).files.map((x) => x.path)).toEqual(["plugin.json", "agents/x.agent.md"]);
@@ -33,10 +38,36 @@ describe("analyzePackage", () => {
     const big: LocalFile = { path: "data.bin", bytes: new Uint8Array(MAX_BYTES + 1) };
     expect(analyzePackage([manifest({ name: "k", version: "1.0.0" }), big]).issues.some((i) => i.level === "error" && /2 MB/.test(i.message))).toBe(true);
   });
-  it("warns about an empty package and an odd version", () => {
-    const w = analyzePackage([manifest({ name: "k", version: "v1" })]).issues.map((i) => i.message).join(" ");
-    expect(w).toMatch(/would be empty/);
-    expect(w).toMatch(/three-part version/);
+  it("warns about an empty package", () => {
+    const w = analyzePackage([manifest({ name: "k", version: "1.0.0" })]).issues;
+    expect(w.find((i) => /would be empty/.test(i.message))?.level).toBe("warning");
+  });
+});
+
+describe("analyzePackage: the rules the server enforces that can be checked here", () => {
+  const errors = (files: LocalFile[]) => analyzePackage(files).issues.filter((i) => i.level === "error").map((i) => i.message).join(" | ");
+  const ok = (extra: Record<string, unknown> = {}) => manifest({ name: "kit", version: "1.0.0", ...extra });
+  it("refuses a name that is not a DNS label", () => {
+    for (const bad of ["Kit", "my_kit", "my.kit", "-kit", "kit-", "a".repeat(65)]) expect(errors([manifest({ name: bad, version: "1.0.0" }), f("skills/a/SKILL.md")]), bad).toMatch(/lowercase letters, digits and hyphens/);
+    expect(errors([ok(), f("skills/a/SKILL.md")])).toBe("");
+  });
+  it("refuses reserved names", () => {
+    for (const bad of ["sources", "upload", "worker-state", "__platform"]) expect(errors([manifest({ name: bad, version: "1.0.0" }), f("skills/a/SKILL.md")]), bad).toMatch(/reserved|lowercase/);
+  });
+  it("refuses a version that is not a concrete semver, as an error, not a warning", () => {
+    for (const bad of ["v1.0.0", "1.0", "^1.0.0", "1.0.0.0"]) expect(errors([manifest({ name: "kit", version: bad }), f("skills/a/SKILL.md")]), bad).toMatch(/concrete version/);
+    expect(errors([manifest({ name: "kit", version: "1.2.3-dev.1" }), f("skills/a/SKILL.md")])).toBe("");
+  });
+  it("refuses non-ASCII paths and session-policy.json", () => {
+    expect(errors([ok(), f("skills/a/SKILL.md"), f("docs/résumé.md")])).toMatch(/plain ASCII/);
+    expect(errors([ok(), f("skills/a/SKILL.md"), f("session-policy.json", "{}")])).toMatch(/session-policy\.json is not allowed/);
+  });
+  it("reads agent, skill and MCP server names from the files' own frontmatter and config, not their file names", () => {
+    const a = analyzePackage([ok(), f("agents/x1.agent.md", "---\nname: release-captain\ndescription: d\n---\nbody"), f("skills/dir/SKILL.md", "---\nname: changelog\n---\n"), f(".mcp.json", JSON.stringify({ mcpServers: { kusto: {}, github: {} } }))]);
+    expect(a.agents).toEqual(["release-captain"]);
+    expect(a.skills).toEqual(["changelog"]);
+    expect(a.mcpServers).toEqual(["github", "kusto"]);
+    expect(a.mcp).toBe(true);
   });
 });
 
@@ -158,9 +189,10 @@ describe("readZip limits", () => {
     const r = await readZip(await zipOf([{ name: "plugin.json", data: enc.encode('{"name":"k","version":"1.0.0"}'), method: 8 }]));
     expect(new TextDecoder().decode(r.files[0].bytes)).toBe('{"name":"k","version":"1.0.0"}');
   });
-  it("skips node_modules and .git without inflating or counting them", async () => {
-    const r = await readZip(await zipOf([{ name: "plugin.json", data: enc.encode("{}") }, { name: "node_modules/x/big.js", data: zeros(1), claimed: MAX_BYTES * 10 }]));
+  it("skips .git without inflating or counting it, but counts node_modules like any other file", async () => {
+    const r = await readZip(await zipOf([{ name: "plugin.json", data: enc.encode("{}") }, { name: ".git/big.pack", data: zeros(1), claimed: MAX_BYTES * 10 }]));
     expect(r.files.map((f) => f.path)).toEqual(["plugin.json"]);
+    await expect(readZip(await zipOf([{ name: "plugin.json", data: enc.encode("{}") }, { name: "node_modules/x/big.js", data: zeros(1), claimed: MAX_BYTES * 10 }]))).rejects.toThrow(/2 MB limit/);
   });
 });
 
@@ -175,8 +207,9 @@ describe("readFileList limits", () => {
   it("refuses a traversal path from a folder pick", async () => {
     await expect(readFileList([f("../escape.txt", 3)])).rejects.toThrow(/path that is not allowed/);
   });
-  it("does not count skipped junk against the limits", async () => {
-    const r = await readFileList([f("kit/plugin.json", 10), f("kit/node_modules/x.js", MAX_BYTES * 5)]);
+  it("does not count skipped junk against the limits, and does count vendored dependencies", async () => {
+    const r = await readFileList([f("kit/plugin.json", 10), f("kit/.git/objects.pack", MAX_BYTES * 5)]);
     expect(r.files.map((x) => x.path)).toEqual(["plugin.json"]);
+    await expect(readFileList([f("kit/plugin.json", 10), f("kit/node_modules/x.js", MAX_BYTES * 5)])).rejects.toThrow(/2 MB limit/);
   });
 });

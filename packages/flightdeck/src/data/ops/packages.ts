@@ -201,22 +201,35 @@ export function useKnownUsers(enabled = true) {
  * How many workers run the active version of a copy. Workers key their report by name, or by
  * `name#scope[:owner]` when two copies share a name; match by the key first, then by hash.
  */
-export function adoption(pkg: PackageSummary, states: WorkerPackageState[] | undefined) {
+export function adoption(pkg: PackageSummary, states: WorkerPackageState[] | undefined, opts: { now?: number; staleMs?: number } = {}) {
   if (!states?.length || !pkg.active) return null;
+  const now = opts.now ?? Date.now();
+  const staleMs = opts.staleMs ?? WORKER_STALE_MS;
+  // The registry keeps a row for every worker that ever reported, so a worker that has not reported for a
+  // while (scaled down, replaced, draining) must not count as "behind": the fleet is who is alive now.
+  const fresh = states.filter((w) => {
+    const at = w.updatedAt == null ? NaN : typeof w.updatedAt === "number" ? w.updatedAt : Date.parse(String(w.updatedAt));
+    return !Number.isFinite(at) || now - at <= staleMs;
+  });
+  if (!fresh.length) return null;
   const keys = [pkg.name, `${pkg.name}#${pkg.scope}`, `${pkg.name}#${pkg.scope}:${String(pkg.owner?.subject ?? "").slice(0, 8)}`];
   let on = 0, failed = 0, seen = 0;
-  for (const w of states) {
+  const errors: Array<{ worker: string; message: string }> = [];
+  for (const w of fresh) {
     const hit = keys.map((k) => w.installed[k]).find(Boolean);
     if (!hit) continue;
     seen += 1;
-    if (hit.status === "error") failed += 1;
+    if (hit.status === "error") { failed += 1; errors.push({ worker: w.workerNodeId, message: hit.error || "It could not be installed on this worker." }); }
     else if (hit.sha256 ? hit.sha256 === pkg.active.sha256 : hit.semver === pkg.active.semver) on += 1;
   }
-  // No worker reports this copy at all (a private package nobody has used): nothing to show, not a failure.
-  return seen ? { on, failed, total: states.length } : null;
+  // No live worker reports this copy at all (a private package nobody has used): nothing to show, not a failure.
+  return seen ? { on, failed, total: fresh.length, errors } : null;
 }
 
-export interface Provides { agents: string[]; skills: string[]; tools: boolean; mcp: boolean; readme: string | null }
+/** A worker that has not reported for this long is not part of the fleet being measured. */
+export const WORKER_STALE_MS = 10 * 60_000;
+
+export interface Provides { agents: string[]; skills: string[]; tools: boolean; mcp: boolean; readme: string | null; changelog: string | null }
 /** What a package gives agents, read from its file layout, so it never depends on manifest details. */
 export function describeFiles(paths: string[]): Provides {
   const agents = paths.filter((p) => /\.agent\.md$/i.test(p)).map((p) => p.split("/").pop()!.replace(/\.agent\.md$/i, ""));
@@ -227,6 +240,7 @@ export function describeFiles(paths: string[]): Provides {
     tools: paths.some((p) => /(^|\/)worker-module\.js$/.test(p)),
     mcp: paths.some((p) => /(^|\/)\.mcp\.json$/.test(p)),
     readme: paths.find((p) => /^readme(\.md)?$/i.test(p)) ?? null,
+    changelog: paths.find((p) => /^changelog(\.md)?$/i.test(p)) ?? null,
   };
 }
 
@@ -284,13 +298,16 @@ export function usePackageActions(profile?: Profile | null) {
 
 export interface UploadFile { path: string; contentBase64: string }
 /** Upload reports its own errors inline (per file, in the install dialog), so it does not toast. */
+/** A non-blocking note the server returns with a publish (for example an agent name that already exists in another package). */
+export interface UploadWarning { code?: string; message: string; path?: string }
+
 export function useUploadPackage() {
   const { source } = useSource();
   const qc = useQueryClient();
   return useMutation({
     // `name` and `semver` come from the preview the person just confirmed; they say what to wait for.
     mutationFn: async (v: { files: UploadFile[]; scope: "shared" | "user"; name?: string | null; semver?: string | null }) =>
-      (await source.call("uploadAgentPackage", { files: v.files, scope: v.scope })) as { status?: "published" | "noop"; packageId?: string; versionId?: string },
+      (await source.call("uploadAgentPackage", { files: v.files, scope: v.scope })) as { status?: "published" | "noop"; packageId?: string; versionId?: string; warnings?: UploadWarning[] },
     onSuccess: (r, v) => {
       void qc.invalidateQueries({ queryKey: ["packages"] });
       void qc.invalidateQueries({ queryKey: ["agents"] });

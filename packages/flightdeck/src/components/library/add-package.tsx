@@ -6,7 +6,9 @@ import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui
 import { Segmented } from "@/components/ui/tabs";
 import { Tag } from "@/components/ui/misc";
 import { cardVariants } from "@/components/ui/card";
-import { type PackageSummary, useUploadPackage } from "@/data/ops/packages";
+import { type PackageSummary, usePackageDetail, useUploadPackage } from "@/data/ops/packages";
+import { useProfile } from "@/data/source";
+import { addOutcome, publishTarget } from "./package-rules";
 import { analyzePackage, readDropped, readFileList, readZip, toUploadFiles, type ReadResult } from "./package-source";
 import { bytes, cn, plural } from "@/lib/utils";
 
@@ -30,6 +32,7 @@ export function AddPackageDialog({ open, onOpenChange, initial, existing, onPubl
   const [over, setOver] = React.useState(false);
   const [serverErrors, setServerErrors] = React.useState<string[]>([]);
   const upload = useUploadPackage();
+  const { data: profile } = useProfile();
   const folderRef = React.useRef<HTMLInputElement>(null);
   const zipRef = React.useRef<HTMLInputElement>(null);
 
@@ -47,22 +50,18 @@ export function AddPackageDialog({ open, onOpenChange, initial, existing, onPubl
   const errors = analysis?.issues.filter((i) => i.level === "error") ?? [];
   const warnings = analysis?.issues.filter((i) => i.level === "warning") ?? [];
 
-  const sameName = analysis?.name ? existing.filter((p) => p.name === analysis.name) : [];
-  const target = sameName.find((p) => p.scope === scope && (scope === "shared" || p.canEdit));
-  const sharedElsewhere = scope === "user" ? sameName.find((p) => p.scope === "shared") : undefined;
-  const outcome = !analysis?.name ? null
-    : target ? (target.active?.semver === analysis.version
-      ? { tone: "waiting" as const, text: `${target.name} ${analysis.version} is already published. Raise the version in plugin.json to publish changes.` }
-      : { tone: "neutral" as const, text: `This adds ${analysis.version} to your existing ${scope === "shared" ? "shared " : ""}package (now ${target.active?.semver ?? "unversioned"}) and makes it the active version.` })
-      : sharedElsewhere ? { tone: "neutral" as const, text: `A shared package named ${analysis.name} exists. Your private copy takes over that name for you only.` }
-      : { tone: "neutral" as const, text: scope === "shared" ? "This creates a new shared package." : "This creates a new private package." };
+  const { existing: target, blocked } = publishTarget(scope, analysis?.name ?? null, existing, profile);
+  const sharedElsewhere = scope === "user" && Boolean(analysis?.name && existing.some((p) => p.scope === "shared" && p.name === analysis.name));
+  const targetDetail = usePackageDetail(target, profile);
+  const outcome = analysis ? addOutcome({ name: analysis.name, version: analysis.version, scope }, target, targetDetail.data?.versions, sharedElsewhere) : null;
 
   const publish = async () => {
     if (!result || !analysis) return;
     setServerErrors([]);
     try {
       const r = await upload.mutateAsync({ files: toUploadFiles(result.files), scope, name: analysis.name, semver: analysis.version });
-      toast.success(r?.status === "noop" ? "Nothing changed: these files were already published." : `Published ${analysis.name} ${analysis.version}`, { description: r?.status === "noop" ? undefined : "Workers pick it up in about 20 seconds." });
+      toast.success(r?.status === "noop" ? "Nothing changed: these files were already published." : `Published ${analysis.name} ${analysis.version}`, { description: r?.status === "noop" ? undefined : "Workers pick it up within about 20 seconds. Sessions already running may not see new tools until they restart." });
+      for (const w of r?.warnings ?? []) toast.warning(w.message);
       onPublished(r?.packageId);
       onOpenChange(false);
     } catch (e: any) {
@@ -72,7 +71,7 @@ export function AddPackageDialog({ open, onOpenChange, initial, existing, onPubl
 
   return (
     <Dialog open={open} onOpenChange={(v) => !upload.isPending && onOpenChange(v)}>
-      <DialogContent title="Add a package" description="Give agents new skills, tools and workflows. Workers install it within about 20 seconds." side="right">
+      <DialogContent title="Add a package" description="Give agents new skills, tools and workflows. Workers install it within about 20 seconds of publishing." side="right">
         <DialogBody className="flex flex-col gap-4">
           {!result ? (
             <div
@@ -106,10 +105,12 @@ export function AddPackageDialog({ open, onOpenChange, initial, existing, onPubl
                   {analysis.agents.length ? <Tag>{plural(analysis.agents.length, "agent")}</Tag> : null}
                   {analysis.skills.length ? <Tag>{plural(analysis.skills.length, "skill")}</Tag> : null}
                   {analysis.tools ? <Tag>Worker tools</Tag> : null}
-                  {analysis.mcp ? <Tag>MCP servers</Tag> : null}
+                  {analysis.mcpServers.length ? <Tag>{plural(analysis.mcpServers.length, "MCP server")}</Tag> : analysis.mcp ? <Tag>MCP servers</Tag> : null}
                 </div>
                 {analysis.agents.length ? <p className="mt-2 text-sm text-muted">Agents: {analysis.agents.join(", ")}</p> : null}
-                <p className="mt-2 text-xs text-muted">{plural(analysis.fileCount, "file")} · {bytes(analysis.totalBytes)}{result.skipped ? ` · left out ${plural(result.skipped, "file")} that never belong in a package (.git, node_modules)` : ""}</p>
+                {analysis.skills.length ? <p className="mt-1 text-sm text-muted">Skills: {analysis.skills.join(", ")}</p> : null}
+                {analysis.mcpServers.length ? <p className="mt-1 text-sm text-muted">MCP servers: {analysis.mcpServers.join(", ")}</p> : null}
+                <p className="mt-2 text-xs text-muted">{plural(analysis.fileCount, "file")} · {bytes(analysis.totalBytes)}{result.skipped ? ` · left out ${plural(result.skipped, "file")} the server ignores (.git, .DS_Store)` : ""}</p>
               </div>
 
               {errors.length ? (
@@ -124,7 +125,7 @@ export function AddPackageDialog({ open, onOpenChange, initial, existing, onPubl
                 <p className="mb-1.5 text-sm font-medium">Who can use it</p>
                 <Segmented label="Who can use this package" value={scope} onChange={setScope} options={[{ value: "user", label: "Only me" }, { value: "shared", label: "Everyone" }]} />
                 <p className="mt-1.5 text-sm text-muted">{scope === "user" ? "Only your sessions see these agents. You can share it later." : "Everyone in this deployment can start its agents and read its files."}</p>
-                {outcome ? <p className={cn("mt-2 text-sm", outcome.tone === "waiting" ? "text-waiting" : "text-fg")}>{outcome.text}</p> : null}
+                {blocked ? <p role="alert" className="mt-2 text-sm text-failed">{blocked}</p> : outcome ? <p className={cn("mt-2 text-sm", outcome.tone === "waiting" ? "text-waiting" : "text-fg")}>{outcome.text}</p> : null}
               </div>
 
               {serverErrors.length ? (
@@ -140,7 +141,7 @@ export function AddPackageDialog({ open, onOpenChange, initial, existing, onPubl
           {result ? <Button variant="quiet" className="mr-auto" onClick={() => { setResult(null); setServerErrors([]); }} disabled={upload.isPending}>Choose a different package</Button> : null}
           <Button onClick={() => onOpenChange(false)} disabled={upload.isPending}>Cancel</Button>
           {result && analysis ? (
-            <Button variant="primary" onClick={publish} disabled={errors.length > 0 || upload.isPending}>
+            <Button variant="primary" onClick={publish} disabled={errors.length > 0 || Boolean(blocked) || upload.isPending}>
               {upload.isPending ? <Loader2 className="animate-spin" /> : null} Publish{analysis.name && analysis.version ? ` ${analysis.name} ${analysis.version}` : ""}
             </Button>
           ) : null}
