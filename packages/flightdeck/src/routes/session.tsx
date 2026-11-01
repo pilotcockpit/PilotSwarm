@@ -20,6 +20,7 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/misc";
 import { ChangeModelDialog } from "@/components/model-switch";
+import { ComposerSettings } from "@/components/session/composer-footer";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ActivityView, CanvasView, DelegationView, FilesView, useCanvases } from "./session-views";
 import { cn, shortId } from "@/lib/utils";
@@ -447,7 +448,7 @@ function Composer({ session }: { session: Session }) {
         ))}
         {readOnly ? <p className="mb-2 flex items-center gap-1.5 text-sm text-muted"><Lock className="size-3.5" aria-hidden /> View-only access: you can read this session but not reply.</p> : null}
         <div
-          className={cn("relative rounded-pane border border-line-strong bg-surface transition-colors focus-within:border-accent focus-within:ring-1 focus-within:ring-accent", readOnly && "bg-raised", dragging && "border-accent bg-accent-tint")}
+          className={cn("group relative rounded-pane border border-line-strong bg-surface transition-colors focus-within:border-accent focus-within:ring-1 focus-within:ring-accent", readOnly && "bg-raised", dragging && "border-accent bg-accent-tint")}
           onDragOver={(e) => { if (!readOnly && e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragging(true); } }}
           onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false); }}
           onDrop={(e) => { setDragging(false); if (readOnly || !e.dataTransfer.files.length) return; e.preventDefault(); void att.add(Array.from(e.dataTransfer.files)); }}
@@ -476,8 +477,10 @@ function Composer({ session }: { session: Session }) {
             aria-label="Message"
             className="min-h-[52px] border-0 bg-transparent focus-visible:ring-0"
           />
-          <div className="flex flex-wrap items-center gap-2 px-2 pb-2">
-            <span className="hidden text-xs text-muted sm:inline">{running ? "Enter queues it · Steer adds it to this turn" : "Enter to send · Shift+Enter for a new line"}</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2 pb-2">
+            <ComposerSettings session={session} running={running} />
+            {/* The key hint shows while you are typing and there is room; it never takes space from the chips. */}
+            <span className="hidden min-w-0 flex-1 basis-0 truncate text-xs text-muted sm:group-focus-within:block">{running ? "Enter queues it · Steer adds it to this turn" : "Enter to send · Shift+Enter for a new line"}</span>
             <input ref={fileInput} type="file" multiple hidden tabIndex={-1} aria-hidden onChange={(e) => { void att.add(Array.from(e.target.files || [])); e.target.value = ""; }} />
             <Tooltip content="Attach images or files. You can also drop or paste them here.">
               <span className="ml-auto"><Button size="icon-sm" variant="quiet" disabled={Boolean(readOnly)} aria-label="Attach images or files" onClick={() => fileInput.current?.click()}><Paperclip /></Button></span>

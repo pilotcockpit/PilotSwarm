@@ -164,8 +164,16 @@ export function createLiveSource(): DataSource {
       if (input.prompt.trim()) await source.sendMessage(id, input.prompt.trim());
       return id;
     },
-    async setSessionModel(id, model) {
-      await api.call("setSessionModel", { sessionId: id, options: { model } });
+    async setSessionModel(id, model, opts) {
+      // An option the caller did not name is left out, so the server keeps the session's current value.
+      await api.call("setSessionModel", {
+        sessionId: id,
+        options: {
+          model,
+          ...(opts && "reasoningEffort" in opts ? { reasoningEffort: opts.reasoningEffort ?? null } : {}),
+          ...(opts && "contextTier" in opts ? { contextTier: opts.contextTier ?? null } : {}),
+        },
+      });
     },
     async renameSession(id, title) {
       await api.call("renameSession", { sessionId: id, title });

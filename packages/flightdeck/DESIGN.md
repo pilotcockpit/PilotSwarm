@@ -398,6 +398,35 @@ dialog occupies the full viewport with square corners. Other sizes use the work
 radius and a maximum 1024px reading dialog. No output media or chart is fabricated
 to fill a cover; unavailable and loading content remain explicit.
 
+### The composer
+
+Under the message box sits one footer row that says what this conversation is running on. What cannot
+change looks unchangeable; what can looks like a control.
+
+- **Agent: fixed.** A plain label with initials and the agent's name. No chevron, no hover, no focus stop.
+  The session's agent is set when it is created and the API has no operation to change it, so it is never
+  offered as a choice. Its tooltip and screen-reader text say so.
+- **Model chip: changeable.** `sonnet-5 · high`, with a chevron. It opens the one model picker
+  (`components/model-picker.tsx`, also behind Change model in the title menu and the failed-turn Switch
+  model action): models grouped by provider with the ones the workers can run first, then the reasoning
+  effort and context window the chosen model supports, each with a Default that clears it. Options the
+  person did not touch are not sent, so the server keeps them; an effort or window the new model does not
+  offer is cleared. A change applies from the next turn: the toast says so and offers Undo (which first
+  re-reads the session), and while a turn is running the footer repeats "applies to the next turn".
+- **Working folder chip: changeable.** The last path segment, or No folder, opening the working-folder
+  dialog. A warning dot and tooltip say when the folder is unavailable or messages are held for it.
+- **Context meter.** A short bar and a percentage from `contextUsage`, hidden when the server returned
+  nothing usable, amber from 80%, red and worded "over the limit" past 100%.
+- **Right side.** Attach and Send; while a turn runs, Stop, Steer and Queue. The key hint appears only
+  while the composer has focus and there is room (not below 640px), and never takes width from the chips.
+- **Locked.** Viewers without write access, non-managers and system sessions see the model and folder as
+  plain text with the reason; no dead controls.
+- **Phones.** The chips fold into one Session settings button that opens a bottom sheet with the agent,
+  the working folder and the same model picker.
+
+The backend has no permission or approval mode, per-message model override, output style or fork, so the
+footer offers none of them.
+
 ### State, chips and navigation
 
 StatePill/StateLine pair word, glyph and meaning. Tag is noninteractive metadata;

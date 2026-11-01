@@ -73,6 +73,18 @@ Still open:
 See README, "End-to-end tests". It already found and fixed real defects; the list is in the commit
 that added it.
 
+## What a session lets you change (backend facts behind the composer footer)
+
+Changeable while a session exists: model, reasoning effort and context tier (`setSessionModel`, applied from
+the next turn); working folder (`setSessionWorkspace`, `retrySessionWorkspace`); title, group, sharing,
+lifecycle. Fixed at creation: the agent (`createSessionForAgent`; there is no operation to change it),
+owner and the initial prompt. Not in the backend at all, so not in the UI: a permission or approval mode,
+a per-message model override, an output style, and forking a session. The composer footer is built on
+exactly this split.
+
+Open: composer footer behaviour is covered by unit and component tests only; Playwright coverage waits for
+the e2e pass.
+
 ## E2E paused
 
 The Playwright suite (`e2e/`, `playwright.config.ts`) is intentionally not maintained while the UX settles. Nothing was

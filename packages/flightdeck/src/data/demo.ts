@@ -30,7 +30,7 @@ const WIF_ERROR =
 const sessions: Session[] = [
   {
     sessionId: P95, owner: "me", canWrite: true, title: "Investigate p95 spike on chk", agentId: "sre-investigator", status: "input_required", groupId: "g-ops",
-    createdAt: m(52), updatedAt: m(4), model: "anthropic-wif:claude-sonnet-5", visibility: "private", iterations: 6,
+    createdAt: m(52), updatedAt: m(4), model: "anthropic-wif:claude-sonnet-5", reasoningEffort: "high", contextTier: "standard", visibility: "private", iterations: 6,
     pendingQuestion: {
       question: "Roll back the chk worker image from v0.8.6 to v0.8.5? p95 latency doubled after the rollout at 13:20.",
       choices: ["Roll back now", "Wait 30 minutes", "Keep v0.8.6"], allowFreeform: true, iteration: 6,
@@ -181,7 +181,7 @@ const artifacts: Record<string, Array<Artifact & { content?: string }>> = {
 };
 
 const models: Model[] = [
-  { qualifiedName: "anthropic-wif:claude-sonnet-5", providerId: "anthropic-wif", modelName: "claude-sonnet-5", description: "Fast, capable all-rounder.", cost: "medium", supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"], defaultReasoningEffort: "medium", credentialAvailable: true },
+  { qualifiedName: "anthropic-wif:claude-sonnet-5", providerId: "anthropic-wif", modelName: "claude-sonnet-5", description: "Fast, capable all-rounder.", cost: "medium", supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"], defaultReasoningEffort: "medium", supportedContextTiers: ["standard", "extended"], defaultContextTier: "standard", credentialAvailable: true },
   { qualifiedName: "anthropic-wif:claude-opus-5", providerId: "anthropic-wif", modelName: "claude-opus-5", description: "Deepest reasoning, for the hardest and longest-horizon tasks.", cost: "high", supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"], defaultReasoningEffort: "medium", credentialAvailable: true },
   { qualifiedName: "azure-foundry-wif:gpt-5.6", providerId: "azure-foundry-wif", modelName: "gpt-5.6", description: "Azure AI Foundry GPT-5.6 through the worker's managed identity.", cost: "high", credentialAvailable: true },
   { qualifiedName: "github-copilot:claude-opus-5", providerId: "github-copilot", modelName: "claude-opus-5", description: "Claude Opus 5 through GitHub Copilot.", cost: "high", credentialAvailable: false, unavailableReason: "Add your GitHub Copilot key in Providers to use it." },
@@ -338,7 +338,15 @@ export function createDemoSource(): DataSource {
       return wait(id, 250);
     },
     async renameSession(id, title) { recordDemoCall("renameSession", { id, title }); if (demoShouldFail("renameSession")) throw new Error("The server refused that."); const s = byId.get(id); if (s) s.title = title; const e = serverEdits.get(id); if (e) delete e.title; },
-    async setSessionModel(id, model) { const s = byId.get(id); if (s) { s.model = model; if (s.status === "failed") s.error = undefined; } },
+    async setSessionModel(id, model, opts) {
+      recordDemoCall("setSessionModel", { id, model, ...(opts || {}) });
+      const s = byId.get(id);
+      if (!s) return;
+      s.model = model;
+      if (opts && "reasoningEffort" in opts) s.reasoningEffort = opts.reasoningEffort ?? undefined;
+      if (opts && "contextTier" in opts) s.contextTier = opts.contextTier ?? undefined;
+      if (s.status === "failed") s.error = undefined;
+    },
     async completeSession(id) { recordDemoCall("completeSession", { id }); if (demoShouldFail("completeSession")) throw new Error("The server refused that."); const s = byId.get(id); if (s) { s.status = "completed"; s.pendingQuestion = null; } },
     async cancelSession(id) { recordDemoCall("cancelSession", { id }); if (demoShouldFail("cancelSession")) throw new Error("The server refused that."); const s = byId.get(id); if (s) { s.status = "cancelled"; s.pendingQuestion = null; } },
     async deleteSession(id) { recordDemoCall("deleteSession", { id }); if (demoShouldFail("deleteSession")) throw new Error("The server refused that."); byId.delete(id); for (const s of byId.values()) if (s.parentSessionId === id) byId.delete(s.sessionId); },

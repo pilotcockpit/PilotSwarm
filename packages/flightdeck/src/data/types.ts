@@ -23,6 +23,7 @@ export interface Session {
   isSystem?: boolean;
   model?: string;
   reasoningEffort?: string;
+  contextTier?: string;
   error?: string;
   visibility?: string;
   groupId?: string | null;
@@ -69,6 +70,8 @@ export interface Artifact {
   [key: string]: unknown;
 }
 
+export interface ModelChangeOptions { reasoningEffort?: string | null; contextTier?: string | null }
+
 export interface Model {
   qualifiedName: string;
   providerId: string;
@@ -78,6 +81,8 @@ export interface Model {
   cost?: string;
   supportedReasoningEfforts?: string[];
   defaultReasoningEffort?: string;
+  supportedContextTiers?: string[];
+  defaultContextTier?: string;
   credentialAvailable?: boolean;
   unavailableReason?: string;
 }
@@ -186,7 +191,8 @@ export interface DataSource {
   createSession(input: CreateSessionInput): Promise<string>;
   renameSession(id: string, title: string): Promise<void>;
   /** Switch the model a session uses from its next turn. `model` is the qualified name. */
-  setSessionModel(id: string, model: string): Promise<void>;
+  /** Options left out are preserved by the server; `null` clears one. They apply from the next turn. */
+  setSessionModel(id: string, model: string, options?: ModelChangeOptions): Promise<void>;
   completeSession(id: string): Promise<void>;
   cancelSession(id: string): Promise<void>;
   deleteSession(id: string): Promise<void>;

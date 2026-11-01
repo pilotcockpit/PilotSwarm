@@ -93,6 +93,15 @@ Not here, because the Web API has no operation for it: browsing published
 canvas apps, and pausing, resuming or firing a schedule from outside a turn
 (Flight Deck asks the agent instead). Boards are stored in the browser.
 
+## The composer footer
+
+`components/session/composer-footer.tsx` renders what sits under the message box: the agent (fixed, plain
+text), the model chip and the working-folder chip (changeable), the context meter, and on phones a single
+Session settings button. The model is chosen in `components/model-picker.tsx`, the only model picker in the
+app; the rules for what a change sends (leave out untouched options, clear unsupported ones) live in
+`lib/model-options.ts` and are unit-tested. `DataSource.setSessionModel(id, model, { reasoningEffort?,
+contextTier? })` maps to the `setSessionModel` operation; a key left out is preserved by the server.
+
 ## End-to-end tests
 
 Playwright drives the real app on the demo data (no server, no database) in four projects: desktop
