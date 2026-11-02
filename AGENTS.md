@@ -1,4 +1,6 @@
-# PilotSwarm — Codex project instructions
+# PilotSwarm — agent project instructions (Codex, Claude Code, Grok)
+
+This file is read by every agent host. Rules that name a specific host say so; anything else applies to all of them.
 
 ## Start here
 
@@ -6,7 +8,7 @@
    and read the shared owner policy and applicable sources it resolves. Keep
    owner-wide rules in that canonical source rather than copying them here.
 2. Read [the shared repository instructions](.github/copilot-instructions.md)
-   in full before making changes. They apply to Codex as well as Copilot;
+   in full before making changes. They apply to Codex, Claude Code and Grok as well as Copilot;
    preserve their architecture, privacy, replay-safety and verification rules.
    Owner policy and its resolved domain authorities take precedence over
    conflicting repository recipes.
@@ -20,9 +22,19 @@
   additional branches or worktrees only when the user explicitly requests them.
 - Inspect `git status`, the index and worktree list before editing. Preserve
   other sessions' work and stage only changes included in the authorized task.
-- Follow the user's current commit/push authorization. Before committing, use
-  the shared Claude review skill through `~/.agent-skills/claude/review.sh` and
-  resolve actionable findings. Resolve reviewer settings from owner policy.
+- Follow the user's current commit/push authorization. Before committing, get an
+  independent review from a reviewer other than the host that wrote the change,
+  and resolve actionable findings. Which one depends on the host (owner policy,
+  "Models and independent reviews", is the authority; resolve model and effort
+  there, never from this file):
+  - Claude Code–led work: Codex, run read-only through `codex exec` as
+    `~/.agent-skills/policies/codex-exec.md` describes. Do not run the Claude
+    review skill: reviewing Claude's work with Claude is not independent, and a
+    logged-out or failing Claude CLI is not a blocker for Claude-led work.
+  - Codex- or Grok-led work: the shared Claude review skill, through
+    `~/.agent-skills/claude/review.sh start` and `poll` only.
+  A failed, empty or unfinished review is not an approval; say so and do not
+  report the change as reviewed.
 - Keep changes within PilotSwarm; downstream consumers require separate scope.
 
 ## Repository map

@@ -1,12 +1,24 @@
-# Flight Deck (portal redesign preview)
+# Flight Deck
 
-The [30 October UX audit](../../docs/ux-audit/2026-10-30/README.md) records the
-current attention-first workspace, frontend interaction fixes, accepted desktop
-and phone captures, and remaining API/SDK integration work. Run `npm run test:ux`
-in this package for the credential-free ownership, access, bulk-result and
-session-draft regression tests. `npm run build` checks TypeScript, tokens and
-the production bundle. Earlier measurements and signoff below describe the
-initial implementation; use the dated audit for this refresh's evidence.
+The PilotSwarm browser dashboard, redesigned around one question: what needs a person
+right now. It is a separate app over the same Web API, so it runs beside the classic
+portal and changes nothing in it.
+
+**Status: preview.** It is exercised on demo data by the unit and end-to-end suites and
+has not yet been run against a live backend (open items V5, V8, V9). What is built, what
+is fixed and what is still to do:
+
+- [CHANGELOG](../../CHANGELOG.md): what each change added and fixed.
+- [OPEN-ITEMS.md](OPEN-ITEMS.md): everything not done, with the condition that closes it (unverified
+  work, backend gaps to raise upstream, deferred features, process).
+- [DESIGN.md](DESIGN.md) and [PRODUCT.md](PRODUCT.md): the visual system and the product brief.
+- [docs/ux-audit](../../docs/ux-audit/README.md): dated audits, decisions and evidence
+  ([30 October](../../docs/ux-audit/2026-10-30/README.md),
+  [1 November](../../docs/ux-audit/2026-11-01/README.md)).
+
+Checks: `npm run build` (types, token guard, production bundle, demo-hook and metadata
+guards), `npm test` (unit and component tests) and `npm run test:e2e` (Playwright). From the
+repo root: `npm run build:flightdeck`, `test:flightdeck`, `test:flightdeck:e2e`.
 
 A separate, side-by-side build of the proposed PilotSwarm portal redesign
 ([docs/proposals/ux-redesign](../../docs/proposals/ux-redesign/README.md)),
@@ -78,25 +90,33 @@ state, unverified because no demo session is view-only).
 
 ## What is in
 
-Everything the classic portal does has a Flight Deck screen. App shell (sidebar with the
-sessions list as its last section, pins and groups, an account menu, a phone drawer and tab bar, ⌘K with page actions, `?` shortcuts, connection status),
-Home (inline answers, failure groups, since-you-left), Sessions, Session (Chat
-with attachments, Share, Move to group, Switch model, schedule actions; Canvas
-with a public-link sheet; Files over outputs and working folders with edit,
-search and git changes; Delegation; Activity), New session, Boards and Fleet,
-Outputs, Agent library (agents and package management), Models & spend
-(providers, limits, holds, defaults), Admin (overview, workers, system
-sessions, access, feature flags, knowledge, maintenance) and Settings
-(appearance, shortcuts, personal feature preferences, notifications).
+Everything the classic portal does has a Flight Deck screen.
 
-Not here, because the Web API has no operation for it: browsing published
-canvas apps, and pausing, resuming or firing a schedule from outside a turn
-(Flight Deck asks the agent instead). Boards are stored in the browser.
+- **Shell.** A sidebar (page links; then Needs you, Pinned, Projects, No project and Recents, all folded at
+  load), an account menu, a phone drawer and tab bar, ⌘K with page actions, `?` for shortcuts, connection status.
+- **Overview.** A start box (with a project picker), Needs you (inline answers, failure groups), Canvases, Outputs,
+  and what is running or coming next.
+- **Projects** (`/projects`). One page for projects and their sessions: search finds either, filters narrow the
+  sessions, projects are created, renamed, pinned and deleted here. A project is the backend's session group:
+  private to the person, one per root tree. Sessions in none are shown as **No project**. `/sessions` redirects here.
+- **Session.** Chat (attachments, steer, queue, stop, Share, Move to project, model, schedule actions), Context,
+  Canvas (with a public-link sheet), Files (outputs and working folders: edit, search, git changes), Delegation,
+  Activity; the working-folder dialog.
+- **Boards and Fleet, Outputs, Library** (agents and package management), **Models & spend** (providers, limits,
+  holds, defaults), **Admin** (overview, workers, system sessions, access, feature flags, knowledge, maintenance)
+  and **Settings** (appearance, shortcuts, personal feature preferences, notifications).
+
+Not here, because the Web API has no operation for it: browsing published canvas apps, pausing, resuming or firing
+a schedule from outside a turn (Flight Deck asks the agent instead), and listing the directories inside a working-
+folder location. Boards are stored in the browser. See the gap tables in [OPEN-ITEMS.md](OPEN-ITEMS.md).
+
+Where the data lives: sessions, projects, outputs and settings come from the Web API. Pins, pinned projects and
+dismissed failures are kept in the person's profile settings document (so they roam; open item S2 explains the
+classic portal limit). What is opened in the sidebar lasts for the visit only.
 
 ## The composer footer
 
-`components/session/composer-footer.tsx` renders what sits under the message box: the agent (fixed, plain
-text), the model chip and the working-folder chip (changeable), the context meter, and on phones a single
+`components/session/composer-footer.tsx` renders what sits under the message box: the agent (fixed: a robot icon and its name, no chevron), the model chip and the working-folder chip (changeable), the context meter, and on phones a single
 Session settings button. The model is chosen in `components/model-picker.tsx`, the only model picker in the
 app; the rules for what a change sends (leave out untouched options, clear unsupported ones) live in
 `lib/model-options.ts` and are unit-tested. `DataSource.setSessionModel(id, model, { reasoningEffort?,
@@ -109,7 +129,7 @@ Playwright drives the real app on the demo data (no server, no database) in four
 motion.
 
 ```bash
-npm run test:e2e --workspace=pilotswarm-flightdeck            # everything (about 1 minute)
+npm run test:e2e --workspace=pilotswarm-flightdeck            # everything (about 4 minutes)
 npm run test:e2e --workspace=pilotswarm-flightdeck -- files   # one spec by name
 npm run test:e2e:ui --workspace=pilotswarm-flightdeck         # the Playwright UI
 ```
@@ -120,8 +140,8 @@ the shared Playwright cache; install them once with `npx playwright install chro
 What each spec covers: `files` (browse, edit, conflict, unsaved-changes guards, Changes, create, rename,
 delete, upload), `knowledge` (typed confirms for purge, namespaces, prune, restart), `providers-hold`
 (hold, allowance, limits, remove, add, paused work), `sharing` (Share sheet, Move to group, canvas public
-link, working-folder conflict), `sidebar` (Sessions last, Needs you first, pins and collapse state that survive
-a reload, row and title menus with call counts, keyboard roving, account menu, the Context tab, the phone drawer), `a11y-smoke` (axe, overflow, console errors and phone tap targets on every
+link, working-folder conflict), `sidebar` and `sidebar-actions` (the sections and what they hold, the sidebar loading folded, pins, row and title
+menus with call counts, keyboard roving, focus after a row moves, the phone drawer), `composer-turn` (Stop, Steer and Queue while a turn runs), `a11y-smoke` (axe, overflow, console errors and phone tap targets on every
 route and tab).
 
 Writing a spec:
@@ -133,6 +153,8 @@ Writing a spec:
   and (`expectEscapeReturnsFocusTo`) that Escape closes it and returns focus. `expectNoSeriousAxe(page, scope)`
   fails on serious or critical axe violations.
 - The phone project hides some header controls in the session menu; check `isPhone(info)`.
+- The sidebar loads folded. `sidebar(page, info)` (`e2e/sidebar-helpers.ts`) opens every section so a test can reach
+  rows; pass `{ folded: true }` to test the folded state. Demo pins live in memory, so they survive navigation, not a reload.
 - To play "someone else changed it", use the dev-only demo hook `window.__fdDemo.workspace`
   (`writeBehind(folder, path, text)` and `bumpRevision({ folder })`, defined in
   `src/data/ops/workspace.demo.ts`). It does not exist in production builds. Add a similar hook beside the

@@ -238,37 +238,54 @@ Counts use sans with tabular numerals. Text does not go below the 12px metadata 
 
 ### Shell layout
 
-Sessions live in the sidebar, as in Claude Code and Codex. Top to bottom: New session, Search
-(⌘K), the page links Overview, Boards, Outputs and Library, then the Sessions section, which is
-always the last section and scrolls on its own. Its heading is a link to the Projects page, with
-the total and a filter button (state facets, group by My groups or Agent, and for admins system
-sessions). Sections: Needs you (derived, always first; its count pill shows while it is folded), Pinned, one per group the
-person made, then Recent (12, "Show more"). A session appears once, in the first section that
-claims it. Every section loads folded; what a person opens is kept for that visit only, and opening a session from a link
-opens just the section and project it sits in. Providers, Admin (admins) and Settings, the theme (a radio group) and demo/live
-live in the account menu at the foot; there is no "Manage" group. Rows are one line (state glyph,
-title, unseen-canvas dot); hover or focus reveals pin and a menu (rename, pin, move to group,
-share, copy link, complete, cancel, delete with a confirmation). The list is one tab stop with
-roving focus: arrows, Home and End move, Enter opens, `p` pins, `m` opens the menu, Delete asks to
-delete. Pins, group-by and the state filter are kept in this browser, in keys scoped by data
-source and signed-in person (`fd.pins@<source>:<provider>:<person>`, `fd.sidebar.*@…`), so two people on one browser do
-not share them. They are not synced across browsers: the API has no pin and no per-person sidebar state. Stored
-values of the wrong shape read as the default, and when the browser refuses storage the choice holds for the page. A
-row that moves between sections (a pin, a group change, a poll) keeps keyboard focus on the same session, or on its
-neighbour if it is gone. System sessions cannot be renamed, completed, cancelled or deleted (the SDK refuses all
-four): their menus disable those and offer Restart… to admins. A sub-agent whose parent is not in the list is listed
-as a root. The Needs-you count is announced politely when it changes. Collapsed, the
-sidebar is an icon rail with a Sessions icon carrying the Needs-you count. On a phone the same
-sidebar is a left drawer, opened by the menu button or the Sessions tab; the bottom tabs stay.
+Sessions live in the sidebar, as in Claude Code and Codex. Top to bottom: New session, Search (⌘K), the page
+links Overview, Boards, Outputs and Library, then the sessions list, which is the last block and scrolls on its
+own. Its sections:
 
-A session has three zones: the title bar (title, a chevron menu with Rename, Pin, Move to
-group, Share, Copy link, Export history, Complete, Cancel and Delete; the state; icon buttons for
-Share, Canvas, Files, Activity, Delegation and Context; a More menu), the conversation in the
-middle, and a right pane with tabs Context, Canvas, Files, Delegation and Activity. Context shows
-only what the server returned: environment (agent, model, folder or repo, access, owner), a context
-meter, usage, what happens next with its schedule actions, sub-agents, outputs and a waiting
-question. The pane opens on the canvas when there is one, otherwise on Context at 1280px and wider,
-and remembers when it was closed. On a phone the pane is the tab strip under the title.
+- **Needs you** (derived, always first): questions first, then holds the viewer can lift, then failures, for the
+  viewer's own sessions only. It shows five rows and a link to the rest. Its count is a pill beside the heading and
+  stays visible when the section is folded. Dismissing a failure is per occurrence.
+- **Pinned**: pinned sessions and pinned projects, in pin order. A pin is a watchlist, not a move: the session is
+  still listed in its project.
+- **Projects**: the person's projects (five, then a link to all). The heading links to the Projects page; its chevron
+  folds it; its actions are a menu and New project. A project row opens in place (one at a time) to five of its live
+  trees, with New session in this project and Pin on hover; the project's attention count is a pill.
+- **No project**: the derived group of sessions in none (or in a deleted one), as its own section with the same five-row
+  preview and a New session with no project action.
+- **Recents**: the most recently active sessions (12, "Show more"), in an order that settles, with "Refresh order"
+  when it has moved. The session being viewed always has a row.
+
+A session appears once per section it qualifies for, and the row for the open session is the only one marked as the
+current page. **Every section loads folded**; what a person opens is kept for that visit only, not across loads.
+Opening a session from a link opens just the place that draws it (its project, No project, Pinned, Needs you or
+Recents) and selects it there.
+
+Rows are two lines (state glyph and title; project, state and age), with a trailing time or sub-agent chip. Hover or
+focus reveals pin and a menu (rename, pin, move to project, share, copy link, complete, cancel, delete with a
+confirmation). The list is one tab stop with roving focus: arrows, Home and End move, Enter opens, `p` pins, `m` opens
+the menu, Delete asks to delete. A row that moves between sections (a pin, a project change, a poll) keeps keyboard
+focus on the same session, or on its neighbour if it is gone.
+
+Pins, pinned projects and dismissed failures roam with the account: they are stored in the profile settings document
+(pins under the classic portal's `pinnedSessionIds`, the rest under a `flightdeck` key), written through a queued
+read-modify-write; the page shows a change at once and takes back only that change if the save fails. When the server
+cannot store profile settings they stay in this browser, in keys scoped by data source and person, and the sidebar says
+so. Stored values of the wrong shape read as the default. See open items S2 and S3 for the limits.
+
+System sessions are not listed in the sidebar (they are in Admin). A sub-agent whose parent is not in the list is
+listed as a root. The Needs-you count is announced politely when it changes. Providers, Admin (admins), Settings,
+the theme and demo/live are in the account menu at the foot. Collapsed (and at tablet widths) the sidebar is an
+icon rail with names as tooltips and accessible labels, and a count on Overview. On a phone it is a left drawer,
+opened by the menu button or the Sessions tab; the bottom tabs stay.
+
+A session has three zones: the top bar (the project when it is in one, then the title; a chevron menu, "Session
+actions", with Rename, Pin, Move to project, Share, Copy link, Copy session ID, Export history, Complete, Cancel and
+Delete; the state; Share), the view in the middle, and under the top bar one tab bar for the views: Chat, Context,
+Canvas, Files, Delegation, Activity. There are no icon buttons for views and no More menu: the model and the working
+folder are the chips under the message box, where they are shown. Context shows only what the server returned:
+environment (agent, model, project, folder or repo, access, owner, started by, context tier, session ID), a context
+meter, usage, what happens next with its schedule actions, sub-agents, outputs and a waiting question. On a phone the
+tab bar is icons over labels at equal widths.
 
 ### Overview
 
@@ -279,8 +296,9 @@ beside the title): the first item is a card that answers in place, the rest are 
 clears them and Dismiss for failures, each saying which project it lives in. Running now and Coming next are
 rows side by side. Beside the Needs you card, two separate sections: Canvases (the newest three, as small thumbnails, with All canvases) and Outputs (the newest files as rows, with All outputs). Capacity remains in the footer; system
 failures are an administrator notice. First-session onboarding is the welcome and the start box.
-There is no Overview summary metric strip. The illustration is the only decorative image: empty alt text,
-explicit dimensions, no motion.
+There is no Overview summary metric strip. The only decorative images are the welcome illustration, the empty-state
+illustrations on Boards and Outputs, and the Library header (`ProductIllustration`): empty alt text, explicit
+dimensions, lazy loading, no motion.
 
 The content container is capped at 1180px, with 16px phone gutters and 28px desktop
 gutters. Major sections use a 32px gap. The desktop featured pair uses a 7:5 grid
@@ -459,7 +477,7 @@ use the existing confirmation controls.
 
 ### Don't:
 
-- **Don't** restore Overview metric-summary tiles or generated decorative illustrations.
+- **Don't** restore Overview metric-summary tiles, or add decorative illustrations beyond the welcome, the empty Boards and Outputs pages and the Library header.
 - **Don't** invent charts, progress, forecasts or healthy verdicts for stale or failed reads.
 - **Don't** nest answer or Inspect buttons in a whole-card link or animate the article around them.
 - **Don't** introduce raw colors, new font dependencies, glass, glows or state-colored decoration.

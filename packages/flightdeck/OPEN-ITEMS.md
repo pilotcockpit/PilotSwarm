@@ -1,7 +1,18 @@
 # Flight Deck: open items (the repo .gitignore excludes files named TODO.md)
 
-Last updated 2026-10-30. Each item says how it closes. Mark an item done by deleting it and
-noting the commit in the PR or changelog, not by leaving a checked box here.
+Last updated 2026-11-01. This file lists what is **not done**, each with the condition that closes it. Mark an item
+done by deleting it and recording it in the [CHANGELOG](../../CHANGELOG.md), not by leaving a checked box here.
+Nothing here is a silent gap: if something was found and not fixed, it has an ID below.
+
+| Where to look | What it answers |
+|---|---|
+| [CHANGELOG](../../CHANGELOG.md) | What was added and fixed, per change |
+| [docs/ux-audit/2026-11-01](../../docs/ux-audit/2026-11-01/README.md) | Why: audits, decisions, evidence, what was found and fixed on the all-pages audit |
+| Unverified (V) | Built and tested on demo data, not yet run against real infrastructure or by a person |
+| Sessions sidebar (S, W) | Known limits of the projects and sidebar work and of the working-folder dialog |
+| API and SDK gaps (G), classic portal (C) | Backend gaps to raise upstream, with today's workaround |
+| Deferred features (D) | Decided against for now |
+| Process and quality (Q) | Tests, CI, upstreaming, licensing |
 
 ## Unverified (built and reviewed, not yet run against real infrastructure)
 
@@ -20,6 +31,9 @@ Still open:
 
 | ID | What | Closes when |
 |---|---|---|
+| V8 | The composer on a live server: Steer (`steerSessionTurn`), Queue (a message sent mid-turn), Stop, the model change and the working-folder change, including a session that reports `acceptsTurnControl: false` | Each action run once against a dev server and the result compared with the demo |
+| V9 | Roaming pins, pinned projects and dismissals on a live server: the profile settings write replaces the document (see S2, S3), and a server that cannot store settings must fall back to the browser with the sidebar saying so | A smoke run with two browsers on one account, and one run against a server with settings storage off |
+| V10 | The first-run states: Overview, the sidebar and Projects with no sessions and no projects; the demo data always has sessions | A fixture with an empty account, checked on desktop and phone, in light and dark |
 | V5 | Every new screen against a LIVE backend (real API shapes, real permissions, real latency) | A smoke run against a dev PilotSwarm server with a member and an admin account; each ported operation called once; failures filed |
 | V6b | Assistive technology: a manual VoiceOver pass on Share, Add provider and the file editor; 200% zoom | A person does it once and files what they find; axe cannot judge announcement quality |
 
@@ -31,7 +45,7 @@ The Projects page (`/projects`) is the one page for projects and their sessions:
 
 Naming: the product calls a backend session group a **Project** (private, one per root tree, nothing to do with the working folder). Code and API names keep `group`/`groupId`.
 
-Built: shared derivation (`src/data/session-tree/`), Needs you / Pinned / Projects / Recent, settled Recent order with "Refresh order", roaming pins and dismissals, one attention count for sidebar, Overview, nav badge, tab title and the Projects page (`state=attention`, `project=`).
+Built: shared derivation (`src/data/session-tree/`), Needs you / Pinned / Projects / No project / Recents, the sidebar loading folded, settled Recents order with "Refresh order", roaming pins and dismissals, one attention count for the sidebar, Overview, nav badge, tab title and the Projects page (`state=attention`, `project=`). The all-pages audit (2026-11-01) and the Codex review of the staged change are recorded in the 2026-11-01 folder; everything they found and could fix was fixed, and the rest is below.
 
 | ID | What | Closes when |
 |---|---|---|
@@ -42,10 +56,10 @@ Built: shared derivation (`src/data/session-tree/`), Needs you / Pinned / Projec
 | S5 | Attention age is the session's last update, not when it began waiting | Backend attention timestamps |
 | S6 | Needs you covers the viewer's own sessions only. A shared session needs its owner, not you | Owner decision revisited if delegated responsibility is wanted |
 | S7 | The Completed view is the existing Completed state filter on the Projects page, not a tab of its own | Lens tabs on the page, if wanted |
+| S8 | Counts reflect the loaded sessions; there is no "partial" marker while the list is still paging | List paging with a completeness flag |
+| S9 | The router marks every link to the open session with `aria-current="page"`, so a session shown in Recent and in its project is announced twice (the page heading no longer carries it as well, since the 2026-11-01 audit) | Rows render their own link element, or the router stops setting it |
 | S10 | The Context panel now shows project, started by, context tier and the session ID. Still to add: where the model came from, last active (apart from last updated), tokens in/out and cache-hit ratio (see G19), regenerations, who it is shared with, and the agent package version. Orchestration ID, snapshot sizes and hydration counts stay in Activity > Details | The panel is extended; tokens wait on G19 |
 | S11 | Audit 2026-11-01: after lazy-loading every area except Overview, the first load is 543 kB (163 kB gzip, down from 990 kB). What remains is the shell, Overview, the data layer and `marked`/`dompurify` | Split the markdown and canvas code behind the views that use them; measure again |
-| S9 | The router marks every link to the open session with `aria-current="page"`, so a session shown in Recent and in its project is announced twice (the page heading no longer carries it as well, since the 2026-11-01 audit) | Rows render their own link element, or the router stops setting it |
-| S8 | Counts reflect the loaded sessions; there is no "partial" marker while the list is still paging | List paging with a completeness flag |
 
 ## API and SDK gaps (candidates for upstream issues)
 
@@ -94,16 +108,24 @@ Built: shared derivation (`src/data/session-tree/`), Needs you / Pinned / Projec
 
 | ID | Item |
 |---|---|
-| Q1 | 86 arbitrary size values remain baselined in `scripts/token-guard.baseline.json`; reduce over time |
+| Q1 | 43 arbitrary size values remain baselined in `scripts/token-guard.baseline.json` (it only ever goes down: `npm run tokens:check -- --update` locks a reduction); reduce over time |
 | Q2 | vitest mis-collects `src/lib/*.test.mjs`; `npm test` runs them with node:test instead |
 | Q3 | Upstream PR for orchestration 1.0.83 (stale bound answers) not yet opened; needs the maintainer `/test all` run and a rollout note (workers must register 1.0.83) |
 | Q4 | A live worker upgrade 1.0.82 to 1.0.83 through continue-as-new has not been exercised against real Duroxide history |
+| Q5 | Flight Deck is not run by the PR checks or the maintainer-triggered tests (`.github/workflows`): nothing builds it, runs its 449 unit tests or its Playwright suite in CI. Local commands: `npm run build:flightdeck`, `test:flightdeck`, `test:flightdeck:e2e` | A workflow job that installs Chromium and runs the three, reviewed against the infrastructure standard (CI changes need an owner review) |
+| Q6 | The change is large: a whole package (about 300 files) added to a repository whose CONTRIBUTING asks for one change per PR and an issue first | Open an issue describing Flight Deck, then propose it in reviewable parts: scaffold and design system; data layer and demo data; sessions sidebar and Projects; Overview and session views; Library, Providers, Admin, Settings; brand and metadata |
+| Q7 | Generated artwork (welcome and page illustrations, `docs/ux-audit/2026-11-01/page-illustrations/prompts.json`) is committed under the repository's MIT licence; whether that suits generated images is the owner's call | Owner confirms, or the images are replaced with commissioned or openly licensed ones |
+| Q8 | Outputs cards now show a framed preview with an Inspect button (so the inspector and its size limits are reachable from a page); this is a visible design change made while repairing the artifact specs, not yet reviewed by the owner | Owner accepts it, or removes the `preview` prop on `OutputCard` and the artifact specs move to the Overview canvas tiles |
+| Q9 | The Projects page and the Overview start box (with the project picker) are covered by model, logic and end-to-end tests, not by component render tests, because the test renderer cannot render Radix popovers or cmdk | A renderer that supports portals, or those components split so the logic renders without them |
+| Q10 | The earlier sidebar kept section folds and the open project in `fd.sidebar.*@…` browser keys; they are no longer read and are never removed | A one-time cleanup of those keys on load |
 
-## End-to-end suite (done)
+## End-to-end suite
 
-`packages/flightdeck/e2e/` runs the Vite dev server on port 5181 (not 5180) and drives the demo data.
-See README, "End-to-end tests". It already found and fixed real defects; the list is in the commit
-that added it.
+`e2e/` runs the Vite dev server on port 5181 (not 5180) and drives the demo data, in four projects (desktop and phone,
+light and dark) plus a desktop-light run with real motion for layout shift. On 2026-11-01 the whole suite was brought
+up to date with the projects sidebar and passes (537 passed, 0 failed; the 67 skips are phone-only or desktop-only
+tests, none unconditional). See the README, "End-to-end tests". One artifact-preview test failed once under a parallel
+run and then passed 12 repeats; if it returns, treat it as timing, not a regression.
 
 ## What a session lets you change (backend facts behind the composer footer)
 
@@ -114,8 +136,10 @@ owner and the initial prompt. Not in the backend at all, so not in the UI: a per
 a per-message model override, an output style, and forking a session. The composer footer is built on
 exactly this split.
 
-Open: composer footer behaviour is covered by unit and component tests only; Playwright coverage waits for
-the e2e pass.
+Coverage: Playwright covers the working-folder chip and dialog (`sharing.spec.ts`) and the running composer, Stop,
+Steer and Queue on demo data (`composer-turn.spec.ts`); the model chip is covered by unit and component tests. The demo
+records no operation for steer and stop, so those specs check what the person sees. Against a real server they are V8. Steering text
+only (no attachments) and `acceptsTurnControl: false` disable the button, as the API requires.
 
 Phone composer: one line to start, 113px tall at 390px and at 320px (was 141px), with every control at 44px. The
 session view tabs on a phone share the width equally while they fit (390px) and scroll sideways with edge hints
@@ -132,37 +156,3 @@ Done: the dialog keeps each extra's `required` flag (a "Wait for this folder" sw
 | ID | Gap | Closes when |
 |---|---|---|
 | W5 | There is no operation to list the directories inside a root, so the path inside a location is typed, and a folder that does not exist is only found on save (`WORKSPACE_FOLDER_MISSING`) | A browse-a-root operation, then a folder picker |
-
-## E2E paused
-
-The Playwright suite (`e2e/`, `playwright.config.ts`) is intentionally not maintained while the UX settles. Nothing was
-deleted. When the owner says so, repair and re-run it in one pass (`npm run test:e2e`, about 4 minutes).
-
-Known stale or unverified, from the sidebar, density and theme work:
-
-- **Session header**: the Canvas, Files, Activity, Delegation and Context icon buttons are gone (the tab bar is the one place to
-  choose a view), so any spec that clicks them must click the tab instead (`getByRole("tab", { name: … })`). The header "More" menu is gone too: Change model and Working folder are the composer chips, and Copy session ID is in Session actions.
-- **Everything that touches the sidebar**: `e2e/sidebar.spec.ts`, `e2e/a11y-smoke.spec.ts`, `e2e/files.spec.ts`,
-  `e2e/sharing.spec.ts` and any spec that navigates through the rail or the account menu.
-- **The collapse toggle**: it moved to the top of the sidebar ("Collapse sidebar" / "Expand sidebar", an icon at the
-  top, no longer in the account menu).
-- **Density**: removed entirely (no Settings row, no account-menu item, no palette command, no `data-density`).
-- **Theme controls**: one control now (Settings segmented, account-menu radio group, three palette commands), no
-  top-bar toggle, and the default is System. `e2e/helpers.ts` `setTheme` now seeds the project's theme once per browser
-  context, not on every load.
-- **Findings from the sidebar review without browser coverage yet**: focus after a row moves or disappears, per-person
-  preference keys and malformed stored values, system-session menus, Needs-you announcements, the Context panel's
-  over-limit meter, missing Access row and canvas slot. (Rename drafts under polling and the phone Search handoff now
-  have unit and component tests, `src/lib/rename-draft.test.tsx` and `src/shell/ui-state.test.tsx`; the browser pass
-  still owes the end-to-end version.)
-
-Specs written during this work and **not yet run as a full suite** (they passed when run alone on `desktop-light` and,
-for the phone one, `phone-light`): `e2e/sidebar-actions.spec.ts` (the destructive-action matrix, finding 12: complete,
-cancel, delete, rename and pin, from the row menu and the title menu, with zero calls before confirming and after
-cancelling, exactly one targeted call after, and a server refusal), `e2e/sidebar-helpers.ts`, and `e2e/theme.spec.ts`
-(Settings, account menu, palette, the System default following the browser, no top-bar toggle, axe on the radio group).
-The demo test hooks they use (`window.__fdDemo.sessions.setTitle`, `setContextUtilization`, and `failOps` for
-`renameSession`, `completeSession`, `cancelSession`, `deleteSession`) are dev-only and covered by `check-dist`.
-
-Still owed once the UX is final: the full-suite pass on all five projects, the destructive-action matrix on the phone
-projects, and a flake run (three consecutive green runs).

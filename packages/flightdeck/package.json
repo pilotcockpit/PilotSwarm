@@ -2,7 +2,7 @@
   "name": "pilotswarm-flightdeck",
   "version": "0.0.0",
   "private": true,
-  "description": "Flight Deck: the proposed PilotSwarm portal redesign, built as a separate app so it can be compared side by side with the current portal.",
+  "description": "Flight Deck: the redesigned PilotSwarm browser dashboard, a separate app over the same Web API that runs beside the classic portal.",
   "type": "module",
   "license": "MIT",
   "scripts": {

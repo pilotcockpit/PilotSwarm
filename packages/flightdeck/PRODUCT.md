@@ -25,8 +25,8 @@ wait for time, child agents, user input, or usage allowances.
 
 ## Capabilities and constraints
 
-- Existing routes include Overview, Sessions, Boards/Fleet, Outputs, Agent library,
-  Providers, Admin, and Settings. Preserve deep links and browser navigation.
+- Existing routes include Overview, Projects (and their sessions; `/sessions` redirects),
+  the session page, Boards/Fleet, Outputs, Agent library, Providers, Admin, and Settings. Preserve deep links and browser navigation.
 - Boards are currently stored in this browser. Output discovery fans out across
   a bounded set of recent sessions; it is not a complete search of output history.
 - Demo mode is explicit, synthetic, and isolated from live query caches.
