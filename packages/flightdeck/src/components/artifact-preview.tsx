@@ -58,12 +58,13 @@ function readOnlyDocument(html: string) {
 /** Authentic document preview: same no-network wrapper, with scripting disabled.
  * Inert and unfocusable: the containing card owns the single navigation target.
  */
-export function ArtifactPreview({ html, filename, loading, failed, note }: { html?: string; filename: string; loading?: boolean; failed?: boolean; note?: string }) {
+/** `scale` shrinks the page like a thumbnail (0.3 shows it at 30%): for a small frame, where the page would otherwise be cropped to its heading. */
+export function ArtifactPreview({ html, filename, loading, failed, note, scale }: { html?: string; filename: string; loading?: boolean; failed?: boolean; note?: string; scale?: number }) {
   const srcDoc = React.useMemo(() => html ? readOnlyDocument(html) : undefined, [html]);
-  return <div aria-hidden inert className="relative aspect-video overflow-hidden border-b border-line-subtle bg-raised">
+  return <div aria-hidden inert className="relative aspect-video overflow-hidden bg-raised">
     {srcDoc ? <div className="fd-preview-sheet absolute inset-0"><iframe title="" tabIndex={-1} sandbox="" referrerPolicy="no-referrer" loading="lazy" srcDoc={srcDoc}
       className="pointer-events-none absolute left-0 top-0 border-0 bg-surface"
-      style={{ width: "100%", height: "300%" }} /></div> :
+      style={scale ? { width: `calc(${100 / scale}% + 24px)`, height: `${100 / scale}%`, transform: `scale(${scale})`, transformOrigin: "0 0" } : { width: "calc(100% + 24px)", height: "300%" }} /></div> :
       <div className="flex h-full flex-col justify-between p-5">
         <FileText className="size-6 text-muted" />
         <div><p className="line-clamp-2 break-words text-lg font-medium text-fg">{filename}</p><p className="mt-1 text-xs text-muted">{loading ? "Loading preview…" : failed ? "Preview unavailable" : note || "Published file"}</p></div>

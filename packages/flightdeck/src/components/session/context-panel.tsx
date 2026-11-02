@@ -1,14 +1,18 @@
 import * as React from "react";
-import { GitBranch } from "lucide-react";
-import { useArtifacts, useSessions } from "@/data/source";
+import { Link } from "@tanstack/react-router";
+import { Copy, GitBranch } from "lucide-react";
+import { toast } from "sonner";
+import { useArtifacts, useGroups, useSessions } from "@/data/source";
 import { modelShort, sessionState } from "@/data/state";
 import type { Session } from "@/data/types";
+import { ProjectIcon } from "@/components/project-icon";
 import { SessionChip } from "@/components/session-chip";
+import { sessionFacts } from "./session-facts";
 import { Button } from "@/components/ui/button";
 import { ScheduleActions } from "@/components/session/schedule-actions";
 import { contextFill, ownerName, VisibilityLabel } from "@/components/session/session-meta";
 import { canvasSlot, isCanvasFile } from "@/routes/home";
-import { ago, bytes, cn, plural, tokens } from "@/lib/utils";
+import { ago, bytes, cn, plural, shortId, tokens } from "@/lib/utils";
 import type { SessionView } from "@/router";
 
 /**
@@ -20,12 +24,14 @@ import type { SessionView } from "@/router";
 export function ContextView({ session, onOpen }: { session: Session; onOpen: (view: SessionView, patch?: Record<string, unknown>) => void }) {
   const st = sessionState(session);
   const { data: all } = useSessions();
+  const { data: groups } = useGroups();
   const { data: artifacts } = useArtifacts(session.sessionId);
   const children = (all || []).filter((s) => s.parentSessionId === session.sessionId);
   const ctx = (session as any).contextUsage as { utilization?: number; tokenLimit?: number; currentTokens?: number; usedTokens?: number } | undefined;
   const fill = contextFill(ctx?.utilization);
   const used = ctx?.currentTokens ?? ctx?.usedTokens;
   const owner = ownerName(session.owner);
+  const facts = sessionFacts(session, all || [], groups || []);
   const outputs = (artifacts || []).slice().sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0));
   const question = session.pendingQuestion?.question;
   const summary = session.summaryState?.summary || session.shortSummary;
@@ -34,9 +40,18 @@ export function ContextView({ session, onOpen }: { session: Session; onOpen: (vi
     ...(session.agentId ? [["Agent", <span className="font-mono">{session.agentId}</span>] as [string, React.ReactNode]] : []),
     ...(session.model ? [["Model", <span>{modelShort(session.model)}{session.reasoningEffort ? <span className="text-muted"> · {String(session.reasoningEffort)} effort</span> : null}</span>] as [string, React.ReactNode]] : []),
     ...(session.workspace?.repo ? [["Repository", <span className="break-all font-mono">{session.workspace.repo}{session.workspace.branch ? ` @ ${session.workspace.branch}` : ""}</span>] as [string, React.ReactNode]] : session.workspace?.folder ? [["Folder", <span className="break-all font-mono">{session.workspace.folder}</span>] as [string, React.ReactNode]] : []),
+    ...(facts.project ? [["Project", <span className="inline-flex min-w-0 items-center gap-1.5"><ProjectIcon className="size-3.5 text-muted" /><span className="truncate">{facts.project.name}</span></span>] as [string, React.ReactNode]] : []),
+    ...(facts.parent ? [["Started by", <Link to="/s/$sessionId" params={{ sessionId: facts.parent.id }} className="truncate text-accent hover:underline">{facts.parent.title}</Link>] as [string, React.ReactNode]] : []),
+    ...(facts.tier ? [["Context tier", <span className="capitalize">{facts.tier}</span>] as [string, React.ReactNode]] : []),
     ...(session.visibility ? [["Access", <VisibilityLabel visibility={session.visibility} />] as [string, React.ReactNode]] : []),
     ...(owner ? [["Owner", <span>{owner}</span>] as [string, React.ReactNode]] : []),
     ...(session.createdAt ? [["Started", <span className="tabular-nums">{ago(session.createdAt)}</span>] as [string, React.ReactNode]] : []),
+    ["Session ID", (
+      <span className="inline-flex items-center gap-1">
+        <span className="font-mono text-xs text-muted" title={session.sessionId}>{shortId(session.sessionId)}</span>
+        <Button variant="quiet" size="icon-sm" aria-label="Copy session ID" onClick={() => { void navigator.clipboard?.writeText(session.sessionId); toast.success("Session ID copied"); }}><Copy /></Button>
+      </span>
+    )] as [string, React.ReactNode],
   ];
 
   return (

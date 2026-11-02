@@ -106,7 +106,7 @@ test("A dark computer gets a dark first paint, with no light flash", async ({ pa
 });
 
 test("There is no theme toggle in the top bar", async ({ page }, info) => {
-  for (const path of ["/", "/sessions", "/boards", "/library", "/settings", `/s/a1f0c2d4-0005-4c00-9000-000000000005`]) {
+  for (const path of ["/", "/projects", "/boards", "/library", "/settings", `/s/a1f0c2d4-0005-4c00-9000-000000000005`]) {
     await gotoDemo(page, path, info);
     await expect(page.getByRole("button", { name: /toggle .*theme/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /switch to (dark|light)/i })).toHaveCount(0);
@@ -116,7 +116,7 @@ test("There is no theme toggle in the top bar", async ({ page }, info) => {
 test("Phone: the More sheet carries the same System | Light | Dark control", async ({ page }, info) => {
   test.skip(!isPhone(info), "the More sheet is the phone's menu");
   await gotoDemo(page, "/", info);
-  await page.getByRole("button", { name: /^More/ }).click();
+  await page.getByRole("button", { name: "More", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "More" });
   await sheet.getByRole("radiogroup", { name: "Theme" }).getByRole("radio", { name: "Dark" }).click();
   expect(await isDark(page)).toBe(true);

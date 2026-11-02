@@ -44,7 +44,7 @@ export function SessionCloseDialog({ session, kind, childCount = 0, onOpenChange
       refresh(session.sessionId);
       onOpenChange(false);
       toast.success(k === "complete" ? "Session completed" : k === "cancel" ? "Session cancelled" : "Session deleted", { description: session.title });
-      if (k === "delete" && onThisSession) void navigate({ to: "/sessions" });
+      if (k === "delete" && onThisSession) void navigate({ to: "/projects" });
     } catch (e: any) {
       toast.error("That didn't work", { description: e?.message });
     } finally { inFlight.current = false; setBusy(false); }

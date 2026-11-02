@@ -11,7 +11,7 @@ export function useGroupOptions(enabled = true) {
   return useOpQuery<GroupOption[]>(["groups", "options"], "listSessionGroups", undefined, {
     enabled,
     staleTime: 30_000,
-    select: (raw) => rows(raw).map((g) => ({ id: String(g.groupId ?? g.id), name: String(g.title ?? g.name ?? "Untitled group"), count: typeof g.memberCount === "number" ? g.memberCount : undefined })),
+    select: (raw) => rows(raw).map((g) => ({ id: String(g.groupId ?? g.id), name: String(g.title ?? g.name ?? "Untitled project"), count: typeof g.memberCount === "number" ? g.memberCount : undefined })),
   });
 }
 
@@ -19,6 +19,21 @@ export function useCreateGroup() {
   return useOpMutation<{ title: string }, any>("createSessionGroup", {
     params: ({ title }) => ({ input: { title } }),
     invalidate: [["groups"]],
+  });
+}
+
+export function useRenameGroup() {
+  return useOpMutation<{ groupId: string; title: string }>("updateSessionGroup", {
+    params: ({ groupId, title }) => ({ groupId, patch: { title } }),
+    invalidate: [["groups"]],
+  });
+}
+
+/** Deleting a project clears the person's placements in it; the sessions themselves are untouched and fall back to No project. */
+export function useDeleteGroup() {
+  return useOpMutation<{ groupId: string }>("deleteSessionGroup", {
+    params: ({ groupId }) => ({ groupId }),
+    invalidate: [["groups"], ["sessions"]],
   });
 }
 

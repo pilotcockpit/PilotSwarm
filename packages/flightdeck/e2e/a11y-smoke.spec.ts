@@ -7,7 +7,8 @@ import { expectNoSeriousAxe, gotoDemo, IDS, isPhone, settle, watchConsole } from
 
 const ROUTES: Array<{ name: string; path: string; ready: string | RegExp; admin?: boolean }> = [
   { name: "home", path: "/", ready: /need you|Needs you|Overview/i },
-  { name: "sessions", path: "/sessions", ready: "Sessions" },
+  { name: "projects", path: "/projects", ready: "Projects" },
+  { name: "projects-one", path: "/projects?project=__default", ready: "Projects" },
   { name: "session-chat", path: `/s/${IDS.release}`, ready: /Release readiness/ },
   { name: "session-canvas", path: `/s/${IDS.release}?view=canvas`, ready: /Release readiness/ },
   { name: "session-files", path: `/s/${IDS.release}?view=files&files=folders`, ready: /Release readiness/ },
@@ -50,7 +51,7 @@ for (const route of ROUTES) {
 
 // Soft check: report small tap targets on a phone for the pages people use most. It fails only on a
 // target under 24px (the WCAG 2.2 minimum); 24-43px is listed in the annotations for review.
-for (const path of ["/", "/sessions", `/s/${IDS.release}`, "/providers", "/library?tab=packages", "/admin?tab=knowledge", "/settings?tab=profile"]) {
+for (const path of ["/", "/projects", `/s/${IDS.release}`, "/providers", "/library?tab=packages", "/admin?tab=knowledge", "/settings?tab=profile"]) {
   test(`phone targets: ${path}`, async ({ page }, info) => {
     test.skip(!isPhone(info), "phone only");
     await gotoDemo(page, path, info);

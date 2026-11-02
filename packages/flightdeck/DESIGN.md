@@ -240,16 +240,17 @@ Counts use sans with tabular numerals. Text does not go below the 12px metadata 
 
 Sessions live in the sidebar, as in Claude Code and Codex. Top to bottom: New session, Search
 (⌘K), the page links Overview, Boards, Outputs and Library, then the Sessions section, which is
-always the last section and scrolls on its own. Its heading is a link to the Sessions table, with
+always the last section and scrolls on its own. Its heading is a link to the Projects page, with
 the total and a filter button (state facets, group by My groups or Agent, and for admins system
-sessions). Sections: Needs you (derived, always first and expanded), Pinned, one per group the
+sessions). Sections: Needs you (derived, always first; its count pill shows while it is folded), Pinned, one per group the
 person made, then Recent (12, "Show more"). A session appears once, in the first section that
-claims it. Providers, Admin (admins) and Settings, the theme (a radio group) and demo/live
+claims it. Every section loads folded; what a person opens is kept for that visit only, and opening a session from a link
+opens just the section and project it sits in. Providers, Admin (admins) and Settings, the theme (a radio group) and demo/live
 live in the account menu at the foot; there is no "Manage" group. Rows are one line (state glyph,
 title, unseen-canvas dot); hover or focus reveals pin and a menu (rename, pin, move to group,
 share, copy link, complete, cancel, delete with a confirmation). The list is one tab stop with
 roving focus: arrows, Home and End move, Enter opens, `p` pins, `m` opens the menu, Delete asks to
-delete. Pins, collapsed sections, group-by and the state filter are kept in this browser, in keys scoped by data
+delete. Pins, group-by and the state filter are kept in this browser, in keys scoped by data
 source and signed-in person (`fd.pins@<source>:<provider>:<person>`, `fd.sidebar.*@…`), so two people on one browser do
 not share them. They are not synced across browsers: the API has no pin and no per-person sidebar state. Stored
 values of the wrong shape read as the default, and when the browser refuses storage the choice holds for the page. A
@@ -271,11 +272,15 @@ and remembers when it was closed. On a phone the pane is the tab strip under the
 
 ### Overview
 
-Overview leads with welcome and New session, then a featured decision alongside a
-recent real output. Recovery cards, work in motion, more outputs and a quiet
-upcoming list follow. Capacity remains in the footer; system failures are an
-administrator notice. First-session onboarding is a text/work-card composition.
-There is no Overview summary metric strip or decorative hero image.
+Overview is where you act and see the pulse; it does not repeat the sidebar's lists or the Projects page.
+It leads with the welcome, the paper-glider illustration the owner chose for that header, and a start box
+(what to do, the project, Start; More options opens the full New session dialog). Then Needs you (a count pill
+beside the title): the first item is a card that answers in place, the rest are one-line rows with the move that
+clears them and Dismiss for failures, each saying which project it lives in. Running now and Coming next are
+rows side by side. Beside the Needs you card, two separate sections: Canvases (the newest three, as small thumbnails, with All canvases) and Outputs (the newest files as rows, with All outputs). Capacity remains in the footer; system
+failures are an administrator notice. First-session onboarding is the welcome and the start box.
+There is no Overview summary metric strip. The illustration is the only decorative image: empty alt text,
+explicit dimensions, no motion.
 
 The content container is capped at 1180px, with 16px phone gutters and 28px desktop
 gutters. Major sections use a 32px gap. The desktop featured pair uses a 7:5 grid

@@ -1,0 +1,126 @@
+{
+  "origin": "http://localhost:5180",
+  "checkedAt": "2026-11-02T02:15:26.873Z",
+  "records": [
+    {
+      "path": "/",
+      "status": 200,
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "initialTitle": "PilotSwarm · Flight Deck"
+    },
+    {
+      "path": "/projects",
+      "status": 200,
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "initialTitle": "PilotSwarm · Flight Deck"
+    },
+    {
+      "path": "/sessions",
+      "status": 200,
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "initialTitle": "PilotSwarm · Flight Deck"
+    },
+    {
+      "path": "/s/PRIVATE?view=activity&activity=logs",
+      "status": 200,
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "initialTitle": "PilotSwarm · Flight Deck"
+    },
+    {
+      "path": "/boards?board=PRIVATE",
+      "status": 200,
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "initialTitle": "PilotSwarm · Flight Deck"
+    },
+    {
+      "path": "/outputs?tab=files&q=PRIVATE",
+      "status": 200,
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "initialTitle": "PilotSwarm · Flight Deck"
+    },
+    {
+      "path": "/library?tab=packages",
+      "status": 200,
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "initialTitle": "PilotSwarm · Flight Deck"
+    },
+    {
+      "path": "/providers?provider=PRIVATE",
+      "status": 200,
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "initialTitle": "PilotSwarm · Flight Deck"
+    },
+    {
+      "path": "/admin?tab=audit",
+      "status": 200,
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "initialTitle": "PilotSwarm · Flight Deck"
+    },
+    {
+      "path": "/settings?tab=profile",
+      "status": 200,
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "initialTitle": "PilotSwarm · Flight Deck"
+    },
+    {
+      "path": "/unknown-PRIVATE",
+      "status": 200,
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "initialTitle": "PilotSwarm · Flight Deck"
+    },
+    {
+      "path": "/index.html",
+      "status": 200,
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "initialTitle": "PilotSwarm · Flight Deck"
+    },
+    {
+      "path": "/robots.txt",
+      "status": 200,
+      "contentType": "text/plain",
+      "bytes": 159
+    },
+    {
+      "path": "/site.webmanifest",
+      "status": 200,
+      "contentType": "application/manifest+json",
+      "bytes": 659
+    },
+    {
+      "path": "/favicon.svg",
+      "status": 200,
+      "contentType": "image/svg+xml",
+      "bytes": 373
+    },
+    {
+      "path": "/favicon.ico",
+      "status": 200,
+      "contentType": "image/x-icon",
+      "bytes": 32038
+    },
+    {
+      "path": "/apple-touch-icon.png",
+      "status": 200,
+      "contentType": "image/png",
+      "bytes": 15993
+    },
+    {
+      "path": "/icons/icon-maskable-512.png",
+      "status": 200,
+      "contentType": "image/png",
+      "bytes": 50410
+    },
+    {
+      "path": "/social/og-default.png",
+      "status": 200,
+      "contentType": "image/png",
+      "bytes": 99740
+    },
+    {
+      "path": "/social/twitter-card.png",
+      "status": 200,
+      "contentType": "image/png",
+      "bytes": 99143
+    }
+  ]
+}

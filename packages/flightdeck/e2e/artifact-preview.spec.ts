@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { demoCalls, expectNoSeriousAxe, gotoDemo, Sheet, shot, watchConsole } from "./helpers";
 
-// Home previews agent-authored documents inline. Agent output is untrusted: this spec runs HOSTILE
+// The Outputs page previews agent-authored documents inline, and its cards open them in the inspector. Agent output is untrusted: this spec runs HOSTILE
 // documents through the REAL sanitiser and the REAL sandboxed frames in a real browser, and checks that
 // nothing navigates and no request leaves the sandbox. It also checks that an oversized document is never
 // downloaded, and that an unknown-size document is read with a bound.
@@ -52,13 +52,17 @@ async function untilHittable(page: Page, frame: import("@playwright/test").Locat
     return page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.tagName ?? "none", [box.x + box.width / 2, box.y + box.height / 2]);
   }).toBe("IFRAME");
 }
+/** The card for the document the test just published: Outputs lists newest first. */
+const cardOf = (page: Page) => page.getByRole("article").first();
+/** The Outputs page, where each canvas is a card with a preview and an Inspect button. */
+const outputs = (page: Page, info: import("@playwright/test").TestInfo) => gotoDemo(page, "/outputs?tab=canvases", info);
 const reads = async (page: Page, filename: string) => (await demoCalls(page)).filter((c) => (c.op === "readArtifactPreview" || c.op === "readArtifact") && c.params?.filename === filename);
 
 test("a hostile canvas renders as reading-only: nothing navigates, nothing leaves the sandbox", async ({ page }, info) => {
   const errors = watchConsole(page);
   const requests: string[] = [];
   page.on("request", (r) => requests.push(r.url()));
-  await gotoDemo(page, "/", info);
+  await outputs(page, info);
   await publish(page, { filename: "canvas3.html", content: HOSTILE });
   const inspect = page.getByRole("button", { name: "Inspect Hostile fixture" });
   await expect(inspect).toBeEnabled();
@@ -130,9 +134,9 @@ test("the sanitiser itself, run on hostile payloads in a real DOM", async ({ pag
 });
 
 test("a document whose metadata says it is too large is never downloaded", async ({ page }, info) => {
-  await gotoDemo(page, "/", info);
+  await outputs(page, info);
   await publish(page, { filename: "canvas3.html", content: "<h1>Huge</h1>", size: 5 * 1024 * 1024 });
-  const card = page.getByRole("region", { name: /Recent output/ }).or(page.locator("section[aria-labelledby='spotlight-h']"));
+  const card = cardOf(page);
   await expect(card.getByText("Too large to preview")).toBeVisible();
   await expect(card.getByRole("button", { name: /Inspect/ })).toBeDisabled();
   await expect(card.getByRole("link", { name: /Open output/ })).toBeVisible();     // the real way in
@@ -142,9 +146,9 @@ test("a document whose metadata says it is too large is never downloaded", async
 });
 
 test("a mid-size document is read only when the inspector opens, with the inspector bound", async ({ page }, info) => {
-  await gotoDemo(page, "/", info);
+  await outputs(page, info);
   await publish(page, { filename: "canvas3.html", content: "<h1>Mid</h1><p id='m'>mid-size body</p>", size: CARD_BYTES + 1000 });
-  const card = page.locator("section[aria-labelledby='spotlight-h']");
+  const card = cardOf(page);
   await expect(card.getByText("Large document. Inspect to read it.")).toBeVisible();
   await page.waitForTimeout(400);
   expect(await reads(page, "canvas3.html")).toEqual([]);                            // nothing before the person asks
@@ -157,9 +161,9 @@ test("a mid-size document is read only when the inspector opens, with the inspec
 });
 
 test("an unknown size is read with the card bound; a truncated read is never rendered as half a document", async ({ page }, info) => {
-  await gotoDemo(page, "/", info);
+  await outputs(page, info);
   await publish(page, { filename: "canvas3.html", content: "<h1>Unknown</h1><p id='u'>unknown-size body</p>", size: null, padKb: 600 });
-  const card = page.locator("section[aria-labelledby='spotlight-h']");
+  const card = cardOf(page);
   await expect(card.getByText("Large document. Inspect to read it.")).toBeVisible();
   expect((await reads(page, "canvas3.html"))[0]).toMatchObject({ op: "readArtifactPreview", params: { maxBytes: CARD_BYTES } });
   const sheet = await Sheet.open(page, card.getByRole("button", { name: /Inspect/ }));
@@ -169,9 +173,9 @@ test("an unknown size is read with the card bound; a truncated read is never ren
 });
 
 test("a document bigger than the inspector limit says so, with a way to open it", async ({ page }, info) => {
-  await gotoDemo(page, "/", info);
+  await outputs(page, info);
   await publish(page, { filename: "canvas3.html", content: "<h1>Big</h1>", size: null, padKb: 1200 });
-  const card = page.locator("section[aria-labelledby='spotlight-h']");
+  const card = cardOf(page);
   const sheet = await Sheet.open(page, card.getByRole("button", { name: /Inspect/ }));
   await expect(sheet.dialog.getByText(/too large to read here/i)).toBeVisible();
   expect(await sheet.dialog.locator("iframe").count()).toBe(0);                    // never half a document

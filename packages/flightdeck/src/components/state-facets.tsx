@@ -25,7 +25,7 @@ export function StateFacets({ counts, value, onChange, className }: { counts: Pa
             disabled={!n && !active}
             onClick={() => onChange(active ? null : key)}
             className={cn(
-              "inline-flex h-6.5 items-center gap-1.5 rounded-control border px-2.5 text-xs font-medium transition-colors duration-(--duration-fast) pointer-coarse:h-11 pointer-coarse:px-3.5",
+              "inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-control border px-2.5 text-xs font-medium transition-colors duration-(--duration-fast) pointer-coarse:h-11 pointer-coarse:px-3.5",
               active ? "border-accent/60 bg-accent-tint text-fg" : n ? "border-line-strong text-fg hover:bg-raised" : "border-line text-faint",
             )}
           >

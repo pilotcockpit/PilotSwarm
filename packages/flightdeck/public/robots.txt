@@ -1,0 +1,4 @@
+# Crawlers must be able to fetch HTML to see its noindex directive.
+# No sitemap: this workspace intentionally has no indexable pages.
+User-agent: *
+Disallow:

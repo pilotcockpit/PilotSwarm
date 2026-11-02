@@ -1,11 +1,10 @@
 import * as React from "react";
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { ArrowUp, LayoutGrid, Maximize2, MessagesSquare, Minimize2, Plus, LayoutPanelLeft, X } from "lucide-react";
+import { ArrowUp, Maximize2, MessagesSquare, Minimize2, Plus, LayoutPanelLeft, X } from "lucide-react";
 import { TopBar } from "@/shell/AppShell";
 import { useRefresh, useSession, useSessions, useSource, useTranscript } from "@/data/source";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { rovingKeyDown } from "@/lib/roving";
 import { questionKey, sessionState } from "@/data/state";
 import type { PendingQuestion, Session } from "@/data/types";
 import { DurableSpine, StatePill, StateGlyph } from "@/components/state";
@@ -14,12 +13,13 @@ import { Markdown } from "@/components/chat";
 import { AnswerChoices } from "@/components/answer-choices";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog";
-import { Segmented } from "@/components/ui/tabs";
+import { Segmented, TabStrip } from "@/components/ui/tabs";
 import { useCanvases } from "./session-views";
 import { CanvasFrame } from "@/canvas/CanvasFrame";
 import { cn } from "@/lib/utils";
 import { cardVariants } from "@/components/ui/card";
 import { FleetWall } from "./fleet";
+import { ProductIllustration } from "@/components/product-illustration";
 
 // Boards (was Master of Agents): saved tiled views of chats and canvases.
 // Up to five boards of sixteen tiles, as today. Stored in this browser so the
@@ -93,15 +93,9 @@ export function BoardsPage() {
       <div className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-2 md:px-5">
         <Segmented label="Boards view" value={fleet ? "fleet" : "boards"} onChange={(v) => navigate({ search: v === "fleet" ? { board: "fleet" } : {} })} options={[{ value: "boards", label: "Boards" }, { value: "fleet", label: "Fleet" }]} />
         {fleet ? <span className="hidden text-xs text-faint md:inline">Every session, most urgent first. Arrow keys move between sessions.</span> : null}
-        {fleet ? null : <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-        {/* Only tabs inside the tablist; the New board button and the count sit beside it. */}
-        <div className="flex items-center gap-1" role="tablist" aria-label="Boards" onKeyDown={rovingKeyDown("tab")}>
-        {boards.map((b) => (
-          <button key={b.id} role="tab" aria-selected={b.id === board.id} tabIndex={b.id === board.id ? 0 : -1} onClick={() => navigate({ search: { board: b.id } })} className={cn("focus-inset h-[28px] pointer-coarse:h-11 shrink-0 rounded-control px-2.5 text-sm font-medium", b.id === board.id ? "bg-raised text-fg shadow-[inset_0_0_0_1px_var(--line-strong)]" : "text-muted hover:text-fg")}>
-            {b.name} <span className="text-xs tabular-nums text-faint">{b.tiles.length}</span>
-          </button>
-        ))}
-        </div>
+        {fleet ? null : <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="h-5 w-px shrink-0 bg-line" aria-hidden />
+        <TabStrip label="Boards" variant="pill" value={board.id} onChange={(id) => navigate({ search: { board: id } })} idPrefix="board-tab" tabs={boards.map((b) => ({ value: b.id, label: b.name, badge: b.tiles.length }))} />
         {boards.length < MAX_BOARDS ? (
           <Button variant="quiet" size="sm" onClick={() => { const id = `b${Date.now()}`; setBoards((bs) => [...bs, { id, name: `Board ${bs.length + 1}`, tiles: [] }]); void navigate({ search: { board: id } }); }}><Plus /> New board</Button>
         ) : null}
@@ -113,7 +107,7 @@ export function BoardsPage() {
         <p className="mb-3 text-sm text-muted">Your selected chats and canvases, side by side. <span className="text-xs text-faint">Boards are saved in this browser.</span></p>
         {board.tiles.length === 0 ? (
           <Panel className="mx-auto max-w-[720px]">
-            <EmptyState icon={<LayoutGrid />} title="An empty board" action={<Button variant="primary" onClick={() => setPicker(true)}><Plus /> Add tile</Button>}>
+            <EmptyState illustration={<ProductIllustration kind="boards" />} title="An empty board" action={<Button variant="primary" onClick={() => setPicker(true)}><Plus /> Add tile</Button>}>
               Add the sessions you want to follow. Removing a tile only changes this board; the session keeps working.
             </EmptyState>
           </Panel>

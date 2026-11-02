@@ -2,7 +2,7 @@ import * as React from "react";
 import { useIntent } from "@/shell/intents";
 import { Link, useBlocker, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Download, FileText, Folder, GitBranch, Lock, Maximize2, Minimize2, MoreHorizontal, Settings2, Share2, Square, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronRight, Download, FileText, FolderGit2, GitBranch, Lock, Maximize2, Minimize2, MoreHorizontal, Settings2, Share2, Square, ZoomIn, ZoomOut } from "lucide-react";
 import { toast } from "sonner";
 import type { HistoryModel } from "@ps/history";
 import { useArtifacts, useRefresh, useSessions, useSource, useWorkers } from "@/data/source";
@@ -13,7 +13,7 @@ import { StateGlyph, StatePill } from "@/components/state";
 import { EmptyState, Panel } from "@/components/empty";
 import { Markdown } from "@/components/chat";
 import { Button } from "@/components/ui/button";
-import { Segmented } from "@/components/ui/tabs";
+import { Segmented, TabStrip } from "@/components/ui/tabs";
 import { Chip, Skeleton, Tag } from "@/components/ui/misc";
 import { ConfirmDialog } from "@/components/ui/confirm";
 import { dirtyDrafts, useDirtyDrafts } from "@/components/session/files/drafts";
@@ -29,7 +29,6 @@ import { describeEvent, eventTime, statLabel } from "@/lib/event-text";
 import { fillComposer } from "@/lib/composer";
 import { cardVariants } from "@/components/ui/card";
 import { canvasSlot, isCanvasFile } from "./home";
-import { rovingKeyDown } from "@/lib/roving";
 
 // ── Canvas ───────────────────────────────────────────────────────────────
 
@@ -74,23 +73,16 @@ export function CanvasView({ session, slot, focus, onSlot, onFocus, phone, onUse
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-[44px] shrink-0 items-center gap-1 border-b border-line px-2">
-        <div role="tablist" aria-label="Canvases" onKeyDown={rovingKeyDown("tab")} className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-          {canvases.map((c) => (
-            <button
-              key={c.slot}
-              role="tab"
-              id={`canvas-tab-${c.slot}`}
-              aria-selected={c.slot === current.slot}
-              aria-controls="canvas-panel"
-              tabIndex={c.slot === current.slot ? 0 : -1}
-              onClick={() => onSlot(c.slot)}
-              className={cn("focus-inset inline-flex h-control shrink-0 items-center gap-1.5 rounded-control px-2.5 text-sm font-medium", c.slot === current.slot ? "bg-raised text-fg shadow-[inset_0_0_0_1px_var(--line-strong)]" : "text-muted hover:text-fg")}
-            >
-              {c.name}
-              {session.unseenCanvas && c.slot === 1 ? <span className="size-1.5 rounded-full bg-accent" role="img" aria-label="updated" /> : null}
-            </button>
-          ))}
-        </div>
+        <TabStrip
+          label="Canvases"
+          variant="pill"
+          value={String(current.slot)}
+          onChange={(v) => onSlot(Number(v))}
+          idPrefix="canvas-tab"
+          controls="canvas-panel"
+          className="flex-1"
+          tabs={canvases.map((c) => ({ value: String(c.slot), label: c.name, dot: session.unseenCanvas && c.slot === 1 ? { tone: "accent" as const, label: "updated" } : null }))}
+        />
         {phone ? null : <span className="hidden shrink-0 text-xs text-muted xl:inline">Updated {ago(current.updatedAt as any)}</span>}
         <Tooltip content="Runs in a sandbox: no network, no popups, links ask first">
           <span className="hidden shrink-0 items-center gap-1 px-1.5 text-xs text-muted sm:inline-flex"><Lock className="size-3.5" aria-hidden /> Sandboxed</span>
@@ -153,24 +145,24 @@ export function FilesView({ session, tab, file, onTab, onFile }: { session: Sess
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-[44px] shrink-0 items-center gap-2 border-b border-line px-3">
-        {drafts.length ? <Tag tone="waiting">{drafts.length} unsaved</Tag> : null}
-        <div className="min-w-0 overflow-x-auto"><Segmented label="Files" value={tab === "outputs" ? "outputs" : folder?.id ?? "folders"} onChange={choose} options={options} /></div>
+        {drafts.length ? <Tag tone="waiting" className="shrink-0">{drafts.length} unsaved</Tag> : null}
+        <Segmented label="Files" value={tab === "outputs" ? "outputs" : folder?.id ?? "folders"} onChange={choose} options={options} />
         {tab === "folders" ? (
-          <Tooltip content="Working folder settings"><Button variant="quiet" size="icon-sm" className="ml-auto" aria-label="Working folder settings" onClick={() => setSettingsOpen(true)}><Settings2 /></Button></Tooltip>
-        ) : <span className="ml-auto hidden text-xs text-muted sm:inline">Your attachments and what the agent publishes</span>}
+          <Tooltip content="Working folder settings"><Button variant="quiet" size="icon-sm" className="ml-auto shrink-0" aria-label="Working folder settings" onClick={() => setSettingsOpen(true)}><Settings2 /></Button></Tooltip>
+        ) : <span className="ml-auto hidden min-w-0 shrink truncate text-xs text-muted 2xl:inline">Your attachments and what the agent publishes</span>}
       </div>
       {tab === "folders" ? (
         info.isLoading ? <div className="flex flex-col gap-2 p-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-9" />)}</div>
         : info.error ? (
-          <EmptyState icon={<Folder />} title={["WORKSPACE_FILES_READ_ONLY", "FORBIDDEN"].includes(errorCode(info.error)) || /owner|forbidden|403/i.test((info.error as Error).message) ? "Only the session's owner can browse its folders" : "Couldn't read this session's folders"} className="h-full" action={<Button onClick={() => void info.refetch()}>Try again</Button>}>
+          <EmptyState icon={<FolderGit2 />} title={["WORKSPACE_FILES_READ_ONLY", "FORBIDDEN"].includes(errorCode(info.error)) || /owner|forbidden|403/i.test((info.error as Error).message) ? "Only the session's owner can browse its folders" : "Couldn't read this session's folders"} className="h-full" action={<Button onClick={() => void info.refetch()}>Try again</Button>}>
             {(info.error as Error).message}
           </EmptyState>
         ) : !info.data?.enabled ? (
-          <EmptyState icon={<Folder />} title="Working folders aren't set up on this server" className="h-full">
+          <EmptyState icon={<FolderGit2 />} title="Working folders aren't set up on this server" className="h-full">
             An administrator turns them on by giving the portal a list of folder roots. Until then, files the agent publishes appear under Outputs.
           </EmptyState>
         ) : !folder ? (
-          <EmptyState icon={<Folder />} title="This session has no working folder yet" className="h-full" action={<Button variant="primary" onClick={() => setSettingsOpen(true)}>Choose a working folder</Button>}>
+          <EmptyState icon={<FolderGit2 />} title="This session has no working folder yet" className="h-full" action={<Button variant="primary" onClick={() => setSettingsOpen(true)}>Choose a working folder</Button>}>
             Point the session at a project folder and the agent reads and writes there. You can browse and edit those files here.
           </EmptyState>
         ) : (
@@ -278,7 +270,7 @@ export function DelegationView({ session }: { session: Session }) {
             <div key={s.sessionId} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line-subtle px-3 py-2.5 first:border-t-0" style={{ paddingLeft: 12 + depth * 20 }}>
               <StateGlyph state={st.key} />
               <div className="min-w-0 flex-1">
-                <Link to="/s/$sessionId" params={{ sessionId: s.sessionId }} className="block truncate text-sm font-medium hover:underline">{s.title}</Link>
+                <Link to="/s/$sessionId" params={{ sessionId: s.sessionId }} className="block truncate text-sm font-medium hover:underline pointer-coarse:flex pointer-coarse:min-h-11 pointer-coarse:items-center">{s.title}</Link>
                 <div className="truncate text-xs text-muted"><span className="font-mono">{s.agentId}</span> · {st.word}{st.reason ? ` · ${st.reason}` : ""} · {ago(s.updatedAt)}</div>
                 {st.key === "completed" ? <div className="mt-1 text-xs text-ok">Result ready · open it to read the verdict and summary</div> : null}
                 {st.key === "failed" ? <div className="mt-1 text-xs text-failed">{describeError(s.error).headline}</div> : null}

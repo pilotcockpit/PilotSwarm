@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-11-02T02:16:14.257Z",
+  "records": [
+    {
+      "description": "Review decisions, follow ongoing agent work and open recent outputs in your PilotSwarm workspace.",
+      "ogTitle": "PilotSwarm · Flight Deck",
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "theme": "#f6f7f8",
+      "title": "(4) Overview · PilotSwarm · Flight Deck"
+    },
+    {
+      "description": "Explore available agents and manage the packages that supply their capabilities in PilotSwarm.",
+      "ogTitle": "PilotSwarm · Flight Deck",
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "title": "(4) Agents · Library · PilotSwarm · Flight Deck",
+      "titleTags": 1
+    },
+    {
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "step": "back",
+      "title": "(4) Overview · PilotSwarm · Flight Deck"
+    },
+    {
+      "description": "Explore available agents and manage the packages that supply their capabilities in PilotSwarm.",
+      "ogTitle": "PilotSwarm · Flight Deck",
+      "robots": "noindex, nofollow, nosnippet, noimageindex",
+      "step": "forward-and-packages",
+      "title": "(4) Packages · Library · PilotSwarm · Flight Deck",
+      "titleTags": 1
+    }
+  ]
+}

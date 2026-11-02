@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build --workspace=pilotswarm-flightdeck",
+  "outputDirectory": "packages/flightdeck/dist",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "headers": [{
+    "source": "/(.*)",
+    "headers": [
+      { "key": "X-Robots-Tag", "value": "noindex, nofollow, nosnippet, noimageindex" },
+      { "key": "X-Content-Type-Options", "value": "nosniff" },
+      { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+      { "key": "Content-Security-Policy", "value": "frame-src 'self' https://login.microsoftonline.com" },
+      { "key": "X-DNS-Prefetch-Control", "value": "off" }
+    ]
+  }]
+}

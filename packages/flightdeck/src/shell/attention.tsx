@@ -1,20 +1,28 @@
 import * as React from "react";
-import { useSessions } from "@/data/source";
-import { needsYou } from "@/data/state";
+import { useAttention } from "@/components/sidebar/use-attention";
+import { useRouterState } from "@tanstack/react-router";
+import { pageMetadata } from "@/lib/page-metadata";
 
 /**
- * The browser tab says how many sessions need you, so a supervisor can leave the
- * tab in the background: "(3) PilotSwarm · Flight Deck". Restores the plain title
- * when nothing needs attention or the app unmounts.
+ * One owner for route titles, descriptions and the existing attention prefix.
+ * Social tags stay generic; no workspace content is copied into the head.
  */
 export function AttentionTitle() {
-  const { data: sessions } = useSessions();
-  const count = React.useMemo(() => (sessions || []).filter(needsYou).length, [sessions]);
-  const base = React.useRef<string | null>(null);
+  const count = useAttention().items.length;
+  const path = useRouterState({ select: (state) => state.location.pathname });
+  const search = useRouterState({ select: (state) => state.location.searchStr });
+  const base = React.useRef<{ title: string; description: string } | null>(null);
   React.useEffect(() => {
-    if (base.current === null) base.current = document.title.replace(/^\(\d+\)\s*/, "");
-    document.title = count ? `(${count}) ${base.current}` : base.current;
-  }, [count]);
-  React.useEffect(() => () => { if (base.current) document.title = base.current; }, []);
+    const description = document.querySelector('meta[name="description"]');
+    if (base.current === null) base.current = { title: document.title.replace(/^\(\d+\)\s*/, ""), description: description?.getAttribute("content") || "" };
+    const metadata = pageMetadata(path, search);
+    document.title = count ? `(${count}) ${metadata.title}` : metadata.title;
+    description?.setAttribute("content", metadata.description);
+  }, [count, path, search]);
+  React.useEffect(() => () => {
+    if (!base.current) return;
+    document.title = base.current.title;
+    document.querySelector('meta[name="description"]')?.setAttribute("content", base.current.description);
+  }, []);
   return null;
 }

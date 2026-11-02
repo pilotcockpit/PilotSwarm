@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowUpRight, ChevronRight, Loader2, MessageSquareReply } from "lucide-react";
+import { ArrowUpRight, ChevronRight, Loader2, MessageSquareReply, X } from "lucide-react";
 import { toast } from "sonner";
 import { useRefresh, useSession, useSource } from "@/data/source";
 import { describeError, pauseSentence, sessionState } from "@/data/state";
@@ -9,6 +9,7 @@ import { AnswerChoices } from "@/components/answer-choices";
 import { StateGlyph, StatePill } from "@/components/state";
 import { Button } from "@/components/ui/button";
 import { AgentIdentity, WorkCard, WorkCardBody, WorkCardFooter } from "@/components/ui/work-card";
+import { ProjectIcon } from "@/components/project-icon";
 import { useRetry } from "@/lib/retry";
 import { ago, cn, plural } from "@/lib/utils";
 
@@ -18,10 +19,10 @@ const actionClass = "h-auto min-h-9 max-w-full whitespace-normal px-3 py-1.5 tex
 
 /** Asks the agent to retry. There is no restart operation, so the request is a chat message and says so. */
 const retryMessage = () => "Please retry the last step.";
-function RetryButton({ session: s }: { session: Session }) {
+function RetryButton({ session: s, compact = false }: { session: Session; compact?: boolean }) {
   const { retry, busy } = useRetry(s.sessionId, retryMessage, s.title);
   return (
-    <Button className={actionClass} variant="quiet" disabled={busy} title="Asks the agent to retry its last step; it appears in the chat" onClick={() => void retry()}>
+    <Button className={compact ? undefined : actionClass} size={compact ? "sm" : undefined} variant="quiet" disabled={busy} title="Asks the agent to retry its last step; it appears in the chat" onClick={() => void retry()}>
       {busy ? <Loader2 className="animate-spin" aria-hidden /> : null} Retry
     </Button>
   );
@@ -104,14 +105,15 @@ export function NeedsRow({ session: s, index = 0, featured = false }: { session:
  * Several sessions failing for one cause are one problem. The group says so once and opens to the
  * sessions it covers, each with its own detail and its own Retry.
  */
-export function FailureGroup({ sessions, index = 0 }: { sessions: Session[]; index?: number }) {
+export function FailureGroup({ sessions, index = 0, compact = false }: { sessions: Session[]; index?: number; compact?: boolean }) {
   const [open, setOpen] = React.useState(false);
   const navigate = useNavigate();
   const err = describeError(sessions[0]?.error);
   const id = React.useId();
+  const Wrap = compact ? CompactWrap : WorkCard;
   return (
-    <WorkCard index={index}>
-      <div className="flex items-start gap-3 px-5 py-4">
+    <Wrap index={index}>
+      <div className={cn("flex items-start gap-3", compact ? "px-4 py-3" : "px-5 py-4")}>
         <StateGlyph state="failed" className="mt-1.25" />
         <div className="min-w-0 flex-1 basis-48">
           <p className="text-prose font-semibold">{plural(sessions.length, "session")} failed with the same error</p>
@@ -141,6 +143,44 @@ export function FailureGroup({ sessions, index = 0 }: { sessions: Session[]; ind
           })}
         </ul>
       ) : null}
-    </WorkCard>
+    </Wrap>
+  );
+}
+
+/** A row of the attention list, not a card of its own. */
+function CompactWrap({ children }: { children: React.ReactNode; index?: number }) {
+  return <div className="border-t border-line-subtle first:border-t-0">{children}</div>;
+}
+
+/**
+ * One line of the Needs you list, for everything after the first (which is a card that answers in place): what and
+ * why, where it lives, and the move that clears it. A question opens its session to be answered; a failure offers its
+ * fix and can be dismissed until it fails again; a hold points at the provider.
+ */
+export function AttentionRow({ session: s, project, onDismiss }: { session: Session; project?: string | null; onDismiss?: () => void }) {
+  const st = sessionState(s);
+  const navigate = useNavigate();
+  const err = st.key === "failed" ? describeError(s.error) : null;
+  const reason = st.key === "needs" ? s.pendingQuestion?.question || (typeof s.waitReason === "string" ? s.waitReason : "") || "The agent asked a question." : err ? `${err.headline}${err.detail ? `: ${lowerFirst(err.detail)}` : "."}` : pauseSentence(s) || "Paused by a usage limit.";
+  return (
+    <div className="flex flex-wrap items-start gap-x-3 gap-y-2 border-t border-line-subtle px-4 py-3 first:border-t-0">
+      <StateGlyph state={st.key} hold={st.waitKind === "hold"} className="mt-1.5" />
+      <div className="min-w-0 flex-1 basis-56">
+        <Link to="/s/$sessionId" params={{ sessionId: s.sessionId }} className="block break-words text-sm font-medium underline-offset-2 hover:underline pointer-coarse:min-h-11">{s.title || "Untitled session"}</Link>
+        <p className="mt-0.5 line-clamp-2 break-words text-sm text-muted">{st.key === "needs" ? `“${reason}”` : reason}</p>
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-faint">
+          {project ? <span className="inline-flex items-center gap-1"><ProjectIcon className="size-3" />{project}</span> : null}
+          {s.agentId ? <span>{s.agentId}</span> : null}
+          <span className="tabular-nums">{ago(s.updatedAt)}</span>
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        {st.key === "needs" ? <Button size="sm" onClick={() => navigate({ to: "/s/$sessionId", params: { sessionId: s.sessionId } })}><MessageSquareReply /> Answer</Button> : null}
+        {err?.provider ? <Button size="sm" onClick={() => navigate({ to: "/providers", search: { provider: err.provider } })}>Fix provider</Button> : null}
+        {st.key === "failed" ? <RetryButton session={s} compact /> : null}
+        {st.key !== "needs" && st.key !== "failed" ? <Button size="sm" onClick={() => navigate({ to: "/providers" })}>Open provider</Button> : null}
+        {onDismiss ? <Button variant="quiet" size="icon-sm" aria-label={`Dismiss ${s.title}`} title="Dismiss until it fails again" onClick={onDismiss}><X /></Button> : null}
+      </div>
+    </div>
   );
 }

@@ -29,6 +29,7 @@ vi.mock("@/components/admin/system-sessions-panel", () => ({ RestartDialog: () =
 
 import { SessionsSidebar } from "./sessions-sidebar";
 import { UiStateProvider } from "@/shell/ui-state";
+import { resetSidebarView, SIDEBAR_SECTIONS } from "./prefs";
 
 // The REAL sidebar list, kept alive across a data change: a row that moves to another section is unmounted and
 // mounted again, which in a browser drops keyboard focus to the page. The sidebar must hand it back.
@@ -37,6 +38,7 @@ const rowFor = (r: Rendered, id: string): HostNode => r.find((n) => n.type === "
 const body = { tagName: "BODY" } as any;
 
 async function mount(initial: any[]) {
+  resetSidebarView(SIDEBAR_SECTIONS);
   let sessions = initial;
   const { source } = stubSource({ listGroups: [], getProfile: {} });
   source.listSessions = async () => sessions;

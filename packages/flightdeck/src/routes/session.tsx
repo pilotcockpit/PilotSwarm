@@ -3,7 +3,7 @@ import { useIntent } from "@/shell/intents";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { Group, Panel as SplitPanel, Separator, useDefaultLayout } from "react-resizable-panels";
 import {
-  Activity, ArrowUp, PanelRight, PanelRightClose, Files, GitBranch, LayoutPanelLeft, ListPlus, Lock, Navigation, Paperclip, Square,
+  Activity, ArrowUp, Info, PanelRightClose, Files, GitBranch, LayoutPanelLeft, ListPlus, Lock, Navigation, Paperclip, Square,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TopBar } from "@/shell/AppShell";
@@ -26,7 +26,7 @@ import { ActivityView, CanvasView, DelegationView, FilesView, useCanvases } from
 import { cn, shortId } from "@/lib/utils";
 import type { SessionView } from "@/router";
 import { isCanvasFile } from "./home";
-import { rovingKeyDown } from "@/lib/roving";
+import { TabStrip, type TabItem } from "@/components/ui/tabs";
 import { sessionIsViewOnly } from "@/lib/session-access";
 import { createSessionComposerMemory } from "@/lib/session-composer";
 import { fillComposer } from "@/lib/composer";
@@ -43,7 +43,7 @@ type Companion = Exclude<SessionView, "chat">;
 const VIEW_META: Record<SessionView, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   chat: { label: "Chat", icon: Navigation },
   canvas: { label: "Canvas", icon: LayoutPanelLeft },
-  context: { label: "Context", icon: PanelRight },
+  context: { label: "Context", icon: Info },
   files: { label: "Files", icon: Files },
   delegation: { label: "Delegation", icon: GitBranch },
   activity: { label: "Activity", icon: Activity },
@@ -107,7 +107,7 @@ function SessionPageContent() {
   if (detailFailed && !session) {
     return (
       <>
-        <TopBar crumbs={[{ label: "Sessions", to: "/sessions" }, { label: "Connection problem" }]} />
+        <TopBar crumbs={[{ label: "Projects", to: "/projects" }, { label: "Connection problem" }]} />
         <EmptyState
           title="Couldn't load this session"
           className="flex-1"
@@ -122,8 +122,8 @@ function SessionPageContent() {
   if (missing) {
     return (
       <>
-        <TopBar crumbs={[{ label: "Sessions", to: "/sessions" }, { label: "Not found" }]} />
-        <EmptyState title="This session isn't here" className="flex-1" action={<Button asChild><Link to="/sessions">Back to Sessions</Link></Button>}>
+        <TopBar crumbs={[{ label: "Projects", to: "/projects" }, { label: "Not found" }]} />
+        <EmptyState title="This session isn't here" className="flex-1" action={<Button asChild><Link to="/projects">Back to Projects</Link></Button>}>
           It may have been deleted, or you may not have access. Session <span className="font-mono">{shortId(sessionId)}</span>.
         </EmptyState>
       </>
@@ -145,7 +145,7 @@ function SessionPageContent() {
 
   return (
     <>
-      {session ? <SessionHeader session={session} parent={parent} childCount={children.length} view={view} paneOpen={Boolean(companion) && !tabsMode} counts={counts} onView={chooseView} /> : <TopBar crumbs={[{ label: "Sessions", to: "/sessions" }, { label: <Skeleton className="h-6 w-48" /> }]} />}
+      {session ? <SessionHeader session={session} parent={parent} childCount={children.length} /> : <TopBar crumbs={[{ label: "Projects", to: "/projects" }, { label: <Skeleton className="h-6 w-48" /> }]} />}
       {detailFailed && session ? <div role="status" className="flex flex-wrap items-center gap-2 border-b border-line bg-raised px-4 py-2 text-sm"><span className="min-w-0 flex-1 text-muted">Session details could not refresh. Showing the last available state.</span><Button size="sm" disabled={refreshingDetail} onClick={() => void retryDetail()}>Try again</Button></div> : null}
       <div ref={bodyRef} className="flex min-h-0 flex-1 flex-col">
         {tabsMode ? (
@@ -188,42 +188,21 @@ function SplitLayout({ chat, companion }: { chat: React.ReactNode; companion: Re
 
 function ViewTabs({ view, counts, onView, includeChat = false, closable = false, onClose, attention = null, canvasUpdated = false }: { view: SessionView; counts: Partial<Record<SessionView, number>>; onView: (v: SessionView) => void; includeChat?: boolean; closable?: boolean; onClose?: () => void; attention?: "needs" | "failed" | null; canvasUpdated?: boolean }) {
   const views: SessionView[] = includeChat ? ["chat", "context", "canvas", "files", "delegation", "activity"] : ["context", "canvas", "files", "delegation", "activity"];
+  const tabs: Array<TabItem<SessionView>> = views.map((v) => ({
+    value: v,
+    label: VIEW_META[v].label,
+    icon: VIEW_META[v].icon,
+    badge: counts[v],
+    // In the narrower side pane only the open view keeps its name; the others are icons, so every view stays in reach.
+    iconOnly: !includeChat && v !== view,
+    dot: v === "chat" && attention ? { tone: attention === "failed" ? "failed" : "needs", label: attention === "failed" ? "failed" : "needs you" } : v === "canvas" && canvasUpdated ? { tone: "accent", label: "updated" } : null,
+  }));
   return (
     <div className={cn("flex h-10 shrink-0 items-center gap-0.5 border-b border-line px-2", includeChat && "max-sm:h-12 max-sm:px-0")}>
-     {/* The tablist holds only tabs (an ARIA requirement): the close button sits beside it, not inside it. */}
-     <div role="tablist" aria-label="Session views" onKeyDown={rovingKeyDown("tab")} className={cn("flex items-center gap-0.5", includeChat && "fd-scroll-x max-sm:min-w-0 max-sm:flex-1 max-sm:gap-0 max-sm:overflow-x-auto")}>
-      {views.map((v) => {
-        const Icon = VIEW_META[v].icon;
-        const active = v === view;
-        return (
-          <button
-            key={v}
-            role="tab"
-            id={`view-tab-${v}`}
-            aria-selected={active}
-            aria-controls="session-view-panel"
-            tabIndex={active ? 0 : -1}
-            onClick={() => onView(v)}
-            className={cn(
-              "focus-inset relative inline-flex h-10 shrink-0 items-center gap-1.5 px-2.5 text-sm font-medium",
-              // Phones: icon over a short label, equal widths while they fit; below that the strip scrolls sideways (with edge hints) instead of letting labels overlap.
-              includeChat && "max-sm:h-12 max-sm:min-w-16 max-sm:flex-1 max-sm:flex-col max-sm:justify-center max-sm:gap-0.5 max-sm:px-1 max-sm:text-xs",
-              active ? "text-fg" : "text-muted hover:text-fg",
-            )}
-          >
-            <Icon className="size-4" />
-            {VIEW_META[v].label}
-            {counts[v] ? <span className={cn("text-xs tabular-nums text-muted", includeChat && "max-sm:absolute max-sm:right-2 max-sm:top-1 max-sm:text-xs")}>{counts[v]}</span> : null}
-            {v === "chat" && attention && view !== "chat" ? <span className={cn("size-1.5 rounded-full max-sm:absolute max-sm:left-[calc(50%+10px)] max-sm:top-2", attention === "failed" ? "bg-failed" : "bg-needs")} aria-label={attention === "failed" ? "failed" : "needs you"} /> : null}
-            {v === "canvas" && canvasUpdated && view !== "canvas" ? <span className="size-1.5 rounded-full bg-accent max-sm:absolute max-sm:left-[calc(50%+10px)] max-sm:top-2" aria-label="updated" /> : null}
-            {active ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-t bg-accent" aria-hidden /> : null}
-          </button>
-        );
-      })}
-     </div>
+      <TabStrip label="Session views" value={view} onChange={onView} tabs={tabs} idPrefix="view-tab" controls="session-view-panel" stacked={includeChat} className={includeChat ? "max-sm:flex-1" : "flex-1"} />
       {closable ? (
         <Tooltip content="Close the side pane">
-          <Button variant="quiet" size="icon-sm" className="ml-auto" aria-label="Close the side pane" onClick={onClose}><PanelRightClose /></Button>
+          <Button variant="quiet" size="icon-sm" className="shrink-0" aria-label="Close the side pane" onClick={onClose}><PanelRightClose /></Button>
         </Tooltip>
       ) : null}
     </div>
@@ -475,14 +454,14 @@ export function Composer({ session }: { session: Session }) {
                 if (canSend && !busy) void send(running ? "queue" : "send");
               }
             }}
-            placeholder={readOnly ? "Replies are off for you" : running ? `Add to the queue, or steer ${session.agentId || "the agent"}…` : `Message ${session.agentId || "the agent"}…`}
+            placeholder={readOnly ? "Replies are off for you" : running ? `Add to the queue, or steer ${session.agentId || "the agent"}…${phoneBox ? "" : " Enter queues it."}` : `Message ${session.agentId || "the agent"}…${phoneBox ? "" : " Enter to send, Shift+Enter for a new line."}`}
             aria-label="Message"
             className="min-h-10 border-0 bg-transparent focus-visible:ring-0 sm:min-h-[52px]"
           />
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2 pb-1 sm:pb-2">
+          <div className="@container flex flex-wrap items-center gap-x-2 gap-y-1 px-2 pb-1 sm:pb-2">
             <ComposerSettings session={session} running={running} />
-            {/* The key hint shows while you are typing and there is room; it never takes space from the chips. */}
-            <span className="hidden min-w-0 flex-1 basis-0 truncate text-xs text-muted sm:group-focus-within:block">{running ? "Enter queues it · Steer adds it to this turn" : "Enter to send · Shift+Enter for a new line"}</span>
+            {/* The key hint shows while you are typing and there is room; it never takes space from the chips. The short form always fits; the rest appears once the box is wide enough. */}
+            <span className="hidden min-w-0 flex-1 basis-0 truncate text-xs text-muted sm:group-focus-within:block">{running ? <>Enter queues it<span className="hidden @4xl:inline"> · Steer adds it to this turn</span></> : <>Enter to send<span className="hidden @3xl:inline"> · Shift+Enter for a new line</span></>}</span>
             <input ref={fileInput} type="file" multiple hidden tabIndex={-1} aria-hidden onChange={(e) => { void att.add(Array.from(e.target.files || [])); e.target.value = ""; }} />
             <Tooltip content="Attach images or files. You can also drop or paste them here.">
               <span className="ml-auto"><Button size="icon-sm" variant="quiet" disabled={Boolean(readOnly)} aria-label="Attach images or files" onClick={() => fileInput.current?.click()}><Paperclip /></Button></span>

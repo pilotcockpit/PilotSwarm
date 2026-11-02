@@ -3,7 +3,8 @@ import { Command } from "cmdk";
 import { Dialog as D } from "radix-ui";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Bot, Brain, Copy, FileSearch, FolderInput, FolderOutput, Flag, Package, Paperclip, Search, House, KeyRound, Keyboard, LayoutGrid, MessagesSquare, Plus, RotateCcw, Share2, ShieldCheck, SlidersHorizontal, ToggleLeft, Wrench } from "lucide-react";
+import { ProjectIcon } from "@/components/project-icon";
+import { Bot, Brain, Copy, FileSearch, FolderOutput, Flag, Package, Paperclip, Search, House, KeyRound, Keyboard, LayoutGrid, Plus, RotateCcw, Share2, ShieldCheck, SlidersHorizontal, ToggleLeft, Wrench } from "lucide-react";
 import { useAgents, useProfile, useSessions, useSource } from "@/data/source";
 import { STATE_TONE, sessionState } from "@/data/state";
 import { cn } from "@/lib/utils";
@@ -61,7 +62,7 @@ export function CommandPalette() {
               {here ? (
                 <Command.Group heading="This session">
                   <Item icon={<Share2 />} onSelect={act("share-session", here)} keywords={["access", "people", "visibility", "invite"]}>Share session…</Item>
-                  <Item icon={<FolderInput />} onSelect={act("move-to-group", here)} keywords={["group", "organise"]}>Move session to group…</Item>
+                  <Item icon={<ProjectIcon />} onSelect={act("move-to-group", here)} keywords={["group", "folder", "project", "organise"]}>Move session to project…</Item>
                   <Item icon={<Copy />} onSelect={run(() => { void navigator.clipboard?.writeText(`${window.location.origin}${here}`); toast.success("Link copied", { description: "People still need access to open it." }); })} keywords={["url", "link"]}>Copy session link</Item>
                   {canReply ? <Item icon={<Paperclip />} onSelect={act("attach-file", here, { view: "chat" })} keywords={["upload", "attachment", "image"]}>Attach file…</Item> : null}
                   <Item icon={<FileSearch />} onSelect={act("find-file", here, { view: "files", files: "folders" })} keywords={["file", "folder", "workspace", "find"]}>Go to file…</Item>
@@ -98,7 +99,7 @@ export function CommandPalette() {
               ) : null}
               <Command.Group heading="Go to">
                 <Item icon={<House />} onSelect={go("/")} shortcut="G H">Home</Item>
-                <Item icon={<MessagesSquare />} onSelect={go("/sessions")} shortcut="G S">Sessions</Item>
+                <Item icon={<ProjectIcon />} onSelect={go("/projects")} shortcut="G S" keywords={["sessions", "projects", "all sessions"]}>Projects and sessions</Item>
                 <Item icon={<LayoutGrid />} onSelect={go("/boards")} shortcut="G B">Boards</Item>
                 <Item icon={<FolderOutput />} onSelect={go("/outputs")} shortcut="G O">Outputs</Item>
                 <Item icon={<Bot />} onSelect={go("/library")} shortcut="G L">Agent library</Item>

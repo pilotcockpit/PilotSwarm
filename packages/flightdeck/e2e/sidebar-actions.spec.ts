@@ -138,18 +138,18 @@ test("Rename from the title: Escape sends nothing, Enter sends one targeted call
   expect(calls[1].params).toEqual({ id: TARGET.id, title: "Cost report, weekly" });
 });
 
-test("Pinning sends nothing to the server, from the keyboard or either menu", async ({ page }, info) => {
+test("Pinning saves only the pin list to the account, from the keyboard or either menu", async ({ page }, info) => {
   test.skip(isPhone(info), "keyboard pinning is a desktop path");
   await gotoDemo(page, `/s/${TARGET.id}`, info);
   const { list } = await sidebar(page, info);
   await row(list, "Onboarding guide rewrite").focus();
   await page.keyboard.press("p");
   await page.getByRole("button", { name: "Session actions" }).click();
-  await page.getByRole("menuitem", { name: /^Pin/ }).click();
+  await page.getByRole("menuitem", { name: /^(Pin|Unpin)/ }).click(); // the demo starts with this session pinned
   await expect(list.getByRole("heading", { name: /^Pinned/ })).toBeVisible();
-  // Pins are this person's, in this browser: no operation that changes anything is ever sent.
+  // Pins roam with the account, so the profile settings are written; nothing about any session is ever changed.
   const sent = (await demoCalls(page)).map((c) => c.op).filter((op) => /^(set|create|place|rename|complete|cancel|delete|grant|revoke|update|upload|send|regenerate|restart)/i.test(op));
-  expect(sent).toEqual([]);
+  expect(new Set(sent)).toEqual(new Set(["setCurrentUserProfileSettings"]));
 });
 
 test("Pinning with P keeps keyboard focus on the same session, and the arrow keys carry on from there", async ({ page }, info) => {
@@ -159,15 +159,16 @@ test("Pinning with P keeps keyboard focus on the same session, and the arrow key
   await expect(list.locator("a[data-sidebar-row]").first()).toBeVisible();
   const activeId = () => page.evaluate(() => document.activeElement?.getAttribute("data-session-id") ?? null);
   await row(list, "Onboarding guide rewrite").focus();
-  await page.keyboard.press("p"); // the row leaves Recent and appears under Pinned: a different place in the DOM
-  await expect(list.getByRole("heading", { name: /^Pinned/ })).toBeVisible();
+  const pinnedSection = list.locator("section").filter({ has: page.getByRole("heading", { name: /^Pinned/ }) });
+  await page.keyboard.press("p"); // the row appears under Pinned too: a different place in the DOM
+  await expect(row(pinnedSection, "Onboarding guide rewrite")).toBeVisible();
   await expect.poll(activeId).toBe(ONBOARD);
   await page.keyboard.press("ArrowDown");
   await expect.poll(async () => { const id = await activeId(); return id && id !== ONBOARD; }).toBeTruthy();
   await page.keyboard.press("ArrowUp");
   await expect.poll(activeId).toBe(ONBOARD);
   await page.keyboard.press("p"); // and back
-  await expect(list.getByRole("heading", { name: /^Pinned/ })).toHaveCount(0);
+  await expect(row(pinnedSection, "Onboarding guide rewrite")).toHaveCount(0);
   await expect.poll(activeId).toBe(ONBOARD);
 });
 
@@ -188,27 +189,12 @@ test("Deleting the focused row hands focus to its neighbour, and the arrows keep
   await expect.poll(async () => { const id = await activeId(); return id && id !== here; }).toBeTruthy();
 });
 
-test("A system session cannot be renamed, completed, cancelled or deleted from the sidebar; an admin restarts it", async ({ page }, info) => {
-  test.skip(isPhone(info), "covered on the desktop sidebar; the phone drawer uses the same menu");
+test("System sessions are not listed in the sidebar; they live in Admin", async ({ page }, info) => {
   await gotoDemo(page, "/", info);
   const { list } = await sidebar(page, info);
-  await page.getByRole("button", { name: "Filter and group sessions" }).click();
-  await page.getByRole("switch", { name: "Show system sessions" }).click();
-  await page.keyboard.press("Escape");
-  const name = "Sweeper Agent";
-  await expect(row(list, name)).toBeVisible();
-  await row(list, name).hover();
-  await page.getByRole("button", { name: `Actions for ${name}` }).click();
-  const menu = page.getByRole("menu");
-  for (const item of ["Rename", "Complete", "Cancel", "Delete"]) await expect(menu.getByRole("menuitem", { name: item, exact: true })).toHaveAttribute("aria-disabled", "true");
-  await menu.getByRole("menuitem", { name: /^Restart/ }).click();
-  await expect(page.getByRole("dialog", { name: `Restart ${name}` })).toBeVisible();
-  await page.keyboard.press("Escape");
-  // The Delete key does not open the delete dialog for it either.
-  await row(list, name).focus();
-  await page.keyboard.press("Delete");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  expect(await demoCalls(page, "deleteSession")).toHaveLength(0);
+  await expect(list.locator("a[data-sidebar-row]").first()).toBeVisible();
+  await expect(row(list, "Sweeper Agent")).toHaveCount(0);
+  await expect(row(list, "Resource Manager Agent")).toHaveCount(0);
 });
 
 test("The title menu of a system session disables the ordinary actions and offers Restart", async ({ page }, info) => {
@@ -290,34 +276,38 @@ test("Needs you changes are announced politely, once, after they settle", async 
   const status = root.locator("[data-needs-status]");
   await expect(status).toHaveAttribute("aria-live", "polite");
   await expect(status).toHaveText("");
-  // Demo data: p95 (asks a question), deps (failed) and research (paused on a limit) need you. Completing p95 leaves two.
+  // Demo data: p95 (asks a question), deps and a sub-agent (failed) and research (paused on a limit) need you. Completing p95 leaves three.
   await row(list, "Investigate p95 spike on chk").hover();
   await page.getByRole("button", { name: "Actions for Investigate p95 spike on chk" }).click();
   await page.getByRole("menuitem", { name: "Complete", exact: true }).click();
   await page.getByRole("dialog", { name: "Complete this session?" }).getByRole("button", { name: "Complete", exact: true }).click();
-  await expect(status).toHaveText("2 sessions need you", { timeout: 8000 });
+  await expect(status).toHaveText("3 sessions need you", { timeout: 8000 });
 });
 
 test("Stored preferences are per person and per data source, and bad stored values cannot crash the sidebar", async ({ page }, info) => {
   test.skip(isPhone(info), "desktop path");
   const errors = watchConsole(page);
   // An old, shared key from before preferences were scoped: it must not pin anything for anyone.
-  await page.addInitScript((id) => { try { if (!localStorage.getItem("__seeded")) { localStorage.setItem("fd.pins", JSON.stringify([id])); localStorage.setItem("__seeded", "1"); } } catch { /* storage unavailable */ } }, ONBOARD);
+  // The scoped keys hold valid JSON of the wrong shape, which used to take the whole shell down.
+  await page.addInitScript((id) => {
+    try {
+      if (localStorage.getItem("__seeded")) return;
+      localStorage.setItem("fd.pins", JSON.stringify([id]));
+      const scope = "demo:entra:sam.lee@contoso.com";
+      localStorage.setItem(`fd.pins@${scope}`, "{}");
+      localStorage.setItem(`fd.pins.projects@${scope}`, "42");
+      localStorage.setItem(`fd.dismissed@${scope}`, "\"nope\"");
+      localStorage.setItem("__seeded", "1");
+    } catch { /* storage unavailable */ }
+  }, ONBOARD);
   await gotoDemo(page, "/", info);
-  let { list } = await sidebar(page, info);
+  const { list } = await sidebar(page, info);
   await expect(list.locator("a[data-sidebar-row]").first()).toBeVisible();
-  await expect(list.getByRole("heading", { name: /^Pinned/ })).toHaveCount(0);
+  const pinnedSection = list.locator("section").filter({ has: page.getByRole("heading", { name: /^Pinned/ }) });
+  await expect(row(pinnedSection, "Onboarding guide rewrite")).toHaveCount(0); // the old shared key pins nothing
   await row(list, "Onboarding guide rewrite").focus();
   await page.keyboard.press("p");
-  const keys = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("fd.pins")));
-  expect(keys.filter((k) => k !== "fd.pins")).toHaveLength(1);
-  expect(keys.find((k) => k !== "fd.pins")).toMatch(/^fd\.pins@demo:/); // scoped by data source and person
-  // Valid JSON of the wrong shape, in every sidebar key, used to take the whole shell down.
-  await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (/^fd\.(pins|sidebar\.)/.test(k) && k !== "fd.pins") localStorage.setItem(k, k.includes("pins") ? "{}" : k.includes("groupBy") ? "\"folder\"" : k.includes("state") ? "\"sideways\"" : "42"); });
-  await page.reload();
-  ({ list } = await sidebar(page, info));
-  await expect(list.locator("a[data-sidebar-row]").first()).toBeVisible();
-  await expect(list.getByRole("heading", { name: /^Pinned/ })).toHaveCount(0);
+  await expect(row(pinnedSection, "Onboarding guide rewrite")).toBeVisible();
   expect(errors).toEqual([]);
 });
 

@@ -1,0 +1,180 @@
+{
+  "source": "Existing Flight Deck swarm favicon; no Microsoft corporate assets",
+  "font": {
+    "name": "Inter",
+    "license": "SIL OFL 1.1",
+    "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"
+  },
+  "files": [
+    {
+      "path": "assets/brand/app/app-icon.svg",
+      "bytes": 509,
+      "sha256": "8985a7b331b28a87a0f4fcc7c989dbee4abb4faa0133a6326f5cf9e0dab81643"
+    },
+    {
+      "path": "assets/brand/app/maskable.svg",
+      "bytes": 507,
+      "sha256": "35c1ab946ea87931c0af51356de84aa384fb5dddab773db8b916bc80f09334d9"
+    },
+    {
+      "path": "assets/brand/brand-sheet.png",
+      "bytes": 179015,
+      "sha256": "7f661e6fc598306b10b761a455fd1bd2a3e7736367da6da77bd75fa07925c209"
+    },
+    {
+      "path": "assets/brand/brand-sheet.svg",
+      "bytes": 409367,
+      "sha256": "524c4cccca1e204e3e0a7f6044adebce37677a5d585d5f1cfdad2fef7dcbc631"
+    },
+    {
+      "path": "assets/brand/exports/avatar-1024.png",
+      "bytes": 59978,
+      "sha256": "5078ffb20dbcf24bd20af82f02f0b2a0acd15c65d2832bb418b17ae761aa0932"
+    },
+    {
+      "path": "assets/brand/marks/mark-cobalt.svg",
+      "bytes": 442,
+      "sha256": "36ac0937665263b778b36a570f82339bc1cd9c54153aa547c4c62304acb27b1d"
+    },
+    {
+      "path": "assets/brand/marks/mark-ink.svg",
+      "bytes": 442,
+      "sha256": "d5b2eb12ee20fe4b8af317be40e0fc91c92c22664c3de9963031161d979d81f2"
+    },
+    {
+      "path": "assets/brand/marks/mark-white.svg",
+      "bytes": 442,
+      "sha256": "86c04affcf7c95cb99a58f5cf9a51c97b064b9256400bdc494bd12d51c07a26b"
+    },
+    {
+      "path": "assets/brand/marks/stacked-dark.svg",
+      "bytes": 15377,
+      "sha256": "995c0254377c25fb2f6d9a15d0d20d89b0123736945d1d8a2285a3bb94d1804c"
+    },
+    {
+      "path": "assets/brand/marks/stacked-light.svg",
+      "bytes": 15377,
+      "sha256": "5b2dcc98fa000dea44db8bc48a0bcf10817a403559017c04a81ecb66f30d974a"
+    },
+    {
+      "path": "assets/brand/marks/wordmark-dark.svg",
+      "bytes": 15368,
+      "sha256": "c8fc9a23520f4059c30d4e2fdd7d848d440a735c606c3dc92b460d1b4e8b24ad"
+    },
+    {
+      "path": "assets/brand/marks/wordmark-light.svg",
+      "bytes": 15368,
+      "sha256": "fc9e85135212c10d56011a71333e8e88c94ae3da33a61d5eb6ec1df43e7653ea"
+    },
+    {
+      "path": "assets/brand/social/og-dark.svg",
+      "bytes": 173723,
+      "sha256": "11f5ce8d582b659c58a26cd00e6c2432755090370ea5c677f6090cd619ef773c"
+    },
+    {
+      "path": "assets/brand/social/og-default.svg",
+      "bytes": 173723,
+      "sha256": "b18ea30624e9b6045d16bd80d96728d9c096747bf586fd51aa7b68d741b50e0f"
+    },
+    {
+      "path": "assets/brand/social/twitter-card.svg",
+      "bytes": 173723,
+      "sha256": "f560e1dfa2bdebfddaf802991a3b8e4b26fb24e0da4ae0bfbb52b7c0d7fc84b4"
+    },
+    {
+      "path": "packages/flightdeck/public/apple-touch-icon.png",
+      "bytes": 15993,
+      "sha256": "95db0dbb8336dd2e0b46f6106fda199f3c425c63a2308902978b8cccf9b403cc"
+    },
+    {
+      "path": "packages/flightdeck/public/brand/mark-cobalt.svg",
+      "bytes": 442,
+      "sha256": "36ac0937665263b778b36a570f82339bc1cd9c54153aa547c4c62304acb27b1d"
+    },
+    {
+      "path": "packages/flightdeck/public/brand/mark-ink.svg",
+      "bytes": 442,
+      "sha256": "d5b2eb12ee20fe4b8af317be40e0fc91c92c22664c3de9963031161d979d81f2"
+    },
+    {
+      "path": "packages/flightdeck/public/brand/mark-white.svg",
+      "bytes": 442,
+      "sha256": "86c04affcf7c95cb99a58f5cf9a51c97b064b9256400bdc494bd12d51c07a26b"
+    },
+    {
+      "path": "packages/flightdeck/public/brand/stacked-dark.svg",
+      "bytes": 15377,
+      "sha256": "995c0254377c25fb2f6d9a15d0d20d89b0123736945d1d8a2285a3bb94d1804c"
+    },
+    {
+      "path": "packages/flightdeck/public/brand/stacked-light.svg",
+      "bytes": 15377,
+      "sha256": "5b2dcc98fa000dea44db8bc48a0bcf10817a403559017c04a81ecb66f30d974a"
+    },
+    {
+      "path": "packages/flightdeck/public/brand/wordmark-dark.svg",
+      "bytes": 15368,
+      "sha256": "c8fc9a23520f4059c30d4e2fdd7d848d440a735c606c3dc92b460d1b4e8b24ad"
+    },
+    {
+      "path": "packages/flightdeck/public/brand/wordmark-light.svg",
+      "bytes": 15368,
+      "sha256": "fc9e85135212c10d56011a71333e8e88c94ae3da33a61d5eb6ec1df43e7653ea"
+    },
+    {
+      "path": "packages/flightdeck/public/favicon-16x16.png",
+      "bytes": 1417,
+      "sha256": "1eb111526b2a396ae0d94b6c2bcd33cf029c64c73039bca7de4c338617e51815"
+    },
+    {
+      "path": "packages/flightdeck/public/favicon-32x32.png",
+      "bytes": 1209,
+      "sha256": "3efd72c97efc82dc1185efdd13327dcc7d04c88b38be78c3b8dc7f115fb25dae"
+    },
+    {
+      "path": "packages/flightdeck/public/favicon-48x48.png",
+      "bytes": 6562,
+      "sha256": "006362bff0f415fdfc6a59192833ab99517b90e55f01aad14ba49b5b9fdf8867"
+    },
+    {
+      "path": "packages/flightdeck/public/favicon.ico",
+      "bytes": 32038,
+      "sha256": "31a608b84c8d9896ec6ee1a6b225d7e7a179316a5903bd5936c7ec1e90c8aae5"
+    },
+    {
+      "path": "packages/flightdeck/public/icons/icon-192.png",
+      "bytes": 20236,
+      "sha256": "92826b0230e04d5d60944c4cc83dfa9d355b57efde7b5d2b9d6a9dddcee46a30"
+    },
+    {
+      "path": "packages/flightdeck/public/icons/icon-512.png",
+      "bytes": 59591,
+      "sha256": "7a6c4c60aac5bf71d9d475afe999544685be2a332369587b6fa1faec492f9efc"
+    },
+    {
+      "path": "packages/flightdeck/public/icons/icon-maskable-512.png",
+      "bytes": 50410,
+      "sha256": "e37b44095fd58f580b54c43a4bcc31cb1be79c0e7ee50fe3d4917a2317d91b80"
+    },
+    {
+      "path": "packages/flightdeck/public/safari-pinned-tab.svg",
+      "bytes": 442,
+      "sha256": "e370f036486195162ba5f5e8845d6cb9c550df09372982b37013e478fe714e2e"
+    },
+    {
+      "path": "packages/flightdeck/public/social/og-dark.png",
+      "bytes": 98516,
+      "sha256": "3ff434a4173ebfc101ad51f0e6536190bbfde9fe3357b3e5cfec99697a47be87"
+    },
+    {
+      "path": "packages/flightdeck/public/social/og-default.png",
+      "bytes": 99740,
+      "sha256": "25b0f64858d9f5374de6d9206c15b87e48a772619fe332d114d186437e3a72b9"
+    },
+    {
+      "path": "packages/flightdeck/public/social/twitter-card.png",
+      "bytes": 99143,
+      "sha256": "cbf3ee5cf634931f2bf30af77664a44e858725ad32598ffd7f0d224893fb393d"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { ProjectPicker } from "@/components/project-picker";
 import * as React from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Check, ChevronDown, KeyRound, Loader2 } from "lucide-react";
@@ -127,6 +128,12 @@ function NewSessionForm({ initialAgent, initialPrompt, initialGroup = "", onDone
           <p className="text-xs text-faint">Optional. You can also start empty and write in the chat.</p>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium" id="ns-project-label">Project</span>
+          <ProjectPicker value={group} onChange={setGroup} projects={groups || []} />
+          <span className="text-xs text-faint">{group ? "The session is filed here." : "Not filed in any project."}</span>
+        </div>
+
         <fieldset className="flex flex-col gap-1.5">
           <legend className="mb-1.5 text-sm font-medium">Agent</legend>
           {agentsLoading ? (
@@ -150,7 +157,7 @@ function NewSessionForm({ initialAgent, initialPrompt, initialGroup = "", onDone
           <button type="button" aria-expanded={optionsOpen} onClick={() => setOptionsOpen((v) => !v)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
             <span className="text-sm font-medium">Options</span>
             <span className="min-w-0 flex-1 truncate text-xs text-muted">
-              {chosenModel ? chosenModel.modelName : "Your default model"}{effort ? ` · ${effort} effort` : ""} · {repo ? `folder ${repo}` : "no working folder"}{group ? ` · ${groups?.find((g) => g.id === group)?.name}` : ""}
+              {chosenModel ? chosenModel.modelName : "Your default model"}{effort ? ` · ${effort} effort` : ""} · {repo ? `folder ${repo}` : "no working folder"}
             </span>
             <ChevronDown className={cn("size-4 text-muted transition-transform", optionsOpen && "rotate-180")} aria-hidden />
           </button>
@@ -181,15 +188,6 @@ function NewSessionForm({ initialAgent, initialPrompt, initialGroup = "", onDone
                 <Label htmlFor="ns-folder">Working folder</Label>
                 <Input id="ns-folder" value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="None, or a folder name in your main working folder" />
               </div>
-              {groups?.length ? (
-                <div className="grid gap-1.5">
-                  <Label htmlFor="ns-group">Group</Label>
-                  <select id="ns-group" value={group} onChange={(e) => setGroup(e.target.value)} className="h-control rounded-control border border-line-strong bg-surface px-2 text-sm">
-                    <option value="">No group</option>
-                    {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-                  </select>
-                </div>
-              ) : null}
             </div>
           ) : null}
         </div>

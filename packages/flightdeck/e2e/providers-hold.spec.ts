@@ -194,8 +194,8 @@ test("Remove provider: the confirm states the exact number of waiting sessions; 
   const { sheet } = await openSheet(page);
   const opener = sheet.dialog.getByRole("button", { name: "Remove provider…" });
   const confirm = await Sheet.open(page, opener);
-  // The demo has 10 sessions on anthropic-wif; the dialog says exactly that, and what happens to them.
-  await expect(confirm.dialog).toContainText("10 sessions using it will pause until the name is provided again.");
+  // The demo has 12 live sessions on anthropic-wif (its sub-agents and projects included); the dialog says exactly that, and what happens to them.
+  await expect(confirm.dialog).toContainText("12 sessions using it will pause until the name is provided again.");
   await expect(confirm.dialog).toContainText("The stored key is deleted.");
   await shot(page, info, "remove-provider");
   await expectNoSeriousAxe(page, confirm.dialog, "remove provider confirm");
@@ -259,7 +259,8 @@ test("paused work: the banner names the reason and its action opens the provider
   await expect(banner).toContainText("monthly limit");
   await shot(page, info, "paused-banner");
   await expectNoSeriousAxe(page, banner, "paused banner");
-  await banner.getByRole("button", { name: "Show 1 session" }).click();
+  // One toggle per reason (the monthly limit and the hold both wait on one session each).
+  await banner.getByRole("button", { name: "Show 1 session" }).first().click();
   await expect(banner.getByRole("link").first()).toBeVisible();
   await banner.getByRole("button", { name: "Raise the limit" }).click();
   await expect(page.getByRole("dialog").last()).toBeVisible();

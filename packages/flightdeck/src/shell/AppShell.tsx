@@ -11,7 +11,9 @@ import { Kbd } from "@/components/ui/kbd";
 import { Badge } from "@/components/ui/misc";
 import { Tooltip, TooltipProvider } from "@/components/ui/tooltip";
 import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog";
+import { ProjectIcon } from "@/components/project-icon";
 import { SessionsSidebar } from "@/components/sidebar/sessions-sidebar";
+import { useAttention } from "@/components/sidebar/use-attention";
 import { ThemeSegmented } from "@/components/theme-setting";
 import { AccountMenu } from "@/components/sidebar/account-menu";
 import { cn, initials } from "@/lib/utils";
@@ -22,24 +24,23 @@ import { ShortcutsDialog, useGlobalShortcuts } from "./shortcuts";
 import { useAttentionNotifications } from "./notifications";
 import { NewSessionSheet } from "@/routes/new-session";
 
+const ProjectNavIcon = ({ className }: { className?: string }) => <ProjectIcon className={className} />;
+
 type NavItem = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number; badgeTone?: "accent" | "neutral"; match: (path: string) => boolean };
 
 function useNavCounts() {
   const { data: sessions } = useSessions();
+  const needs = useAttention().items.length;
   return React.useMemo(() => {
     const list = (sessions || []).filter((s) => !s.isSystem);
-    const needs = list.filter((s) => {
-      const k = sessionState(s).key;
-      return k === "needs" || k === "failed" || (k === "waiting" && sessionState(s).waitKind === "hold");
-    }).length;
     const open = list.filter((s) => !["completed", "cancelled"].includes(sessionState(s).key)).length;
     const unseen = list.filter((s) => s.unseenCanvas).length;
     return { needs, open, unseen };
-  }, [sessions]);
+  }, [sessions, needs]);
 }
 
 /** The page links. Sessions are not here: they are the list below these, in the sidebar. */
-function useNav(): { pages: NavItem[]; sessionsLink: NavItem } {
+function useNav(): { pages: NavItem[]; sessionsLink: NavItem; projectsLink: NavItem } {
   const counts = useNavCounts();
   const pages: NavItem[] = [
     { to: "/", label: "Overview", icon: House, badge: counts.needs || undefined, badgeTone: "accent", match: (p) => p === "/" },
@@ -47,8 +48,10 @@ function useNav(): { pages: NavItem[]; sessionsLink: NavItem } {
     { to: "/outputs", label: "Outputs", icon: FolderOutput, badge: counts.unseen || undefined, badgeTone: "neutral", match: (p) => p.startsWith("/outputs") },
     { to: "/library", label: "Library", icon: Bot, match: (p) => p.startsWith("/library") },
   ];
-  const sessionsLink: NavItem = { to: "/sessions", label: "Sessions", icon: MessagesSquare, badge: counts.needs || undefined, badgeTone: "accent", match: (p) => p.startsWith("/sessions") || p.startsWith("/s/") };
-  return { pages, sessionsLink };
+  const sessionsLink: NavItem = { to: "/projects", label: "Sessions", icon: MessagesSquare, badge: counts.needs || undefined, badgeTone: "accent", match: (p) => p.startsWith("/projects") || p.startsWith("/sessions") || p.startsWith("/s/") };
+  // On a phone the Sessions tab opens the sessions drawer; the rail and the palette go to the Projects page, where projects and their sessions are listed.
+  const projectsLink: NavItem = { ...sessionsLink, label: "Projects", icon: ProjectNavIcon };
+  return { pages, sessionsLink, projectsLink };
 }
 
 function RailLink({ item, collapsed, path, onNavigate }: { item: NavItem; collapsed: boolean; path: string; onNavigate?: () => void }) {
@@ -58,6 +61,8 @@ function RailLink({ item, collapsed, path, onNavigate }: { item: NavItem; collap
     <Link
       to={item.to}
       aria-current={active ? "page" : undefined}
+      // Folded to an icon, the link has no text: its name (and what waits in it) is spoken from here; the tooltip is only for sight.
+      aria-label={collapsed ? (item.badge ? `${item.label}, ${item.badge} ${item.badgeTone === "accent" ? "need you" : "new"}` : item.label) : undefined}
       onClick={onNavigate}
       className={cn(
         "focus-inset group relative flex min-h-9 items-center gap-2.5 rounded-control text-sm font-medium transition-colors duration-(--duration-fast) pointer-coarse:min-h-11",
@@ -74,7 +79,6 @@ function RailLink({ item, collapsed, path, onNavigate }: { item: NavItem; collap
           {item.badge ? (item.badgeTone === "accent" ? <Badge tone="accent">{item.badge}</Badge> : <span className="text-xs tabular-nums text-faint">{item.badge}</span>) : null}
         </>
       )}
-      {collapsed && item.badge ? <span className="sr-only">, {item.badge}</span> : null}
     </Link>
   );
   return collapsed ? <Tooltip content={item.label} side="right">{link}</Tooltip> : link;
@@ -84,7 +88,7 @@ function RailLink({ item, collapsed, path, onNavigate }: { item: NavItem; collap
 export function NavTop({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
   const { openNewSession, setPaletteOpen } = useUi();
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const { pages, sessionsLink } = useNav();
+  const { pages, projectsLink } = useNav();
   return (
     <>
       {collapsed ? (
@@ -105,7 +109,7 @@ export function NavTop({ collapsed, onNavigate }: { collapsed: boolean; onNaviga
       <nav aria-label="Primary" className={cn("mt-3 flex w-full flex-col gap-0.5", collapsed && "items-center")}>
         {pages.map((item) => <RailLink key={item.to} item={item} collapsed={collapsed} path={path} onNavigate={onNavigate} />)}
         {/* Collapsed, the sessions list has no room: one icon takes you to the table, with the count of what needs you. */}
-        {collapsed ? <RailLink item={sessionsLink} collapsed path={path} onNavigate={onNavigate} /> : null}
+        {collapsed ? <RailLink item={projectsLink} collapsed path={path} onNavigate={onNavigate} /> : null}
       </nav>
     </>
   );
@@ -271,7 +275,7 @@ export function TopBar({ crumbs, actions, titleIsHeading = true }: { crumbs: Arr
               ) : (
                 // The current area's name is the page heading; a session page has its own h1 below.
                 titleIsHeading && i === crumbs.length - 1 ? (
-                  <h1 className="truncate text-lg font-semibold tracking-tight text-fg" aria-current="page">{c.label}</h1>
+                  <h1 className="truncate text-lg font-semibold tracking-tight text-fg">{c.label}</h1>
                 ) : (
                   <span className={cn("truncate font-semibold text-fg", i === crumbs.length - 1 && crumbs.length === 1 && "text-lg tracking-tight")} aria-current={i === crumbs.length - 1 ? "page" : undefined}>{c.label}</span>
                 )

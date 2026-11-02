@@ -27,7 +27,7 @@ describe("working-folder form baseline", () => {
   });
 });
 
-import { buildSave } from "./working-folder-form";
+import { buildSave, deriveExtraName, MAX_EXTRAS } from "./working-folder-form";
 
 describe("buildSave: the request a Save makes", () => {
   const form = { root: "projects", folder: "api/", extrasTouched: false, extras: [] };
@@ -47,4 +47,37 @@ describe("buildSave: the request a Save makes", () => {
     expect(touched).toMatchObject({ action: "save", workspace: { extra: { notes: { root: "shared", folder: "n" } } } });
     expect((buildSave(form, loaded, 1) as any).workspace.extra).toBeUndefined();
   });
+});
+
+describe("optional extra folders", () => {
+  const loaded = baselineOf(1, "projects", "");
+  const base = { root: "projects", folder: "", extrasTouched: true };
+  it("keeps an extra optional when it was optional, and leaves the flag out when it is required", () => {
+    const req = buildSave({ ...base, extras: [{ name: "notes", root: "shared", folder: "n", required: false }, { name: "ref", root: "shared", folder: "r" }, { name: "lib", root: "shared", folder: "l", required: true }] }, loaded, 1) as any;
+    expect(req.workspace.extra).toEqual({ notes: { root: "shared", folder: "n", required: false }, ref: { root: "shared", folder: "r" }, lib: { root: "shared", folder: "l" } });
+  });
+});
+
+describe("naming an additional folder", () => {
+  it("takes the last part of the path, or the root when there is no path", () => {
+    expect(deriveExtraName("shared", "team/notes/", [])).toBe("notes");
+    expect(deriveExtraName("shared", "", [])).toBe("shared");
+  });
+  it("cleans it to what the server accepts", () => {
+    expect(deriveExtraName("r", "My Docs & Stuff!", [])).toBe("my-docs-stuff");
+    expect(deriveExtraName("r", "api.v2", [])).toBe("api-v2");
+    expect(deriveExtraName("r", "_hidden", [])).toBe("hidden");
+    expect(deriveExtraName("r", "a".repeat(80), []).length).toBeLessThanOrEqual(32);
+    expect(deriveExtraName("", "", [])).toBe("");
+  });
+  it("never makes a name the SDK reserves", () => {
+    expect(deriveExtraName("r", "work", [])).toBe("work-2");
+    expect(deriveExtraName("r", "constructor", [])).toBe("constructor-2");
+    expect(deriveExtraName("work", "", [])).toBe("work-2");
+  });
+  it("never repeats a name already taken", () => {
+    expect(deriveExtraName("r", "notes", ["notes"])).toBe("notes-2");
+    expect(deriveExtraName("r", "notes", ["notes", "notes-2"])).toBe("notes-3");
+  });
+  it("allows four additional folders", () => { expect(MAX_EXTRAS).toBe(4); });
 });

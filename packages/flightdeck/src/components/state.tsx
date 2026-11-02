@@ -3,12 +3,28 @@ import { STATE_TINT, STATE_TONE, sessionState, type SessionState, type StateKey 
 import type { Session, SpineMark } from "@/data/types";
 
 // State = glyph + word + colour. Glyphs are drawn, not typed, so they render
-// the same in every font: ● running (pulses only while streaming), ◔ waiting,
-// ◆ needs you, ✕ failed, ○ idle, ■ completed/cancelled.
+// the same in every font: ● running (pulses only while streaming; `arc` draws it as a turning arc, the one
+// moving glyph in a dense list), ◔ waiting (`hold` draws a provider or budget hold as pause bars so it never
+// reads as routine waiting), ◆ needs you, ✕ failed, ○ idle, ✓ completed/cancelled.
 
-export function StateGlyph({ state, className, pulse = true }: { state: StateKey; className?: string; pulse?: boolean }) {
+export function StateGlyph({ state, className, pulse = true, hold = false, arc = false }: { state: StateKey; className?: string; pulse?: boolean; hold?: boolean; arc?: boolean }) {
   const tone = STATE_TONE[state];
   const common = cn("inline-block size-[10px] shrink-0", tone, className);
+  if (state === "waiting" && hold) {
+    return (
+      <svg data-state-glyph viewBox="0 0 10 10" className={common} aria-hidden>
+        <path d="M3.2 1.6 L3.2 8.4 M6.8 1.6 L6.8 8.4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (state === "running" && arc) {
+    return (
+      <svg data-state-glyph viewBox="0 0 10 10" className={cn(common, "motion-safe:animate-spin")} aria-hidden>
+        <circle cx="5" cy="5" r="3.7" fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.4" />
+        <path d="M5 1.3 A3.7 3.7 0 0 1 8.7 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    );
+  }
   switch (state) {
     case "running":
       return (
@@ -44,7 +60,7 @@ export function StateGlyph({ state, className, pulse = true }: { state: StateKey
     default:
       return (
         <svg data-state-glyph viewBox="0 0 10 10" className={common} aria-hidden>
-          <rect x="1.5" y="1.5" width="7" height="7" rx="1" fill="currentColor" />
+          <path d="M1.9 5.3 L4.1 7.5 L8.1 2.7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
   }

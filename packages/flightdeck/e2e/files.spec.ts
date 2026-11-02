@@ -160,9 +160,9 @@ test("opening another file while editing asks; Discard drops the draft", async (
 test("leaving the session with unsaved edits asks first", async ({ page }, info) => {
   await openFiles(page, info);
   await startEditing(page, "UNSAVED");
-  // Leave through the sidebar's Sessions link (on a phone the drawer holds it).
+  // Leave through the sidebar's Projects link (on a phone the drawer holds it).
   if (isPhone(info)) await page.getByRole("button", { name: "Open menu and sessions" }).first().click();
-  await page.getByRole(isPhone(info) ? "dialog" : "complementary", isPhone(info) ? undefined : { name: "Sidebar" }).getByRole("link", { name: /^Sessions/ }).click();
+  await page.getByRole(isPhone(info) ? "dialog" : "complementary", isPhone(info) ? undefined : { name: "Sidebar" }).getByRole("link", { name: "Projects", exact: true }).click();
   const guard = page.getByRole("dialog", { name: "Leave without saving?" });
   await expect(guard).toBeVisible();
   await guard.getByRole("button", { name: "Cancel" }).click();

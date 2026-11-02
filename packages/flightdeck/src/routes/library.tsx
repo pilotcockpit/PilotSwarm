@@ -13,6 +13,7 @@ import { AddPackageDialog } from "@/components/library/add-package";
 import { PackagePanel } from "@/components/library/package-panel";
 import { PackagesTab, ownerLabel } from "@/components/library/package-list";
 import type { ReadResult } from "@/components/library/package-source";
+import { ProductIllustration } from "@/components/product-illustration";
 
 const route = getRouteApi("/library");
 
@@ -58,19 +59,20 @@ export function LibraryPage() {
       <TopBar crumbs={[{ label: "Library" }]} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[980px] px-4 py-5 md:px-5">
-          <div className="mb-5 flex flex-wrap items-end gap-4">
-            <div className="min-w-0 flex-1 basis-64">
-              <h2 className="text-lg font-semibold">{tab === "agents" ? "Choose the right agent for the task" : "What agents can do"}</h2>
+          <div className="mb-4 flex items-center gap-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xl font-semibold tracking-tight">{tab === "agents" ? "Choose the right agent for the task" : "What agents can do"}</h2>
               <p className="mt-1 text-sm text-muted">{tab === "agents" ? "Compare what each agent does and the tools it can use, then start a session." : "Packages give agents, skills, tools and MCP servers. Add one, update it, or roll it back."}</p>
             </div>
-            <div className="relative w-full sm:w-72">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-faint" aria-hidden />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} className="pl-8" placeholder={tab === "agents" ? "Find an agent or tool" : "Find a package"} aria-label={tab === "agents" ? "Find an agent by name, description or tool" : "Find a package by name or description"} />
-            </div>
+            <ProductIllustration kind="library" compact />
           </div>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Segmented label="Library" value={tab} onChange={go} options={[{ value: "agents", label: "Agents" }, { value: "packages", label: <>Packages{list.length ? <span className="ml-1 tabular-nums text-muted">{list.length}</span> : null}</> }]} />
-            {tab === "packages" ? <Button variant="primary" className="ml-auto" onClick={() => startAdd()}><FolderUp /> Add a package</Button> : null}
+            {tab === "packages" ? <Button variant="primary" className="ml-auto sm:ml-0" onClick={() => startAdd()}><FolderUp /> Add a package</Button> : null}
+            <div className="relative w-full sm:ml-auto sm:w-72">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-faint" aria-hidden />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} className="pl-8" placeholder={tab === "agents" ? "Find an agent or tool" : "Find a package"} aria-label={tab === "agents" ? "Find an agent by name, description or tool" : "Find a package by name or description"} />
+            </div>
           </div>
 
           {tab === "agents" ? (

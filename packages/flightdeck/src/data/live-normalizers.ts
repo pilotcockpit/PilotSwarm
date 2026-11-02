@@ -4,7 +4,7 @@ const rows = (raw: any, key: string): any[] => Array.isArray(raw) ? raw : Array.
 
 /** SDK SessionGroupRow uses groupId/title; the portal's common view uses id/name. */
 export function normalizeSessionGroups(raw: unknown): Group[] {
-  return rows(raw, "groups").map((g) => ({ ...g, id: String(g.groupId ?? g.id), name: String(g.title ?? g.name ?? "Untitled group") }));
+  return rows(raw, "groups").map((g) => ({ ...g, id: String(g.groupId ?? g.id), name: String(g.title ?? g.name ?? "Untitled project") }));
 }
 
 /** A FeatureView contains rows, not a dictionary. `false` is an effective value. */

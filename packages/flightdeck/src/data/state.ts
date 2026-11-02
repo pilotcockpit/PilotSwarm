@@ -38,6 +38,8 @@ export function sessionState(s: Session | null | undefined, now = Date.now()): S
     return { key: "needs", word: "Needs you", reason: "asked a question" };
   }
   if (status === "running") return { key: "running", word: "Running", reason: s.step || undefined };
+  // Queued for a worker: it is about to run, not sitting idle.
+  if (status === "pending") return { key: "running", word: "Running", reason: s.step || "starting" };
   if (status === "error" || status === "failed" || (s.error && status !== "running")) {
     return { key: "failed", word: "Failed", reason: describeError(s.error).headline };
   }
@@ -147,7 +149,8 @@ export function describeError(raw: unknown): StructuredError {
   if (noKey) {
     return { code: "no-key", headline: "Can't reach its model", detail: `The ${noKey[1]} provider has no key.`, provider: noKey[1], fixes: ["open-provider", "switch-model"], raw: text };
   }
-  if (/budget|limit exceeded|quota/i.test(text)) {
+  // "rate limit exceeded" is the provider slowing us down (retry), not a token budget being used up.
+  if (/budget|quota|(?<!rate[ -]?)limit exceeded/i.test(text)) {
     return { code: "usage-limit", headline: "Paused by a usage limit", detail: "This provider's token limit was reached.", fixes: ["open-provider"], raw: text };
   }
   if (/rate.?limit|429/i.test(text)) {
@@ -178,13 +181,6 @@ export function agentLabel(s: Session) {
 export function modelShort(qualified?: string | null) {
   const q = String(qualified || "");
   return q.includes(":") ? q.split(":").slice(1).join(":") : q || "default model";
-}
-
-/** Home's "needs you" set: a question to answer, a failure, or a usage hold. System sessions are the admin's concern. */
-export function needsYou(s: Session): boolean {
-  if (s.isSystem) return false;
-  const st = sessionState(s);
-  return st.key === "needs" || st.key === "failed" || st.waitKind === "hold";
 }
 
 /**

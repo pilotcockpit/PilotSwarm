@@ -1,11 +1,14 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { demoCalls, expectNoSeriousAxe, gotoDemo, IDS, isPhone, shot, watchConsole } from "./helpers";
-import { row, sidebar } from "./sidebar-helpers";
+import { openAllSections, row, sidebar } from "./sidebar-helpers";
 
 // The sidebar: page links, then the sessions list as the LAST section. On a phone the same sidebar is a
 // drawer opened from the top bar. Demo data: p95 (needs you), deps (failed), research (view-only, waiting
 // on a hold), release (waiting, has sub-agents), cost, onboarding (idle), a completed wiki session, and
-// two groups (Release 0.8.8, Ops).
+// several projects (Release 0.8.8, Ops, ...). The sidebar loads fully folded; `sidebar()` unfolds it unless a test asks not to.
+
+/** A section's own fold button (its name alone), not its actions menu. */
+const fold = (list: Locator, name: RegExp) => list.getByRole("heading").getByRole("button", { name });
 
 test("Sessions is the last section: after Overview, Boards, Outputs and Library", async ({ page }, info) => {
   const errors = watchConsole(page);
@@ -19,7 +22,7 @@ test("Sessions is the last section: after Overview, Boards, Outputs and Library"
   expect(order.links.every((p) => p >= 0)).toBe(true);
   expect([...order.links].sort((a, b) => a - b)).toEqual(order.links); // in the stated order
   expect(order.sessions).toBeGreaterThan(Math.max(...order.links)); // the list comes after every page link
-  await expect(list.getByRole("link", { name: /^Sessions/ })).toHaveAttribute("href", "/sessions");
+  await expect(list.getByRole("link", { name: "Projects", exact: true })).toHaveAttribute("href", "/projects");
   expect(errors).toEqual([]);
 });
 
@@ -27,43 +30,61 @@ test("Needs you comes first and holds the sessions that need you", async ({ page
   await gotoDemo(page, "/", info);
   const { list } = await sidebar(page, info);
   const first = list.locator("section").first();
-  await expect(first.getByRole("heading", { level: 3 })).toContainText("Needs you");
+  await expect(first.getByRole("heading", { level: 2 })).toContainText("Needs you");
   await expect(row(first, "Investigate p95 spike on chk")).toBeVisible();
   await expect(row(first, "Weekly dependency bumps")).toBeVisible();
   await shot(page, info, "needs-first");
 });
 
-test("Pin with P and unpin from the menu; the pin survives a reload", async ({ page }, info) => {
+test("Pin with P and unpin from the menu; the pin stays when you move around the app", async ({ page }, info) => {
   test.skip(isPhone(info), "keyboard pinning is a desktop path; the phone menu is covered below");
   await gotoDemo(page, "/", info);
-  const { list } = await sidebar(page, info);
+  const { root, list } = await sidebar(page, info);
+  const pinnedSection = (l: Locator) => l.locator("section").filter({ has: page.getByRole("heading", { name: /^Pinned/ }) });
   const target = row(list, "Onboarding guide rewrite");
+  await expect(row(pinnedSection(list), "Onboarding guide rewrite")).toHaveCount(0);
   await target.focus();
   await page.keyboard.press("p");
-  const pinned = list.locator("section").filter({ has: page.getByRole("heading", { name: /^Pinned/ }) });
-  await expect(row(pinned, "Onboarding guide rewrite")).toBeVisible();
-  await page.reload();
+  await expect(row(pinnedSection(list), "Onboarding guide rewrite")).toBeVisible();
+  // Pins live in the account's profile settings (the demo keeps them in memory), so they survive navigating, not reloading the demo.
+  await root.getByRole("link", { name: "Boards" }).click();
+  await expect(page).toHaveURL(/\/boards/);
   const again = (await sidebar(page, info)).list;
-  await expect(row(again.locator("section").filter({ has: page.getByRole("heading", { name: /^Pinned/ }) }), "Onboarding guide rewrite")).toBeVisible();
+  await expect(row(pinnedSection(again), "Onboarding guide rewrite")).toBeVisible();
   // Unpin from the row's menu.
-  const r = row(again, "Onboarding guide rewrite");
+  const r = row(pinnedSection(again), "Onboarding guide rewrite");
   await r.hover();
-  await page.getByRole("button", { name: "Actions for Onboarding guide rewrite" }).click();
+  await page.getByRole("button", { name: "Actions for Onboarding guide rewrite" }).first().click();
   await page.getByRole("menuitem", { name: /^Unpin/ }).click();
-  await expect(again.getByRole("heading", { name: /^Pinned/ })).toHaveCount(0);
+  await expect(row(pinnedSection(again), "Onboarding guide rewrite")).toHaveCount(0);
 });
 
-test("A group's collapse state is remembered across a reload", async ({ page }, info) => {
+test("Every section loads folded; opening one is kept for the visit, not across a reload", async ({ page }, info) => {
   await gotoDemo(page, "/", info);
-  let { list } = await sidebar(page, info);
-  const heading = () => list.getByRole("button", { name: /^Release 0\.8\.8/ });
-  await expect(heading()).toHaveAttribute("aria-expanded", "true");
-  await heading().click();
-  await expect(heading()).toHaveAttribute("aria-expanded", "false");
-  await expect(list.getByRole("link", { name: "Port canvas host to TSX" })).toHaveCount(0);
+  let { list } = await sidebar(page, info, { folded: true });
+  const toggles = list.locator("h2 button[aria-expanded]");
+  await expect(toggles.first()).toBeVisible();
+  for (const t of await toggles.all()) await expect(t).toHaveAttribute("aria-expanded", "false");
+  await expect(list.locator("a[data-sidebar-row]")).toHaveCount(0); // folded sections show no rows
+  await expect(list.getByRole("status")).toBeAttached(); // what needs you is still said, by the count beside the heading
+  await fold(list, /^Recents/).click();
+  await expect(fold(list, /^Recents/)).toHaveAttribute("aria-expanded", "true");
+  await expect(list.locator("a[data-sidebar-row]").first()).toBeVisible();
   await page.reload();
-  list = (await sidebar(page, info)).list;
-  await expect(list.getByRole("button", { name: /^Release 0\.8\.8/ })).toHaveAttribute("aria-expanded", "false");
+  list = (await sidebar(page, info, { folded: true })).list;
+  await expect(fold(list, /^Recents/)).toHaveAttribute("aria-expanded", "false");
+});
+
+test("Opening a project shows its sessions, one project at a time", async ({ page }, info) => {
+  await gotoDemo(page, "/", info);
+  const { list } = await sidebar(page, info);
+  const release = list.getByRole("button", { name: /Release 0\.8\.8.*tree/ }).first();
+  await expect(release).toHaveAttribute("aria-expanded", "false");
+  await release.click();
+  await expect(release).toHaveAttribute("aria-expanded", "true");
+  await expect(list.getByRole("link", { name: "Port canvas host to TSX" }).first()).toBeVisible();
+  await list.getByRole("button", { name: /Ops.*tree/ }).first().click();
+  await expect(release).toHaveAttribute("aria-expanded", "false");
 });
 
 test("Delete from a row asks first: no call before confirming or after cancelling, one after", async ({ page }, info) => {
@@ -129,15 +150,15 @@ test("Account menu holds Models & spend, Admin and Settings", async ({ page }, i
 });
 
 test("Title menu lists every session action; Pin puts the session in Pinned", async ({ page }, info) => {
-  await gotoDemo(page, `/s/${IDS.cost}`, info);
+  await gotoDemo(page, `/s/${IDS.canvasPort}`, info);
   await page.getByRole("button", { name: "Session actions" }).click();
   const menu = page.getByRole("menu");
-  for (const name of ["Rename", "Pin", "Move to group…", "Share…", "Copy link", "Export history", "Complete session", "Cancel session", "Delete"]) {
+  for (const name of ["Rename", "Pin", "Move to project…", "Share…", "Copy link", "Export history", "Complete session", "Cancel session", "Delete"]) {
     await expect(menu.getByRole("menuitem", { name: new RegExp(`^${name}`) })).toBeVisible();
   }
   await menu.getByRole("menuitem", { name: /^Pin/ }).click();
   const { list } = await sidebar(page, info);
-  await expect(list.locator("section").filter({ has: page.getByRole("heading", { name: /^Pinned/ }) }).getByRole("link", { name: "Nightly cost report" })).toBeVisible();
+  await expect(list.locator("section").filter({ has: page.getByRole("heading", { name: /^Pinned/ }) }).getByRole("link", { name: "Port canvas host to TSX" }).first()).toBeVisible();
 });
 
 test("Title menu: Delete asks first; zero calls before confirming and after Keep it, one after", async ({ page }, info) => {
@@ -152,7 +173,7 @@ test("Title menu: Delete asks first; zero calls before confirming and after Keep
   await page.getByRole("button", { name: "Session actions" }).click();
   await page.getByRole("menuitem", { name: /^Delete/ }).click();
   await page.getByRole("dialog", { name: "Delete this session?" }).getByRole("button", { name: "Delete" }).click();
-  await expect(page).toHaveURL(/\/sessions$/);
+  await expect(page).toHaveURL(/\/projects$/);
   expect(await demoCalls(page, "deleteSession")).toHaveLength(1);
 });
 
@@ -188,7 +209,9 @@ test("Phone: the drawer opens from the menu button and the Sessions tab, and foc
   await expect(opener).toBeFocused();
   // The Sessions tab opens the same drawer, on the list.
   await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /Sessions/ }).click();
-  await expect(page.getByRole("dialog", { name: "PilotSwarm" }).getByRole("navigation", { name: "Sessions" })).toBeVisible();
+  const sessions = page.getByRole("dialog", { name: "PilotSwarm" }).getByRole("navigation", { name: "Sessions" });
+  await expect(sessions).toBeVisible();
+  await openAllSections(sessions); // the drawer, like the sidebar, loads folded
   // Choosing a session closes the drawer and opens it.
   await page.getByRole("dialog", { name: "PilotSwarm" }).getByRole("link", { name: "Weekly dependency bumps" }).click();
   await expect(page).toHaveURL(new RegExp(IDS.deps));

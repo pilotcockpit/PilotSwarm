@@ -33,7 +33,8 @@ export interface FoldersInfo {
 export interface WorkspaceRecord {
   root: string;
   folder?: string;
-  extra?: Record<string, { root: string; folder?: string }>;
+  /** `required: false` lets a turn run without that folder when it cannot be opened; the default holds the prompt. */
+  extra?: Record<string, { root: string; folder?: string; required?: boolean }>;
 }
 
 export interface WorkspaceView {

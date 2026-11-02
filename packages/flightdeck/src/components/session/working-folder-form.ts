@@ -28,8 +28,28 @@ export function planSave(baseline: Baseline | null, serverRevision: number | nul
   return { action: "save", expectedRevision: baseline.revision };
 }
 
-export interface FormInput { root: string; folder: string; extrasTouched: boolean; extras: Array<{ name: string; root: string; folder: string }> }
-export interface WorkspacePayload { root: string; folder?: string; extra?: Record<string, { root: string; folder?: string }> }
+/** The most additional folders a session can have (the SDK's MAX_WORKSPACE_EXTRAS). */
+export const MAX_EXTRAS = 4;
+
+export interface FormExtra { name: string; root: string; folder: string; /** false: the turn runs without it when it cannot be opened. Absent means true. */ required?: boolean }
+export interface FormInput { root: string; folder: string; extrasTouched: boolean; extras: FormExtra[] }
+export interface WorkspacePayload { root: string; folder?: string; extra?: Record<string, { root: string; folder?: string; required?: boolean }> }
+
+/** Names the SDK refuses for an additional folder (workspace-check.ts): "work", which canvas apps use for the working folder, and anything every object already has ("constructor", ...). */
+const reservedName = (name: string) => name === "work" || Object.prototype.hasOwnProperty.call(Object.prototype, name);
+
+/**
+ * A name for an additional folder, from where it points: the last part of its path (or its root), cleaned up to
+ * what the SDK accepts (lowercase letters, digits, _ and -, up to 32, starting with a letter or digit, and not a
+ * reserved name) and made different from the names already taken. Empty when there is nothing to base it on.
+ */
+export function deriveExtraName(root: string, folder: string, taken: readonly string[]): string {
+  const base = (folder.trim().split("/").filter(Boolean).pop() || root.trim()).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^[^a-z0-9]+/, "").replace(/-+$/, "").slice(0, 28);
+  if (!base) return "";
+  let name = base;
+  for (let n = 2; taken.includes(name) || reservedName(name); n++) name = `${base}-${n}`;
+  return name;
+}
 export type SaveRequest = { action: "save"; expectedRevision: number; workspace: WorkspacePayload } | { action: "conflict" };
 
 const trimSlashes = (v: string) => v.trim().replace(/\/+$/, "");
@@ -47,6 +67,6 @@ export function buildSave(form: FormInput, baseline: Baseline | null, serverRevi
   const plan = planSave(baseline, serverRevision, choice);
   if (plan.action === "conflict") return plan;
   const workspace: WorkspacePayload = { root: form.root.trim(), ...(form.folder.trim() ? { folder: trimSlashes(form.folder) } : {}) };
-  if (form.extrasTouched) workspace.extra = Object.fromEntries(form.extras.filter((e) => e.name).map((e) => [e.name, { root: e.root.trim(), ...(e.folder.trim() ? { folder: trimSlashes(e.folder) } : {}) }]));
+  if (form.extrasTouched) workspace.extra = Object.fromEntries(form.extras.filter((e) => e.name).map((e) => [e.name, { root: e.root.trim(), ...(e.folder.trim() ? { folder: trimSlashes(e.folder) } : {}), ...(e.required === false ? { required: false } : {}) }]));
   return { action: "save", expectedRevision: plan.expectedRevision, workspace };
 }

@@ -1,15 +1,15 @@
 import * as React from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  Activity, ArrowUpLeft, Ban, CheckCircle2, ChevronDown, Clock, Copy, Download, Files, FolderGit2, FolderInput, GitBranch, LayoutPanelLeft, Link2, Menu as MenuIcon, MoreHorizontal, PanelRight, Pencil, Pin, PinOff, RotateCcw, Share2, Shuffle, Trash2,
+  ArrowUpLeft, Ban, CheckCircle2, ChevronDown, Clock, Copy, Download, Link2, Menu as MenuIcon, Pencil, Pin, PinOff, RotateCcw, Share2, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { notifyUndo } from "@/lib/undo";
 import { useIntent } from "@/shell/intents";
 import { useUi } from "@/shell/ui-state";
 import { useMediaQuery } from "@/shell/prefs";
-import { useProfile, useRefresh, useSource } from "@/data/source";
-import { modelShort, sessionState, STATE_TINT, type SessionState } from "@/data/state";
+import { useGroups, useProfile, useRefresh, useSessions, useSource } from "@/data/source";
+import { sessionState, STATE_TINT, type SessionState } from "@/data/state";
 import type { Session } from "@/data/types";
 import { StateGlyph, StatePill } from "@/components/state";
 import { Button } from "@/components/ui/button";
@@ -17,11 +17,11 @@ import { Input } from "@/components/ui/input";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { Popover, PopoverContent, PopoverTrigger, Tag } from "@/components/ui/misc";
 import { Tooltip } from "@/components/ui/tooltip";
-import { ChangeModelDialog } from "@/components/model-switch";
 import { ShareButton, ShareSheet } from "@/components/session/share-sheet";
+import { ProjectIcon } from "@/components/project-icon";
+import { sessionFacts } from "@/components/session/session-facts";
 import { MoveToGroupDialog, useCurrentGroupId } from "@/components/session/move-to-group";
 import { ScheduleActions } from "@/components/session/schedule-actions";
-import { WorkingFolderDialog } from "@/components/session/working-folder-dialog";
 import { SessionCloseDialog, canManage, canModify, copySessionLink, type CloseKind } from "@/components/session/session-actions";
 import { RestartDialog } from "@/components/admin/system-sessions-panel";
 import { contextPercent, isStalled } from "@/components/session/session-meta";
@@ -29,7 +29,6 @@ import { usePins } from "@/components/sidebar/prefs";
 import { sessionIsViewOnly } from "@/lib/session-access";
 import { useRenameDraft } from "@/lib/rename-draft";
 import { ago, cn } from "@/lib/utils";
-import type { SessionView } from "@/router";
 
 
 // The session's identity lives in the top bar: its title is the page heading (the chevron beside it
@@ -127,27 +126,21 @@ function StatePillWithSchedule({ state, session, showReason, compact = false }: 
 }
 
 
-const PANE_ICONS: Array<{ view: Exclude<SessionView, "chat">; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { view: "canvas", label: "Canvas", icon: LayoutPanelLeft },
-  { view: "files", label: "Files", icon: Files },
-  { view: "activity", label: "Activity", icon: Activity },
-  { view: "delegation", label: "Delegation", icon: GitBranch },
-];
-
-export function SessionHeader({ session, parent, childCount, view, paneOpen, counts, onView }: {
-  session: Session; parent?: Session; childCount: number; view: SessionView; paneOpen: boolean; counts: Partial<Record<SessionView, number>>;
-  onView: (v: SessionView) => void;
-}) {
+/**
+ * The session's title, state and the actions that are about the session itself (share, rename, move, close). The model and
+ * the working folder are changed from the chips in the composer, where they are shown; they are not repeated here.
+ * Which view is showing (Chat, Context, Canvas, Files, Delegation, Activity) is chosen in the tab bar under it and
+ * nowhere else, so there is one control for each view.
+ */
+export function SessionHeader({ session, parent, childCount }: { session: Session; parent?: Session; childCount: number }) {
   const st = sessionState(session);
   const phone = useMediaQuery("(max-width: 767px)");
   const wide = useMediaQuery("(min-width: 1536px)");
   const { setNavOpen } = useUi();
   const pins = usePins();
   const currentGroup = useCurrentGroupId(session);
-  const [modelOpen, setModelOpen] = React.useState(false);
   const [shareOpen, setShareOpen] = React.useState(false);
   const [groupOpen, setGroupOpen] = React.useState(false);
-  const [folderOpen, setFolderOpen] = React.useState(false);
   const [confirm, setConfirm] = React.useState<CloseKind | null>(null);
   useIntent("share-session", `/s/${session.sessionId}`, () => setShareOpen(true));
   useIntent("move-to-group", `/s/${session.sessionId}`, () => setGroupOpen(true));
@@ -161,6 +154,10 @@ export function SessionHeader({ session, parent, childCount, view, paneOpen, cou
   const ctx = contextPercent(session);
   const stalled = isStalled(session);
   const pinned = pins.isPinned(session.sessionId);
+  // Where it is filed, shown in front of the title when it is in a project: the sidebar may be folded or hidden, and this is the way up.
+  const { data: all } = useSessions();
+  const { data: groups } = useGroups();
+  const project = sessionFacts(session, all || [], groups || []).project;
   const { source } = useSource();
   const navigate = useNavigate();
   const [exporting, setExporting] = React.useState(false);
@@ -185,6 +182,12 @@ export function SessionHeader({ session, parent, childCount, view, paneOpen, cou
           <Link to="/s/$sessionId" params={{ sessionId: parent.sessionId }} aria-label={`Parent session: ${parent.title || "parent"}`} className="inline-flex size-8 shrink-0 items-center justify-center rounded-control text-muted hover:bg-raised hover:text-fg"><ArrowUpLeft className="size-4" aria-hidden /></Link>
         </Tooltip>
       ) : null}
+      {project?.id && !phone ? (
+        <nav aria-label="Project" className="hidden min-w-0 shrink items-center gap-1.5 lg:flex">
+          <Link to="/projects" search={{ project: project.id }} className="inline-flex min-h-8 min-w-0 max-w-44 items-center gap-1.5 rounded-control px-1.5 text-sm text-muted hover:bg-raised hover:text-fg pointer-coarse:min-h-11"><ProjectIcon className="size-3.5 shrink-0" /><span className="truncate">{project.name}</span></Link>
+          <span className="text-faint" aria-hidden>›</span>
+        </nav>
+      ) : null}
       <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight"><TitleEditor session={session} /></h1>
       <Menu>
         <Tooltip content="Session actions">
@@ -193,9 +196,10 @@ export function SessionHeader({ session, parent, childCount, view, paneOpen, cou
         <MenuContent align="start" className="w-65">
           <MenuItem disabled={!ordinary} icon={<Pencil />} onSelect={() => window.dispatchEvent(new Event("fd:rename-session"))}>Rename</MenuItem>
           <MenuItem icon={pinned ? <PinOff /> : <Pin />} onSelect={() => pins.toggle(session.sessionId)} hint="Keeps it at the top of your sidebar">{pinned ? "Unpin" : "Pin"}</MenuItem>
-          <MenuItem icon={<FolderInput />} onSelect={() => setGroupOpen(true)} hint={currentGroup ? "In a group now" : undefined}>Move to group…</MenuItem>
+          <MenuItem icon={<ProjectIcon />} onSelect={() => setGroupOpen(true)} hint={currentGroup ? "In a project now" : undefined}>Move to project…</MenuItem>
           <MenuItem icon={<Share2 />} onSelect={() => setShareOpen(true)}>Share…</MenuItem>
           <MenuItem icon={<Link2 />} onSelect={() => copySessionLink(session.sessionId)}>Copy link</MenuItem>
+          <MenuItem icon={<Copy />} onSelect={() => { void navigator.clipboard?.writeText(session.sessionId); toast.success("Session ID copied"); }}>Copy session ID</MenuItem>
           <MenuItem disabled={readOnly || exporting} icon={<Download />} onSelect={() => void exportHistory()} hint="Saves the full record to Files">Export history</MenuItem>
           <MenuSeparator />
           <MenuItem icon={<CheckCircle2 />} disabled={closed || !ordinary} onSelect={() => setConfirm("complete")} hint="Close as done">Complete session</MenuItem>
@@ -216,37 +220,9 @@ export function SessionHeader({ session, parent, childCount, view, paneOpen, cou
         ) : null}
       </div>
       <span className="flex-1" />
-      {phone ? null : (
-        <div className="flex shrink-0 items-center gap-0.5" role="toolbar" aria-label="Session views">
-          <ShareButton session={session} onOpen={() => setShareOpen(true)} />
-          {PANE_ICONS.map(({ view: v, label, icon: Icon }) => (
-            <Tooltip key={v} content={label}>
-              <Button variant="quiet" size="icon" aria-label={label} aria-pressed={paneOpen && view === v} onClick={() => onView(paneOpen && view === v ? "chat" : v)} className={cn("relative", paneOpen && view === v && "bg-raised text-fg")}>
-                <Icon />
-                {counts[v] ? <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-raised px-1 text-xs tabular-nums text-muted">{counts[v]}</span> : null}
-                {v === "canvas" && session.unseenCanvas && !(paneOpen && view === v) ? <span className="absolute right-1 top-1 size-1.5 rounded-full bg-accent" aria-hidden /> : null}
-              </Button>
-            </Tooltip>
-          ))}
-          <Tooltip content={paneOpen ? "Hide context" : "Show context"}>
-            <Button variant="quiet" size="icon" aria-label="Context" aria-pressed={paneOpen && view === "context"} onClick={() => (paneOpen && view === "context" ? onView("chat") : onView("context"))} className={cn(paneOpen && view === "context" && "bg-raised text-fg")}><PanelRight /></Button>
-          </Tooltip>
-        </div>
-      )}
-      <Menu>
-        <MenuTrigger asChild><Button variant="quiet" size="icon" aria-label="More" className="shrink-0"><MoreHorizontal /></Button></MenuTrigger>
-        <MenuContent className="w-65">
-          {phone ? <MenuItem icon={<Share2 />} onSelect={() => setShareOpen(true)}>Share…</MenuItem> : null}
-          {phone ? <MenuItem icon={<PanelRight />} onSelect={() => onView("context")}>Context and details</MenuItem> : null}
-          <MenuItem disabled={readOnly} icon={<Shuffle />} onSelect={() => setModelOpen(true)} hint={modelShort(session.model)}>Change model</MenuItem>
-          <MenuItem disabled={readOnly} icon={<FolderGit2 />} onSelect={() => setFolderOpen(true)} hint={session.workspace?.repo ? String(session.workspace.repo) : "Where the agent reads and writes files"}>Working folder…</MenuItem>
-          <MenuItem icon={<Copy />} onSelect={() => { void navigator.clipboard?.writeText(session.sessionId); toast.success("Session ID copied"); }}>Copy session ID</MenuItem>
-        </MenuContent>
-      </Menu>
+      {phone ? null : <ShareButton session={session} onOpen={() => setShareOpen(true)} />}
       <ShareSheet session={session} open={shareOpen} onOpenChange={setShareOpen} />
       <MoveToGroupDialog session={session} open={groupOpen} onOpenChange={setGroupOpen} />
-      <WorkingFolderDialog sessionId={session.sessionId} open={folderOpen} onOpenChange={setFolderOpen} />
-      <ChangeModelDialog open={modelOpen} onOpenChange={setModelOpen} session={session} />
       {restartOpen ? <RestartDialog session={session} onClose={() => setRestartOpen(false)} /> : null}
       <SessionCloseDialog session={session} kind={confirm} childCount={childCount} onOpenChange={(o) => !o && setConfirm(null)} />
     </header>

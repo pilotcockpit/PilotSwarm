@@ -39,3 +39,12 @@ The classic portal's profile normaliser whitelists keys and replaces the documen
 3. **Is "five folders, five members each" enough grouped-sidebar for your Claude/Codex expectation?** Folders are manual here (Claude's project groups are automatic from the working directory), so they do not imply a project directory.
 4. **Fund P1's backend rows?** The reason lines and failed-child discovery degrade without them.
 5. **Shared-session attention:** owner-only initially (recommended)?
+
+## Owner answers and what was built (2026-11-01)
+
+- Audience: builder; personal continuation first, Fleet explicit.
+- Pins and dismissals roam (profile settings). Classic portal compatibility is not a constraint.
+- Shared-session attention belongs to the owner.
+- One change from this document while building: Needs you lists questions first, then holds, then failures, oldest first within each kind, so a question is never pushed behind a pile of failures by the five-row cap.
+- Open items: `packages/flightdeck/OPEN-ITEMS.md`, section "Sessions sidebar".
+- Naming: owner chose **Projects** for what the backend calls session groups (not "folders": the composer already has a working folder). Everything above that says folder means project.

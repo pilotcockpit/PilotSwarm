@@ -1,8 +1,9 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
 import { PORTAL_SHELL_HEADERS } from "../app/ui/react/src/sandboxed-document.js";
+import { metadataPlugin, METADATA_HEADERS } from "./scripts/metadata-plugin.ts";
 
 // Flight Deck runs beside the classic portal, never inside it. The classic
 // portal's server (:3001) owns the Web API and the WebSocket; this dev server
@@ -10,8 +11,8 @@ import { PORTAL_SHELL_HEADERS } from "../app/ui/react/src/sandboxed-document.js"
 const apiTarget = process.env.PILOTSWARM_API_TARGET || "http://localhost:3001";
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
+export default defineConfig(({ mode }) => ({
+  plugins: [react(), tailwindcss(), metadataPlugin({ ...loadEnv(mode, here("."), "VITE_"), ...process.env })],
   resolve: {
     alias: {
       "@": here("./src"),
@@ -30,7 +31,7 @@ export default defineConfig({
     // The end-to-end suite starts its own dev server (playwright.config.ts sets FD_E2E): no file watching and no
     // hot reload there, so an edit made while the suite runs cannot reload a page in the middle of a test.
     ...(process.env.FD_E2E ? { watch: null, hmr: false } : {}),
-    headers: { ...PORTAL_SHELL_HEADERS },
+    headers: { ...PORTAL_SHELL_HEADERS, ...METADATA_HEADERS },
     proxy: {
       "/api": { target: apiTarget, ws: true },
     },
@@ -38,7 +39,7 @@ export default defineConfig({
   preview: {
     port: 5180,
     strictPort: true,
-    headers: { ...PORTAL_SHELL_HEADERS },
+    headers: { ...PORTAL_SHELL_HEADERS, ...METADATA_HEADERS },
     proxy: {
       "/api": { target: apiTarget, ws: true },
     },
@@ -57,4 +58,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

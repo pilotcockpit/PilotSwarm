@@ -23,6 +23,8 @@ const ONBOARD = "a1f0c2d4-0010-4c00-9000-000000000010";
 const SWEEPER = "a1f0c2d4-0011-4c00-9000-000000000011";
 const RESMGR = "a1f0c2d4-0012-4c00-9000-000000000012";
 const WIKI = "a1f0c2d4-0013-4c00-9000-000000000013";
+const SURVEY = "a1f0c2d4-0014-4c00-9000-000000000014";
+const PUBLISH = "a1f0c2d4-0015-4c00-9000-000000000015";
 
 const WIF_ERROR =
   'Failed after 3 attempts: Activity \'runTurnV4\' JS execution failed: GenericFailure, Error: Provider "anthropic-wif" authenticates with workload identity, but the worker is missing ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, ANTHROPIC_IDENTITY_TOKEN_FILE (or ANTHROPIC_IDENTITY_TOKEN, or AZURE_FEDERATED_TOKEN_FILE with AZURE_TENANT_ID).';
@@ -49,7 +51,7 @@ const sessions: Session[] = [
   },
   {
     sessionId: RELEASE, owner: "me", canWrite: true, title: "Release readiness 0.8.8", agentId: "release-captain", status: "waiting", createdAt: m(110), updatedAt: m(2),
-    model: "anthropic-wif:claude-sonnet-5", activeChildCount: 2, waitReason: "waiting for 2 agent(s)", visibility: "shared_write", iterations: 9, pinned: true,
+    model: "anthropic-wif:claude-sonnet-5", activeChildCount: 2, waitReason: "waiting for 2 agent(s)", visibility: "shared_write", iterations: 9,
     workspace: { repo: "pilotswarm", branch: "dev", root: "main" }, unseenCanvas: true,
     spine: ["run", "run", "sleep", "run", "done", "run", "wait", "wait"],
   },
@@ -68,6 +70,16 @@ const sessions: Session[] = [
     createdAt: m(96), updatedAt: m(43), model: "anthropic-wif:claude-sonnet-5", iterations: 3, spine: ["run", "run", "done"],
   },
   {
+    sessionId: PUBLISH, owner: "me", canWrite: true, title: "Publish container images", agentId: "image-verifier", status: "error", parentSessionId: RELEASE, rootSessionId: RELEASE,
+    createdAt: m(96), updatedAt: m(18), model: "anthropic-wif:claude-sonnet-5", iterations: 4, error: "Failed after 3 attempts: registry returned HTTP 429, rate limit exceeded for ghcr.io",
+    spine: ["run", "run", "fail"],
+  },
+  {
+    sessionId: SURVEY, owner: "me", canWrite: true, title: "Quarterly survey analysis", agentId: "researcher", status: "waiting", groupId: "g-research", createdAt: m(180), updatedAt: m(22),
+    model: "anthropic-wif:claude-opus-5", visibility: "private", iterations: 7, pauseState: { kind: "hold", provider: "anthropic-wif", resetsAtUtc: new Date(ahead(95)).toISOString() },
+    spine: ["run", "run", "sleep", "run", "wait"],
+  },
+  {
     sessionId: CANVAS_PORT, owner: "Mo Said", canWrite: true, title: "Port canvas host to TSX", agentId: "coder", status: "running", groupId: "g-release", contextUsage: { utilization: 0.38, tokenLimit: 200000, currentTokens: 76000 }, createdAt: m(70), updatedAt: m(0),
     model: "anthropic-wif:claude-opus-5", step: "Editing CanvasFrame.tsx", iterations: 22, workspace: { repo: "pilotswarm", branch: "canvas-host", root: "main" },
     spine: ["run", "run", "run", "sleep", "run", "run", "run", "run"],
@@ -77,7 +89,7 @@ const sessions: Session[] = [
     createdAt: m(60 * 24 * 9), updatedAt: m(60 * 14), model: "azure-foundry-wif:gpt-5.6", iterations: 9, spine: ["run", "sleep", "run", "sleep", "run", "sleep"],
   },
   {
-    sessionId: ONBOARD, owner: "me", canWrite: true, title: "Onboarding guide rewrite", agentId: "pilotswarm", status: "idle", createdAt: m(60 * 27), updatedAt: m(60 * 20),
+    sessionId: ONBOARD, owner: "me", canWrite: true, title: "Onboarding guide rewrite", agentId: "pilotswarm", status: "idle", groupId: "g-docs", createdAt: m(60 * 27), updatedAt: m(60 * 20),
     model: "anthropic-wif:claude-sonnet-5", iterations: 4, spine: ["run", "run", "done"],
   },
   {

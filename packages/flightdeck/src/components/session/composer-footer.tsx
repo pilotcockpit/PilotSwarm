@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronDown, Folder, SlidersHorizontal } from "lucide-react";
+import { Bot, ChevronDown, Cpu, FolderGit2, SlidersHorizontal } from "lucide-react";
 import { ModelPicker } from "@/components/model-picker";
 import { WorkingFolderDialog } from "@/components/session/working-folder-dialog";
 import { contextFill } from "@/components/session/session-meta";
@@ -15,7 +15,7 @@ import { useMediaQuery } from "@/shell/prefs";
 import { cn } from "@/lib/utils";
 
 /**
- * What sits under the message box. Fixed things look fixed: the agent is plain text, with no chevron and no
+ * What sits under the message box. Fixed things look fixed: the agent is an icon and its name, with no chevron and no
  * hover, because a session's agent cannot change after it is created. Changeable things are chips that open
  * a picker: the model (with its reasoning effort and context window) and the working folder. The context
  * meter says how full the window is. On a phone the chips fold into one Session settings button.
@@ -45,13 +45,12 @@ export function ComposerSettings({ session, running }: { session: Session; runni
   );
 }
 
-/** The agent: a fixed fact, shown as text. No chevron, no hover. */
+/** The agent: a fixed fact, shown as a robot icon and its name. No chevron, no hover. */
 export function AgentLabel({ agent }: { agent?: string }) {
   if (!agent) return null;
-  const initials = agent.split(/[-_\s]+/).filter(Boolean).slice(0, 2).map((s) => s[0]).join("").toUpperCase();
   return (
     <span className="inline-flex min-w-0 max-w-44 items-center gap-1.5 px-1 text-xs text-muted" title={AGENT_FIXED_NOTE}>
-      <span aria-hidden className="grid size-5 shrink-0 place-items-center rounded-chip bg-raised text-xs font-medium">{initials}</span>
+      <Bot className="size-3.5 shrink-0" aria-hidden />
       <span className="truncate">{agent}</span>
       <span className="sr-only">. {AGENT_FIXED_NOTE}.</span>
     </span>
@@ -63,12 +62,12 @@ const chip = "max-w-48 gap-1 px-2 text-xs";
 export function ModelChip({ session, locked, onApplied }: { session: Session; locked: string | null; onApplied?: () => void }) {
   const [open, setOpen] = React.useState(false);
   const label = modelChipLabel(session);
-  if (locked) return <span className="inline-flex max-w-48 items-center truncate px-2 text-xs text-muted" title={locked}>{label}<span className="sr-only">. {locked}.</span></span>;
+  if (locked) return <span className="inline-flex max-w-48 items-center gap-1 px-2 text-xs text-muted" title={locked}><Cpu className="size-3.5 shrink-0" aria-hidden /><span className="truncate">{label}</span><span className="sr-only">. {locked}.</span></span>;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="quiet" size="sm" className={chip} aria-label={`Model: ${label}. Change it`}>
-          <span className="truncate">{label}</span><ChevronDown className="!size-3 shrink-0" aria-hidden />
+          <Cpu className="!size-3.5 shrink-0" aria-hidden /><span className="truncate">{label}</span><ChevronDown className="!size-3 shrink-0" aria-hidden />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="max-h-[70vh] w-96 overflow-y-auto">
@@ -86,7 +85,7 @@ export function FolderChip({ session, locked }: { session: Session; locked: stri
   const warning = folderWarning(view);
   const body = (
     <>
-      <Folder className="!size-3.5 shrink-0" aria-hidden />
+      <FolderGit2 className="!size-3.5 shrink-0" aria-hidden />
       <span className="truncate">{label}</span>
       {warning ? <span className="size-1.5 shrink-0 rounded-full bg-waiting" aria-hidden /> : null}
       {locked ? null : <ChevronDown className="!size-3 shrink-0" aria-hidden />}

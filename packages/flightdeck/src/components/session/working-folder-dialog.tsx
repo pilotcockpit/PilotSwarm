@@ -5,13 +5,15 @@ import { ConfirmDialog } from "@/components/ui/confirm";
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Skeleton, Tag } from "@/components/ui/misc";
+import { PathField } from "./path-field";
+import { Skeleton, Switch, Tag } from "@/components/ui/misc";
 import { cardVariants } from "@/components/ui/card";
-import { baselineOf, buildSave, isDirty as formIsDirty, planSave, type Baseline } from "./working-folder-form";
+import { baselineOf, buildSave, deriveExtraName, isDirty as formIsDirty, MAX_EXTRAS, planSave, type Baseline } from "./working-folder-form";
 import { errorCode, useRetryWorkspace, useSetWorkspace, useWorkspaceFolders, useWorkspaceView } from "@/data/ops/workspace";
 import { cn, plural } from "@/lib/utils";
 
-type Extra = { name: string; root: string; folder: string };
+/** `named` is true once the person has typed the name themselves; until then it follows the folder. */
+type Extra = { name: string; root: string; folder: string; required: boolean; named: boolean };
 
 /** The reason a folder path can't be used, or null. Relative to the root; empty means the root itself. */
 export function folderPathError(value: string): string | null {
@@ -82,7 +84,7 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
     setBaselineRevision(w.revision);
     setRoot(r0);
     setFolder(f0);
-    const ex = Object.entries(record?.extra ?? {}).map(([name, e]) => ({ name, root: e.root, folder: e.folder ?? "" }));
+    const ex = Object.entries(record?.extra ?? {}).map(([name, e]) => ({ name, root: e.root, folder: e.folder ?? "", required: e.required !== false, named: true }));
     setExtras(ex);
     setExtrasTouched(false);
     setShowExtras(ex.length > 0);
@@ -149,7 +151,6 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
   };
 
   const pending = w && w.turnRevision != null && w.turnRevision < w.revision;
-  const where = [root.trim(), folder.trim()].filter(Boolean).join(" / ");
 
   return (
     <>
@@ -176,7 +177,7 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
                       <div><Button size="sm" onClick={() => retry.mutate()} disabled={retry.isPending}>{retry.isPending ? <Loader2 className="animate-spin" /> : <RotateCw />} Retry now</Button></div>
                     </div>
                   ) : w.status === "none" ? (
-                    <p className="text-sm text-muted">No folder is set, so the agent works in your own folder. Set one to point it at a project.</p>
+                    <p className="text-sm text-muted">No folder is set, so the agent works in your own folder. Set one to point it at a codebase.</p>
                   ) : null}
                   {w.adopted && (w.adopted.agents.length || w.adopted.skills.length) ? (
                     <p className="text-xs text-muted">
@@ -185,16 +186,9 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
                   ) : null}
                 </section>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Root" hint={knownRoots.length ? undefined : "The named location the folder lives under."}>
-                    <Input value={root} onChange={(e) => setRoot(e.target.value)} list="wf-roots" placeholder={knownRoots[0] || "e.g. work"} autoComplete="off" spellCheck={false} />
-                  </Field>
-                  <Field label="Folder inside the root" hint="Leave empty to use the root itself." error={folderError}>
-                    <Input value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="e.g. projects/flight-deck" autoComplete="off" spellCheck={false} className="font-mono" />
-                  </Field>
-                  <datalist id="wf-roots">{knownRoots.map((r) => <option key={r} value={r} />)}</datalist>
-                </div>
-                {where ? <p className="-mt-2 text-xs text-muted">The agent will work in <span className="font-mono text-fg">{where}</span>.</p> : null}
+                <Field label="Folder" hint={knownRoots.length ? "A location the deployment offers, then a path inside it. Leave the path empty to use the location itself." : "A location, then a path inside it. Leave the path empty to use the location itself."} error={folderError}>
+                  <PathField label="Working folder" root={root} onRoot={setRoot} folder={folder} onFolder={setFolder} roots={knownRoots} placeholder="e.g. projects/flight-deck" />
+                </Field>
 
                 <div>
                   <DisclosureButton aria-expanded={showExtras} onClick={() => setShowExtras((v) => !v)} className="text-sm font-medium text-muted">
@@ -203,18 +197,38 @@ export function WorkingFolderDialog({ sessionId, open, onOpenChange }: { session
                   {showExtras ? (
                     <div className="mt-2 flex flex-col gap-2">
                       <p className="text-xs text-muted">Other folders the agent can read and write next to its working folder, such as shared notes or a second repository.</p>
-                      {extras.map((e, i) => (
-                        <div key={i} className="flex flex-col gap-1">
-                          <div className="grid grid-cols-[1fr_1fr_1.4fr_auto] items-center gap-2 max-sm:grid-cols-2">
-                            <Input aria-label={`Extra folder ${i + 1} name`} value={e.name} placeholder="name" onChange={(ev) => { setExtras(extras.map((x, j) => (j === i ? { ...x, name: ev.target.value } : x))); setExtrasTouched(true); }} spellCheck={false} />
-                            <Input aria-label={`Extra folder ${i + 1} root`} value={e.root} placeholder="root" list="wf-roots" onChange={(ev) => { setExtras(extras.map((x, j) => (j === i ? { ...x, root: ev.target.value } : x))); setExtrasTouched(true); }} spellCheck={false} />
-                            <Input aria-label={`Extra folder ${i + 1} path`} value={e.folder} placeholder="folder" className="font-mono" onChange={(ev) => { setExtras(extras.map((x, j) => (j === i ? { ...x, folder: ev.target.value } : x))); setExtrasTouched(true); }} spellCheck={false} />
-                            <Button variant="quiet" size="icon-sm" aria-label={`Remove extra folder ${e.name || i + 1}`} onClick={() => { setExtras(extras.filter((_, j) => j !== i)); setExtrasTouched(true); }}><X /></Button>
+                      {extras.map((e, i) => {
+                        const edit = (patch: Partial<Extra>) => { setExtras(extras.map((x, j) => (j === i ? { ...x, ...patch } : x))); setExtrasTouched(true); };
+                        // Until the person names it themselves, an additional folder is called after where it points.
+                        const place = (patch: Partial<Extra>) => {
+                          const next = { ...e, ...patch };
+                          edit(e.named ? patch : { ...patch, name: deriveExtraName(next.root, next.folder, extras.filter((_, j) => j !== i).map((x) => x.name)) });
+                        };
+                        return (
+                          <div key={i} className="flex flex-col gap-2.5 rounded-pane border border-line p-3">
+                            <div className="flex items-start gap-2">
+                              <Field label="Name" hint="What the agent calls it." error={extraErrors[i]?.startsWith("Name") || extraErrors[i]?.startsWith("That name") ? extraErrors[i] : undefined} className="min-w-0 flex-1">
+                                <Input value={e.name} onChange={(ev) => edit({ name: ev.target.value, named: true })} spellCheck={false} autoComplete="off" className="font-mono" />
+                              </Field>
+                              <Button variant="quiet" size="icon-sm" className="mt-6 shrink-0" aria-label={`Remove additional folder ${e.name || i + 1}`} onClick={() => { setExtras(extras.filter((_, j) => j !== i)); setExtrasTouched(true); }}><X /></Button>
+                            </div>
+                            <Field label="Folder" error={extraErrors[i] && !extraErrors[i]!.startsWith("Name") && !extraErrors[i]!.startsWith("That name") ? extraErrors[i] : undefined}>
+                              <PathField label={`Additional folder ${e.name || i + 1}`} root={e.root} onRoot={(v) => place({ root: v })} folder={e.folder} onFolder={(v) => place({ folder: v })} roots={knownRoots} />
+                            </Field>
+                            <label className="flex items-center justify-between gap-3 text-sm">
+                              <span className="min-w-0">
+                                Wait for this folder
+                                <span className="block text-xs text-muted">{e.required ? "A turn waits until it opens." : "A turn runs without it if it can't open, and the agent is told."}</span>
+                              </span>
+                              <Switch checked={e.required} onCheckedChange={(v) => edit({ required: v })} aria-label={`Wait for additional folder ${e.name || i + 1} before each turn`} />
+                            </label>
                           </div>
-                          {extraErrors[i] ? <p role="alert" className="text-xs text-failed">{extraErrors[i]}</p> : null}
-                        </div>
-                      ))}
-                      <div><Button size="sm" onClick={() => { setExtras([...extras, { name: "", root: root.trim(), folder: "" }]); setExtrasTouched(true); }}><Plus /> Add a folder</Button></div>
+                        );
+                      })}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button size="sm" disabled={extras.length >= MAX_EXTRAS} onClick={() => { const name = deriveExtraName(root, "", extras.map((x) => x.name)); setExtras([...extras, { name, root: root.trim(), folder: "", required: true, named: false }]); setExtrasTouched(true); }}><Plus /> Add a folder</Button>
+                        {extras.length >= MAX_EXTRAS ? <span className="text-xs text-muted">A session can have up to {MAX_EXTRAS} additional folders.</span> : null}
+                      </div>
                     </div>
                   ) : null}
                 </div>

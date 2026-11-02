@@ -5,6 +5,7 @@ import * as React from "react";
 // both run side by side.
 
 import { normaliseTheme, resolveDark, type Theme } from "./theme-pref";
+import { THEME_COLORS } from "@/lib/page-metadata";
 export type { Theme };
 
 // When the browser refuses storage (private windows, a full quota), a change still takes effect for this
@@ -27,7 +28,9 @@ const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
 export function applyTheme(theme: Theme) {
-  document.documentElement.classList.toggle("dark", resolveDark(normaliseTheme(theme), matchMedia("(prefers-color-scheme: dark)").matches));
+  const dark = resolveDark(normaliseTheme(theme), matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.classList.toggle("dark", dark);
+  document.querySelector?.('meta[name="theme-color"]')?.setAttribute("content", dark ? THEME_COLORS.dark : THEME_COLORS.light);
 }
 
 export function usePref<T extends string>(key: string, fallback: T): [T, (v: T) => void] {

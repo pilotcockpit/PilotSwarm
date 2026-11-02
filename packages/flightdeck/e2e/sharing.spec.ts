@@ -9,21 +9,31 @@ const sessionHeader = (page: Page) => page.locator("main > header");
 async function openSession(page: Page, info: TestInfo, id: string, titlePart: string, query = "") {
   await gotoDemo(page, `/s/${id}${query}`, info);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(titlePart);
-  if (isPhone(info)) await expect(sessionHeader(page).getByRole("button", { name: "More", exact: true })).toBeVisible();
+  if (isPhone(info)) await expect(sessionHeader(page).getByRole("button", { name: "Session actions", exact: true })).toBeVisible();
   else await expect(page.getByRole("button", { name: /^Share\./ })).toBeVisible();
 }
 /** The Share sheet: the header button on desktop, a session-menu item on a phone. */
 async function openShare(page: Page, info: TestInfo) {
   if (!isPhone(info)) return Sheet.open(page, shareButton(page), /^Share /);
-  await openMenu(page, "more");
+  await openMenu(page);
   await page.getByRole("menuitem", { name: /^Share/ }).click();
   return Sheet.attach(page, /^Share /);
 }
 const shareButton = (page: Page) => page.getByRole("button", { name: /^Share\./ });
-// The title's chevron opens the session actions; the More menu holds the rest (and Share on a phone).
-async function openMenu(page: Page, which: "actions" | "more") {
-  await sessionHeader(page).getByRole("button", { name: which === "actions" ? "Session actions" : "More", exact: true }).click();
+// The chevron beside the title opens the session actions: rename, pin, move to a project, share (the only way on a phone), close.
+async function openMenu(page: Page) {
+  await sessionHeader(page).getByRole("button", { name: "Session actions", exact: true }).click();
   await expect(page.getByRole("menu")).toBeVisible();
+}
+/** The working folder is changed from its chip under the message box; on a phone the chip is inside the Session settings sheet. */
+async function openWorkingFolder(page: Page, info: TestInfo) {
+  const chip = page.getByRole("button", { name: /^Working folder:/ });
+  // Closing the folder dialog leaves the settings sheet open on a phone, so the chip may already be there.
+  if (isPhone(info) && !(await chip.isVisible())) await page.getByRole("button", { name: /^Session settings/ }).click();
+  await chip.click();
+  const sheet = new Sheet(page, page.getByRole("dialog", { name: "Working folder" }));
+  await expect(sheet.dialog).toBeVisible();
+  return sheet;
 }
 
 test("Share: the button says who has access; adding a person changes it, with Undo", async ({ page }, info) => {
@@ -164,14 +174,14 @@ test("Share: a view-only person sees why, not dead buttons", async ({ page }, in
   await expectNoSeriousAxe(page, sheet.dialog, "viewer share sheet");
 });
 
-test("Move to group: search, create-and-move, and Undo", async ({ page }, info) => {
+test("Move to project: search, create-and-move, and Undo", async ({ page }, info) => {
   await openSession(page, info, IDS.p95, "p95");
-  await openMenu(page, "actions");
-  await page.getByRole("menuitem", { name: /Move to group/ }).click();
-  const sheet = new Sheet(page, page.getByRole("dialog", { name: "Move to group" }));
+  await openMenu(page);
+  await page.getByRole("menuitem", { name: /Move to project/ }).click();
+  const sheet = new Sheet(page, page.getByRole("dialog", { name: "Move to project" }));
   await expect(sheet.dialog).toBeVisible();
-  const box = sheet.dialog.getByRole("combobox", { name: "Move to group" });
-  await expect(sheet.dialog.getByRole("option", { name: /Current group/ })).toContainText("Ops");
+  const box = sheet.dialog.getByRole("combobox", { name: "Move to project" });
+  await expect(sheet.dialog.getByRole("option", { name: /Current project/ })).toContainText("Ops");
   await shot(page, info, "move-to-group");
   await expectNoSeriousAxe(page, sheet.dialog, "move to group");
 
@@ -179,24 +189,24 @@ test("Move to group: search, create-and-move, and Undo", async ({ page }, info) 
   await box.fill("Rel");
   await expect(sheet.dialog.getByRole("option", { name: /Release 0\.8\.8/ })).toBeVisible();
   await expect(sheet.dialog.getByRole("option", { name: /^Ops/ })).toHaveCount(0);
-  await box.fill("E2E group");
+  await box.fill("E2E project");
   const create = sheet.dialog.getByRole("option", { name: /Create/ });
-  await expect(create).toContainText("E2E group");
+  await expect(create).toContainText("E2E project");
   await create.click();
   await expect(sheet.dialog).toBeHidden();
   const created = await demoCalls(page, "createSessionGroup");
   expect(created).toHaveLength(1);
-  expect(JSON.stringify(created[0].params)).toContain("E2E group");
+  expect(JSON.stringify(created[0].params)).toContain("E2E project");
   const placed = await demoCalls(page, "placeSessionsInGroup");
   expect(placed).toHaveLength(1);
   expect(placed[0].params.sessionIds).toEqual([IDS.p95]);
-  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Moved to E2E group" })).toBeVisible(); // no modal is open: a normal toast
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Moved to E2E project" })).toBeVisible(); // no modal is open: a normal toast
 
   await page.getByRole("button", { name: "Undo" }).click();
   expect((await demoCalls(page, "placeSessionsInGroup")).at(-1)!.params.groupId).toBe("g-ops"); // back where it was
-  await openMenu(page, "actions");
-  await page.getByRole("menuitem", { name: /Move to group/ }).click();
-  await expect(page.getByRole("dialog", { name: "Move to group" }).getByRole("option", { name: /Current group/ })).toContainText("Ops"); // back where it was
+  await openMenu(page);
+  await page.getByRole("menuitem", { name: /Move to project/ }).click();
+  await expect(page.getByRole("dialog", { name: "Move to project" }).getByRole("option", { name: /Current project/ })).toContainText("Ops"); // back where it was
 });
 
 test("canvas Share: the public link is shown once, rotate and remove ask first", async ({ page }, info) => {
@@ -278,11 +288,8 @@ test("canvas Share: the public link is shown once, rotate and remove ask first",
 
 test("Working folder: a save after someone else changed it offers Keep my edits or Take theirs", async ({ page }, info) => {
   await openSession(page, info, IDS.p95, "p95");
-  await openMenu(page, "more");
-  await page.getByRole("menuitem", { name: /Working folder/ }).click();
-  const sheet = new Sheet(page, page.getByRole("dialog", { name: "Working folder" }));
-  await expect(sheet.dialog).toBeVisible();
-  const folder = sheet.dialog.getByRole("textbox", { name: "Folder inside the root" });
+  const sheet = await openWorkingFolder(page, info);
+  const folder = sheet.dialog.getByRole("textbox", { name: "Folder", exact: true }).first();
   await expect(folder).toHaveValue("projects/flight-deck");
   const save = sheet.dialog.getByRole("button", { name: "Save" });
   await expect(save).toBeDisabled();
@@ -315,10 +322,8 @@ test("Working folder: a save after someone else changed it offers Keep my edits 
 
 test("Working folder: Keep my edits saves against the new revision", async ({ page }, info) => {
   await openSession(page, info, IDS.p95, "p95");
-  await openMenu(page, "more");
-  await page.getByRole("menuitem", { name: /Working folder/ }).click();
-  const sheet = new Sheet(page, page.getByRole("dialog", { name: "Working folder" }));
-  const folder = sheet.dialog.getByRole("textbox", { name: "Folder inside the root" });
+  const sheet = await openWorkingFolder(page, info);
+  const folder = sheet.dialog.getByRole("textbox", { name: "Folder", exact: true }).first();
   await folder.fill("projects/mine");
   await page.evaluate(() => (window as any).__fdDemo.workspace.bumpRevision({ folder: "projects/theirs" }));
   await sheet.dialog.getByRole("button", { name: "Save" }).click();
@@ -332,17 +337,14 @@ test("Working folder: Keep my edits saves against the new revision", async ({ pa
   await expect(sheet.dialog.getByRole("button", { name: /Keep my edits/ })).toHaveCount(0);
   await expect(sheet.dialog.getByRole("button", { name: "Save" })).toBeDisabled();
   await sheet.close();
-  await openMenu(page, "more");
-  await page.getByRole("menuitem", { name: /Working folder/ }).click();
-  await expect(page.getByRole("dialog", { name: "Working folder" }).getByRole("textbox", { name: "Folder inside the root" })).toHaveValue("projects/mine");
+  const again = await openWorkingFolder(page, info);
+  await expect(again.dialog.getByRole("textbox", { name: "Folder", exact: true }).first()).toHaveValue("projects/mine");
 });
 
 test("Working folder: when the page already knows the record moved, Save sends nothing and asks first", async ({ page }, info) => {
   await openSession(page, info, IDS.p95, "p95");
-  await openMenu(page, "more");
-  await page.getByRole("menuitem", { name: /Working folder/ }).click();
-  const sheet = new Sheet(page, page.getByRole("dialog", { name: "Working folder" }));
-  const folder = sheet.dialog.getByRole("textbox", { name: "Folder inside the root" });
+  const sheet = await openWorkingFolder(page, info);
+  const folder = sheet.dialog.getByRole("textbox", { name: "Folder", exact: true }).first();
   await folder.fill("projects/mine");
   await page.evaluate(() => (window as any).__fdDemo.workspace.bumpRevision({ folder: "projects/theirs" }));
   // Make the page re-read the record now (in real use: polling or returning to the tab).

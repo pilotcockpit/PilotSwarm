@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/misc";
 
 // Single keys only navigate or open things. Nothing destructive has a single
 // key; Complete, Cancel and Delete live in menus and ask first.
-const GO: Record<string, string> = { h: "/", s: "/sessions", b: "/boards", o: "/outputs", l: "/library", p: "/providers", a: "/admin" };
+const GO: Record<string, string> = { h: "/", s: "/projects", b: "/boards", o: "/outputs", l: "/library", p: "/providers", a: "/admin" };
 
 export const SHORTCUTS: Array<{ keys: string[]; what: string }> = [
   { keys: ["⌘", "K"], what: "Search sessions, agents and commands" },

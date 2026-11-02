@@ -1,95 +1,174 @@
 import * as React from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
-import { ChevronRight, FolderInput, ListFilter, MoreHorizontal, Pencil, Pin, PinOff, Plus, RotateCcw, Share2, Link2, CheckCircle2, Ban, Trash2 } from "lucide-react";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { ArrowRight, CheckCircle2, ListChecks, MoreHorizontal, Pin, PinOff, RefreshCw, SquarePen } from "lucide-react";
 import { useGroups, useProfile, useSessions } from "@/data/source";
 import type { Session } from "@/data/types";
-import { sessionState } from "@/data/state";
-import { StateGlyph } from "@/components/state";
-import { StateFacets } from "@/components/state-facets";
-import { Button, DisclosureButton } from "@/components/ui/button";
-import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
-import { Popover, PopoverContent, PopoverTrigger, Skeleton, Switch } from "@/components/ui/misc";
-import { Segmented } from "@/components/ui/tabs";
+import { buildSidebarModel, DEFAULT_PROJECT_ID, DEFAULT_PROJECT_NAME, PROJECT_PREVIEW, type ProjectRow, inSettledOrder, RECENT_PAGE, settleOrder, type Attention, type Settled } from "@/data/session-tree";
+import { focusAfterChange } from "@/data/session-tree";
+import { Button } from "@/components/ui/button";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/misc";
 import { ShareSheet } from "@/components/session/share-sheet";
 import { MoveToGroupDialog } from "@/components/session/move-to-group";
-import { SessionCloseDialog, SessionRenameDialog, canModify, copySessionLink, type CloseKind } from "@/components/session/session-actions";
+import { SessionCloseDialog, SessionRenameDialog, canModify } from "@/components/session/session-actions";
 import { RestartDialog } from "@/components/admin/system-sessions-panel";
 import { useUi } from "@/shell/ui-state";
-import { cn } from "@/lib/utils";
-import { usePins, useSidebarPrefs, type GroupBy } from "./prefs";
-import { buildSections, focusAfterChange, isRoot, RECENT_PAGE, visibleRowIds, type Section } from "./tree";
+import { cn, plural } from "@/lib/utils";
+import { useDismissedAttention, usePins, useSidebarPrefs } from "./prefs";
+import { useDismissAttention } from "./use-attention";
 import { NeedsCountStatus } from "./needs-status";
-
-type Dialog = { id: string; kind: "rename" | "move" | "share" | "restart" | CloseKind } | null;
+import { ProjectIcon } from "@/components/project-icon";
+import { NewProjectDialog } from "@/components/project-dialogs";
+import { SectionHeading } from "./section-heading";
+import { SidebarRow, type RowDialog } from "./sidebar-row";
 
 /** The id of the session being viewed, from the address. */
 export function useActiveSessionId(): string | null {
   return useRouterState({ select: (s) => (s.location.pathname.match(/^\/s\/([^/]+)/)?.[1] ?? null) });
 }
 
+interface Entry { key: string; session: Session; attention?: Attention }
+
+/** Where focus goes when a row's key is gone: the same session under another key, else the neighbouring row. */
+function nextFocus(prev: readonly string[], next: readonly string[], key: string): string | null {
+  const sessionOf = (k: string) => k.slice(k.lastIndexOf("/") + 1);
+  if (next.includes(key)) return key;
+  const moved = next.find((k) => sessionOf(k) === sessionOf(key));
+  return moved ?? focusAfterChange(prev, next, key);
+}
+
 /**
- * The sessions, in the sidebar: who needs you first, your pins, your groups, then the rest. One tab
- * stop for the whole list (arrow keys move, Enter opens, p pins, m opens the menu, Delete asks to
- * delete); the section headings are ordinary buttons. The list scrolls on its own, so the page
- * links above it never move.
+ * The sessions, in the sidebar: what needs you, your pins, your projects, then what you were doing. It is a
+ * place to jump from, not the whole library (that is Sessions): five things at most ask for you, a project
+ * opens to five, and finished work leaves. One tab stop for the list (arrow keys move, Enter opens,
+ * p pins, m opens the menu, Delete asks to delete); headings are ordinary buttons.
  */
 export function SessionsSidebar({ onNavigate, className }: { onNavigate?: () => void; className?: string }) {
   const { data: sessions, isLoading, isError, refetch } = useSessions();
   const { data: groups } = useGroups();
   const { data: profile } = useProfile();
   const pins = usePins();
+  const dismissed = useDismissedAttention();
   const prefs = useSidebarPrefs();
   const { openNewSession } = useUi();
   const active = useActiveSessionId();
   const [recentShown, setRecentShown] = React.useState(RECENT_PAGE);
-  const [focusId, setFocusId] = React.useState<string | null>(null);
+  const [focusKey, setFocusKey] = React.useState<string | null>(null);
   const [menuFor, setMenuFor] = React.useState<string | null>(null);
-  const [dialog, setDialog] = React.useState<Dialog>(null);
+  const [dialog, setDialog] = React.useState<RowDialog>(null);
+  const [newProjectOpen, setNewProjectOpen] = React.useState(false);
   const listRef = React.useRef<HTMLDivElement>(null);
+  const isAdmin = Boolean(profile?.isAdmin);
 
-  const all = sessions || [];
-  const sections = React.useMemo(
-    () => buildSections({ sessions: all, groups: groups || [], pinned: pins.ids, groupBy: prefs.groupBy, state: prefs.state, showSystem: prefs.showSystem && Boolean(profile?.isAdmin) }),
-    [all, groups, pins.ids, prefs.groupBy, prefs.state, prefs.showSystem, profile?.isAdmin],
+  const model = React.useMemo(
+    () => buildSidebarModel({ sessions: sessions || [], groups: groups || [], pins: pins.order, pinnedProjects: pins.projects, keep: prefs.openProject?.where === "projects" ? [prefs.openProject.id] : [], dismissed: dismissed.keys, viewer: { isAdmin } }),
+    [sessions, groups, pins.order, pins.projects, prefs.openProject, dismissed.keys, isAdmin],
   );
-  const ids = React.useMemo(() => visibleRowIds(sections, prefs.collapsed, recentShown), [sections, prefs.collapsed, recentShown]);
-  const tabbable = focusId && ids.includes(focusId) ? focusId : active && ids.includes(active) ? active : ids[0] ?? null;
-  const byId = React.useMemo(() => new Map(all.map((s) => [s.sessionId, s])), [all]);
-  const counts = React.useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const s of all) if (!s.isSystem) { const k = sessionState(s).key; c[k] = (c[k] || 0) + 1; }
-    return c;
-  }, [all]);
-  const present = React.useMemo(() => new Set(all.map((s) => s.sessionId)), [all]);
-  const total = all.filter((s) => !s.isSystem && isRoot(s, present)).length;
-  const needsCount = sections.find((sec) => sec.kind === "needs")?.sessions.length ?? 0;
-  const filtering = Boolean(prefs.state) || prefs.groupBy !== "groups";
 
-  // The session whose row last held keyboard focus inside the list. A row that moves between sections (a pin,
-  // a group change, a state change on a poll) is unmounted and mounted elsewhere, which drops focus to the page;
-  // when that happens, focus goes to the same session in its new place, or to its neighbour if it is gone.
+  // Recent keeps the order it was drawn in. A session that updates stays where it is (its state still updates in
+  // place); the person chooses when to re-sort.
+  const settled = React.useRef<Settled | null>(null);
+  const resort = React.useRef(false);
+  const [resortTick, setResortTick] = React.useState(0);
+  const recent = React.useMemo(() => {
+    const force = resort.current;
+    resort.current = false;
+    const next = settleOrder(settled.current, model.recent, force);
+    settled.current = next.settled;
+    return { rows: inSettledOrder(next.settled, model.recent), pending: next.pending };
+  }, [model.recent, resortTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The session being viewed stays in the list even after it finishes or leaves the top, so the highlight has somewhere to be.
+  const activeRoot = active ? model.index.rootOf(active) : null;
+  const shownRecent = recent.rows.slice(0, recentShown);
+  const hiddenRecent = recent.rows.length - shownRecent.length;
+
+  const entries = React.useMemo(() => {
+    const seen = new Set<string>();
+    const out: { needs: Entry[]; pinned: Entry[]; project: Entry[]; loose: Entry[]; recent: Entry[] } = { needs: [], pinned: [], project: [], loose: [], recent: [] };
+    for (const a of model.needs.shown) { const s = model.index.byId.get(a.sessionId); if (s) { out.needs.push({ key: `needs/${s.sessionId}`, session: s, attention: a }); seen.add(s.sessionId); } }
+    for (const s of model.pinned) { out.pinned.push({ key: `pin/${s.sessionId}`, session: s }); seen.add(s.sessionId); }
+    const where = prefs.openProject?.where;
+    const visible = where === "pinned" ? model.pinnedProjects : model.projects.shown;
+    const open = visible.find((f) => f.group.id === prefs.openProject?.id);
+    // The session being viewed always shows in its open project, even when it is not among the first few.
+    const viewed = activeRoot ? open?.trees.find((s) => s.sessionId === activeRoot) : undefined;
+    const preview = open ? open.trees.slice(0, PROJECT_PREVIEW) : [];
+    if (viewed && !preview.includes(viewed)) preview[PROJECT_PREVIEW - 1] = viewed;
+    for (const s of preview) out.project.push({ key: `project/${s.sessionId}`, session: s });
+    // Sessions outside any project are listed in their own section, the same way: five, and the one being viewed always among them.
+    const loose = model.projects.fallback?.trees ?? [];
+    const looseView = activeRoot ? loose.find((s) => s.sessionId === activeRoot) : undefined;
+    const looseShown = loose.slice(0, PROJECT_PREVIEW);
+    if (looseView && !looseShown.includes(looseView)) looseShown[PROJECT_PREVIEW - 1] = looseView;
+    for (const s of looseShown) out.loose.push({ key: `loose/${s.sessionId}`, session: s });
+    for (const s of shownRecent) { out.recent.push({ key: `recent/${s.sessionId}`, session: s }); seen.add(s.sessionId); }
+    const current = activeRoot ? model.index.byId.get(activeRoot) : undefined;
+    if (current && !current.isSystem && !seen.has(current.sessionId)) out.recent.unshift({ key: `recent/${current.sessionId}`, session: current });
+    return out;
+  }, [model, prefs.openProject, shownRecent, activeRoot]);
+
+  // The keyboard walks the rows in the order they are drawn: a project open under Pinned sits above the pinned sessions.
+  const openWhere = prefs.openProject?.where;
+  const orderedKeys = React.useMemo(() => [
+    ...(prefs.collapsed.needs ? [] : entries.needs.map((e) => e.key)),
+    ...(prefs.collapsed.pinned ? [] : [...(openWhere === "pinned" ? entries.project : []), ...entries.pinned].map((e) => e.key)),
+    ...(prefs.collapsed.projects || openWhere === "pinned" ? [] : entries.project.map((e) => e.key)),
+    ...(prefs.collapsed.noproject ? [] : entries.loose.map((e) => e.key)),
+    ...(prefs.collapsed.recent ? [] : entries.recent.map((e) => e.key)),
+  ], [entries, prefs.collapsed, openWhere]);
+  // Opening a session from anywhere (a Recent pointer, Needs you, a link) opens the project it is filed in and selects it
+  // there. The project stays open for the person to close; it is only opened again when they go to a different session.
+  const revealed = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!active || !activeRoot || !prefs.ready || !pins.settled || groups === undefined || revealed.current === active) return;
+    const root = model.index.byId.get(activeRoot);
+    if (!root) return; // not loaded yet
+    revealed.current = active;
+    const project = model.projectOf.get(activeRoot);
+    // A project lists only live trees. A finished session, or any session when there are no projects, is not in one: it is
+    // drawn where it is pinned, where it needs you, or among the Recents, and that is the section to open.
+    const folder = project ? (project === DEFAULT_PROJECT_ID ? model.projects.fallback : [...model.projects.all, ...model.pinnedProjects].find((f) => f.group.id === project)) : undefined;
+    if (!project || !folder?.trees.some((s) => s.sessionId === activeRoot)) {
+      const section = model.needs.shown.some((a) => a.sessionId === activeRoot) ? "needs" : model.pinned.some((s) => s.sessionId === activeRoot) ? "pinned" : "recent";
+      if (prefs.collapsed[section]) prefs.toggleSection(section);
+      return;
+    }
+    // A session outside any project is in the No project section: make sure that is open.
+    if (project === DEFAULT_PROJECT_ID) { if (prefs.collapsed.noproject) prefs.toggleSection("noproject"); return; }
+    // Stay under Pinned when the project is pinned and Pinned is open; otherwise show it among the projects.
+    const where = model.pinnedProjects.some((p) => p.group.id === project) && !prefs.collapsed.pinned ? "pinned" : "projects";
+    if (prefs.openProject?.id !== project || prefs.openProject.where !== where) prefs.setOpenProject(project, where);
+    if (where === "projects" && prefs.collapsed.projects) prefs.toggleSection("projects");
+  });
+  // The one row that is the current page: the one in its project when it is shown there, else the first place it appears.
+  const currentKey = active ? orderedKeys.find((k) => (k.startsWith("project/") || k.startsWith("loose/")) && k.endsWith(`/${active}`)) ?? orderedKeys.find((k) => k.endsWith(`/${active}`)) ?? null : null;
+  React.useEffect(() => { if (currentKey) listRef.current?.querySelector<HTMLElement>(`a[data-sidebar-row][data-row-key="${CSS.escape(currentKey)}"]`)?.scrollIntoView?.({ block: "nearest" }); }, [currentKey]);
+  const tabbable = focusKey && orderedKeys.includes(focusKey) ? focusKey : orderedKeys.find((k) => k.endsWith(`/${active}`)) ?? orderedKeys[0] ?? null;
+  const byId = model.index.byId;
+  const empty = !isLoading && !isError && !model.total && !model.completed && !model.pinned.length && !model.needs.all.length;
+
+  // The row that last held keyboard focus inside the list. A row that moves between sections (a pin, a state
+  // change on a poll) is unmounted and mounted elsewhere, which drops focus to the page; when that happens,
+  // focus goes to the same session in its new place, or to its neighbour if it is gone.
   const focusedRef = React.useRef<string | null>(null);
-  const prevIdsRef = React.useRef<string[]>(ids);
-  const rowEl = (id: string) => listRef.current?.querySelector<HTMLElement>(`a[data-sidebar-row][data-session-id="${CSS.escape(id)}"]`) ?? null;
-  const focusRow = (id: string) => {
-    focusedRef.current = id;
-    setFocusId(id);
-    rowEl(id)?.focus();
-  };
-  const onFocusRow = (id: string) => { focusedRef.current = id; setFocusId(id); };
+  const prevKeysRef = React.useRef<string[]>(orderedKeys);
+  const rowEl = (key: string) => listRef.current?.querySelector<HTMLElement>(`a[data-sidebar-row][data-row-key="${CSS.escape(key)}"]`) ?? null;
+  const focusRow = (key: string) => { focusedRef.current = key; setFocusKey(key); rowEl(key)?.focus(); };
+  const onFocusRow = (key: string) => { focusedRef.current = key; setFocusKey(key); };
   React.useLayoutEffect(() => {
-    const prev = prevIdsRef.current;
-    prevIdsRef.current = ids;
-    const id = focusedRef.current;
-    if (!id || !listRef.current) return;
-    const active = document.activeElement;
-    if (listRef.current.contains(active)) return; // focus is still in the list
-    if (active && active !== document.body) { if (!active.closest("[role='dialog'],[role='menu']")) focusedRef.current = null; return; } // someone else has it
-    const target = focusAfterChange(prev, ids, id);
+    const prev = prevKeysRef.current;
+    prevKeysRef.current = orderedKeys;
+    const key = focusedRef.current;
+    if (!key || !listRef.current) return;
+    const el = document.activeElement;
+    if (listRef.current.contains(el)) return; // focus is still in the list
+    if (el && el !== document.body) { if (!el.closest("[role='dialog'],[role='menu']")) focusedRef.current = null; return; } // someone else has it
+    const target = nextFocus(prev, orderedKeys, key);
     if (!target) { focusedRef.current = null; return; }
-    const el = rowEl(target);
-    if (el) { focusedRef.current = target; setFocusId(target); el.focus(); }
+    const row = rowEl(target);
+    if (row) { focusedRef.current = target; setFocusKey(target); row.focus(); }
   });
   React.useEffect(() => {
     // Pointing elsewhere is a decision to leave the list: do not pull focus back later.
@@ -98,96 +177,259 @@ export function SessionsSidebar({ onNavigate, className }: { onNavigate?: () => 
     return () => document.removeEventListener("pointerdown", leave, true);
   }, []);
   /** Dialogs opened from a row give focus back to it, or to the row that took its place if it is gone by then. */
-  const closeFocus = (id: string) => (e: Event) => {
+  const closeFocus = (key: string) => (e: Event) => {
     e.preventDefault();
-    const target = focusAfterChange(prevIdsRef.current, ids, id);
+    const target = nextFocus(prevKeysRef.current, orderedKeys, key);
     if (target) focusRow(target);
   };
   const onKeyDown = (e: React.KeyboardEvent) => {
     const row = (e.target as HTMLElement).closest<HTMLElement>("a[data-sidebar-row]");
     if (!row || e.metaKey || e.ctrlKey || e.altKey) return;
+    const key = row.dataset.rowKey!;
     const id = row.dataset.sessionId!;
-    const i = ids.indexOf(id);
-    if (e.key === "ArrowDown") { e.preventDefault(); if (ids[i + 1]) focusRow(ids[i + 1]); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); if (ids[i - 1]) focusRow(ids[i - 1]); }
-    else if (e.key === "Home") { e.preventDefault(); if (ids[0]) focusRow(ids[0]); }
-    else if (e.key === "End") { e.preventDefault(); if (ids.length) focusRow(ids[ids.length - 1]); }
+    const i = orderedKeys.indexOf(key);
+    if (e.key === "ArrowDown") { e.preventDefault(); if (orderedKeys[i + 1]) focusRow(orderedKeys[i + 1]); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); if (orderedKeys[i - 1]) focusRow(orderedKeys[i - 1]); }
+    else if (e.key === "Home") { e.preventDefault(); if (orderedKeys[0]) focusRow(orderedKeys[0]); }
+    else if (e.key === "End") { e.preventDefault(); if (orderedKeys.length) focusRow(orderedKeys[orderedKeys.length - 1]); }
     else if (e.key === "p") { e.preventDefault(); pins.toggle(id); }
-    else if (e.key === "m" || e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) { e.preventDefault(); setMenuFor(id); }
-    else if (e.key === "Delete") { const s = byId.get(id); if (s && canModify(s)) { e.preventDefault(); setDialog({ id, kind: "delete" }); } }
+    else if (e.key === "m" || e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) { e.preventDefault(); setMenuFor(key); }
+    else if (e.key === "Delete") { const s = byId.get(id); if (s && canModify(s)) { e.preventDefault(); setDialog({ id: key, kind: "delete" }); } }
   };
 
-  const dialogSession = dialog ? byId.get(dialog.id) : undefined;
-  const childCount = dialog ? all.filter((s) => s.parentSessionId === dialog.id).length : 0;
+  const dialogSession = dialog ? byId.get(dialog.id.slice(dialog.id.lastIndexOf("/") + 1)) : undefined;
+  const childCount = dialogSession ? (sessions || []).filter((s) => s.parentSessionId === dialogSession.sessionId).length : 0;
+
+  const dismiss = useDismissAttention();
+  const renderRow = (e: Entry, typed = false) => (
+    <SidebarRow
+      key={e.key}
+      rowKey={e.key}
+      session={e.session}
+      index={model.index}
+      active={active === e.session.sessionId}
+      current={currentKey === e.key}
+      within={Boolean(active) && active !== e.session.sessionId && activeRoot === e.session.sessionId}
+      tabbable={tabbable === e.key}
+      pinned={pins.isPinned(e.session.sessionId)}
+      attention={e.attention}
+      isAdmin={isAdmin}
+      onFocusRow={onFocusRow}
+      onTogglePin={() => pins.toggle(e.session.sessionId)}
+      onDismiss={e.attention?.dismissible ? () => dismiss(e.attention!) : undefined}
+      menuOpen={menuFor === e.key}
+      onMenuOpenChange={(o) => setMenuFor(o ? e.key : null)}
+      onAction={(kind) => { setMenuFor(null); setDialog({ id: e.key, kind }); }}
+      onNavigate={onNavigate}
+      typed={typed}
+    />
+  );
+  const navigate = useNavigate();
+  const go = (to: "/projects", search?: Record<string, string>) => { onNavigate?.(); void navigate({ to, search: search as any }); };
+  const projectRows = model.projects.all;
+  const projectsAsk = projectRows.reduce((n, p) => n + p.attention, 0);
+  const recentDot = recent.pending > 0 ? `${recent.pending} updated` : shownRecent.some((s) => s.unseenCanvas) ? "Canvas updated" : null;
+  const pinnedAsk = model.pinnedProjects.reduce((n, p) => n + p.attention, 0);
+  const pinnedDot = pinnedAsk ? `${plural(pinnedAsk, "session")} in pinned projects ${pinnedAsk === 1 ? "needs" : "need"} you` : model.pinned.some((s) => s.unseenCanvas) ? "Canvas updated" : null;
+  const actionButton = "size-7 pointer-coarse:size-11";
+
+  const renderProject = (f: ProjectRow, where: "pinned" | "projects") => {
+    const open = prefs.openProject?.id === f.group.id && prefs.openProject.where === where;
+    const pinned = pins.isProjectPinned(f.group.id);
+    return (
+      <li key={`${where}/${f.group.id}`} className="group/row relative">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => prefs.setOpenProject(open ? null : f.group.id, where)}
+          className={cn("focus-inset flex min-h-8 w-full items-center gap-2 rounded-control px-2 text-left text-sm pointer-coarse:min-h-11 pointer-coarse:pr-22 transition-colors duration-(--duration-fast)", open ? "bg-raised/60 text-fg" : "text-muted hover:bg-raised/60 hover:text-fg")}
+        >
+          <ProjectIcon open={open} label="Project" />
+          <span className="min-w-0 flex-1 truncate font-medium">{f.group.name}</span>
+          {f.attention ? <span className="shrink-0 rounded-full bg-failed-tint px-1.5 text-xs tabular-nums text-failed" title={`${plural(f.attention, "session")} here ${f.attention === 1 ? "needs" : "need"} you`}>{f.attention}<span className="sr-only"> {f.attention === 1 ? "needs" : "need"} you</span></span> : null}
+          <span className="shrink-0 text-xs tabular-nums text-faint" title="Live trees; finished work is under Completed">{f.trees.length}<span className="sr-only"> {f.trees.length === 1 ? "tree" : "trees"}</span></span>
+        </button>
+        <div className="absolute right-0.5 top-1 hidden items-center rounded-control bg-raised pl-0.5 group-hover/row:flex group-focus-within/row:flex pointer-coarse:flex pointer-coarse:bg-transparent">
+          {/* A new session started here is filed in this project. */}
+          <Tooltip content={`New session in ${f.group.name}`}>
+            <Button variant="quiet" size="icon-sm" aria-label={`New session in ${f.group.name}`} onClick={() => { onNavigate?.(); openNewSession({ group: f.group.id }); }}><SquarePen /></Button>
+          </Tooltip>
+          <Tooltip content={pinned ? "Unpin project" : "Pin project"}>
+            <Button variant="quiet" size="icon-sm" aria-pressed={pinned} aria-label={`${pinned ? "Unpin" : "Pin"} project ${f.group.name}`} onClick={() => pins.toggleProject(f.group.id)}>{pinned ? <PinOff /> : <Pin />}</Button>
+          </Tooltip>
+        </div>
+        {open ? (
+          <div className="ml-3 border-l border-line pl-1">
+            {f.trees.length ? <ul className="flex flex-col gap-px">{entries.project.map((e) => renderRow(e))}</ul> : <p className="px-2 py-1 text-xs text-faint">No live sessions in this project.</p>}
+            <div className="flex items-center gap-0.5">
+              <Link to="/projects" search={{ project: f.group.id }} onClick={onNavigate} className="focus-inset flex min-h-8 min-w-0 flex-1 items-center gap-1 rounded-control px-2 text-xs text-accent hover:bg-raised/60 pointer-coarse:min-h-11">
+                {f.trees.length > PROJECT_PREVIEW ? `All ${f.trees.length} in Projects` : "Open in Projects"} <ArrowRight className="size-3" aria-hidden />
+              </Link>
+            </div>
+          </div>
+        ) : null}
+      </li>
+    );
+  };
 
   return (
     <nav aria-label="Sessions" className={cn("flex min-h-0 flex-1 flex-col", className)}>
-      <NeedsCountStatus count={needsCount} />
-      <div className="flex shrink-0 items-center gap-1 px-1 pb-1">
-        <Link to="/sessions" onClick={onNavigate} className="focus-inset flex min-h-8 flex-1 items-center gap-2 rounded-control px-1.5 text-sm font-semibold text-fg hover:bg-raised/60 pointer-coarse:min-h-11">
-          Sessions <span className="text-xs font-normal tabular-nums text-faint">{total}</span>
-        </Link>
-        <Popover>
-          <Tooltip content="Filter and group sessions">
-            <PopoverTrigger asChild>
-              <Button variant="quiet" size="icon-sm" aria-label="Filter and group sessions" className="relative">
-                <ListFilter />
-                {filtering ? <span className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-accent" aria-hidden /> : null}
-              </Button>
-            </PopoverTrigger>
-          </Tooltip>
-          <PopoverContent align="end" className="w-72">
-            <div className="flex flex-col gap-3">
-              <div>
-                <p className="mb-1.5 text-xs font-medium text-muted">Show</p>
-                <StateFacets counts={counts} value={prefs.state} onChange={prefs.setState} />
-              </div>
-              <div>
-                <p className="mb-1.5 text-xs font-medium text-muted">Group by</p>
-                <Segmented<GroupBy> label="Group sessions by" value={prefs.groupBy} onChange={prefs.setGroupBy} options={[{ value: "groups", label: "My groups" }, { value: "agent", label: "Agent" }]} />
-              </div>
-              {profile?.isAdmin ? (
-                <label className="flex items-center justify-between gap-3 text-sm">
-                  Show system sessions
-                  <Switch checked={prefs.showSystem} onCheckedChange={prefs.setShowSystem} aria-label="Show system sessions" />
-                </label>
-              ) : null}
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-
+      <NeedsCountStatus count={model.needs.all.length} />
       <div ref={listRef} onKeyDown={onKeyDown} onBlur={(e) => { if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget as Node) && !(e.relatedTarget as HTMLElement).closest?.("[role='dialog'],[role='menu']")) focusedRef.current = null; }} className="min-h-0 flex-1 overflow-y-auto px-1 pb-2" data-sessions-scroll>
-        {isLoading ? (
+        {/* Until the account's dismissals have loaded, Needs you is not known: showing the sections now would push them down when it appears. */}
+        {isLoading || !pins.settled ? (
           <div className="flex flex-col gap-1.5 px-1.5 pt-1" aria-hidden>{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-6" />)}</div>
         ) : isError ? (
           <p className="px-2 py-3 text-sm text-muted">Couldn't load sessions. <Button variant="link" size="sm" onClick={() => void refetch()}>Try again</Button></p>
-        ) : !sections.length ? (
-          <p className="px-2 py-3 text-sm text-muted">{prefs.state ? "No sessions in this state." : <>No sessions yet. <Button variant="link" size="sm" onClick={() => openNewSession()}>Start one</Button></>}</p>
+        ) : empty ? (
+          <p className="px-2 py-3 text-sm text-muted">No sessions yet. <Button variant="link" size="sm" onClick={() => openNewSession()}>Start one</Button></p>
         ) : (
-          sections.map((sec) => (
-            <SectionBlock
-              key={sec.key}
-              section={sec}
-              collapsed={Boolean(prefs.collapsed[sec.key])}
-              onToggle={() => prefs.toggleSection(sec.key)}
-              recentShown={recentShown}
-              onMoreRecent={() => setRecentShown((n) => n + RECENT_PAGE)}
-              active={active}
-              tabbable={tabbable}
-              onFocusRow={onFocusRow}
-              isAdmin={Boolean(profile?.isAdmin)}
-              pins={pins}
-              menuFor={menuFor}
-              setMenuFor={setMenuFor}
-              setDialog={setDialog}
-              onNavigate={onNavigate}
-              onNewInGroup={sec.kind === "group" ? () => { onNavigate?.(); openNewSession({ group: sec.groupId }); } : undefined}
-            />
-          ))
+          <>
+            {model.needs.all.length ? (
+              <section aria-labelledby="sidebar-sec-needs" className="mt-1.5 first:mt-0">
+                <SectionHeading
+                  id="sidebar-sec-needs"
+                  title="Needs you"
+                  badge={{ count: model.needs.all.length, label: `${plural(model.needs.all.length, "session")} ${model.needs.all.length === 1 ? "needs" : "need"} you` }}
+                  open={!prefs.collapsed.needs}
+                  onToggle={() => prefs.toggleSection("needs")}
+                />
+                {prefs.collapsed.needs ? null : <ul className="flex flex-col gap-px">{entries.needs.map((e) => renderRow(e))}</ul>}
+                {!prefs.collapsed.needs && model.needs.hidden > 0 ? (
+                  <Link to="/projects" search={{ state: "attention" }} onClick={onNavigate} className="focus-inset mt-0.5 flex min-h-8 items-center gap-1 rounded-control px-2 text-xs text-accent hover:bg-raised/60 pointer-coarse:min-h-11">
+                    {model.needs.hidden} more need you <ArrowRight className="size-3" aria-hidden />
+                  </Link>
+                ) : null}
+              </section>
+            ) : null}
+
+            {model.pinned.length || model.pinnedProjects.length ? (
+              <section aria-labelledby="sidebar-sec-pinned-h" className="mt-1.5 first:mt-0">
+                <SectionHeading id="sidebar-sec-pinned-h" title="Pinned" open={!prefs.collapsed.pinned} onToggle={() => prefs.toggleSection("pinned")} dot={pinnedDot} />
+                {prefs.collapsed.pinned ? null : <ul className="flex flex-col gap-px">{model.pinnedProjects.map((f) => renderProject(f, "pinned"))}{entries.pinned.map((e) => renderRow(e, true))}</ul>}
+              </section>
+            ) : null}
+
+            {(
+              <section aria-labelledby="sidebar-sec-projects-h" className="mt-1.5 first:mt-0">
+                <SectionHeading
+                  id="sidebar-sec-projects-h"
+                  title="Projects"
+                  to="/projects"
+                  onNavigate={onNavigate}
+                  open={!prefs.collapsed.projects}
+                  onToggle={() => prefs.toggleSection("projects")}
+                  dot={projectsAsk ? `${plural(projectsAsk, "session")} in projects ${projectsAsk === 1 ? "needs" : "need"} you` : null}
+                  actions={(
+                    <>
+                      <Menu>
+                        <MenuTrigger asChild><Button variant="quiet" size="icon-sm" className={actionButton} aria-label="Project actions"><MoreHorizontal /></Button></MenuTrigger>
+                        <MenuContent align="start" className="w-55">
+                          <MenuItem icon={<ProjectIcon />} onSelect={() => go("/projects")}>All projects</MenuItem>
+                          <MenuItem icon={<ProjectIcon />} onSelect={() => go("/projects", { project: DEFAULT_PROJECT_ID })}>Sessions with no project</MenuItem>
+                        </MenuContent>
+                      </Menu>
+                      <Button variant="quiet" size="icon-sm" className={actionButton} aria-label="New project" onClick={() => setNewProjectOpen(true)}><SquarePen /></Button>
+                    </>
+                  )}
+                />
+                {prefs.collapsed.projects ? null : !model.projects.all.length ? (
+                  <p className="px-2 py-1 text-xs text-faint">Sort sessions your own way. <Button variant="link" size="sm" className="px-0 text-xs" onClick={() => setNewProjectOpen(true)}>Create a project</Button></p>
+                ) : (
+                  <>
+                    <ul className="flex flex-col gap-px">{model.projects.shown.map((f) => renderProject(f, "projects"))}</ul>
+                    {model.projects.hidden > 0 ? (
+                      <Link to="/projects" onClick={onNavigate} className="focus-inset mt-0.5 flex min-h-8 items-center gap-1 rounded-control px-2 text-xs text-accent hover:bg-raised/60 pointer-coarse:min-h-11">
+                        All {model.projects.all.length} projects <ArrowRight className="size-3" aria-hidden />
+                      </Link>
+                    ) : null}
+                  </>
+                )}
+              </section>
+            )}
+
+            {model.projects.fallback && model.projects.fallback.trees.length ? (
+              <section aria-labelledby="sidebar-sec-noproject-h" className="mt-1.5 first:mt-0">
+                <SectionHeading
+                  id="sidebar-sec-noproject-h"
+                  title={DEFAULT_PROJECT_NAME}
+                  to="/projects"
+                  search={{ project: DEFAULT_PROJECT_ID }}
+                  onNavigate={onNavigate}
+                  open={!prefs.collapsed.noproject}
+                  onToggle={() => prefs.toggleSection("noproject")}
+                  dot={model.projects.fallback.attention ? `${plural(model.projects.fallback.attention, "session")} with no project ${model.projects.fallback.attention === 1 ? "needs" : "need"} you` : null}
+                  actions={(
+                    <Tooltip content="New session with no project">
+                      <Button variant="quiet" size="icon-sm" className={actionButton} aria-label="New session with no project" onClick={() => { onNavigate?.(); openNewSession(); }}><SquarePen /></Button>
+                    </Tooltip>
+                  )}
+                />
+                {prefs.collapsed.noproject ? null : (
+                  <>
+                    <ul className="flex flex-col gap-px">{entries.loose.map((e) => renderRow(e))}</ul>
+                    {model.projects.fallback.trees.length > PROJECT_PREVIEW ? (
+                      <Link to="/projects" search={{ project: DEFAULT_PROJECT_ID }} onClick={onNavigate} className="focus-inset mt-0.5 flex min-h-8 items-center gap-1 rounded-control px-2 text-xs text-accent hover:bg-raised/60 pointer-coarse:min-h-11">
+                        All {model.projects.fallback.trees.length} in Projects <ArrowRight className="size-3" aria-hidden />
+                      </Link>
+                    ) : null}
+                  </>
+                )}
+              </section>
+            ) : null}
+
+            {entries.recent.length ? (
+              <section aria-labelledby="sidebar-sec-recent-h" className="mt-1.5 first:mt-0">
+                <SectionHeading
+                  id="sidebar-sec-recent-h"
+                  title="Recents"
+                  open={!prefs.collapsed.recent}
+                  onToggle={() => prefs.toggleSection("recent")}
+                  dot={recentDot}
+                  actions={(
+                    <>
+                      <Menu>
+                        <MenuTrigger asChild><Button variant="quiet" size="icon-sm" className={actionButton} aria-label="Recents actions"><MoreHorizontal /></Button></MenuTrigger>
+                        <MenuContent align="start" className="w-55">
+                          <MenuItem icon={<RefreshCw />} disabled={recent.pending === 0} onSelect={() => { resort.current = true; setResortTick((x) => x + 1); }}>Refresh order</MenuItem>
+                          <MenuItem icon={<CheckCircle2 />} onSelect={() => go("/projects", { state: "closed" })}>Completed sessions</MenuItem>
+                          <MenuItem icon={<ListChecks />} onSelect={() => go("/projects")}>All sessions</MenuItem>
+                        </MenuContent>
+                      </Menu>
+                    </>
+                  )}
+                />
+                {prefs.collapsed.recent ? null : (
+                  <>
+                    <ul className="flex flex-col gap-px">{entries.recent.map((e) => renderRow(e))}</ul>
+                    {recent.pending > 0 ? (
+                      <button type="button" onClick={() => { resort.current = true; setResortTick((t) => t + 1); }} className="focus-inset mx-1.5 my-1 flex min-h-7 w-[calc(100%-0.75rem)] items-center justify-between gap-2 rounded-control bg-accent-tint px-2 text-xs text-accent pointer-coarse:min-h-11">
+                        <span>{recent.pending} updated</span><span className="font-medium">Refresh order</span>
+                      </button>
+                    ) : null}
+                    {hiddenRecent > 0 ? (
+                      <Button variant="quiet" size="sm" className="mt-0.5 w-full justify-start px-2 text-faint pointer-coarse:min-h-11" onClick={() => setRecentShown((n) => n + RECENT_PAGE)}>Show {Math.min(RECENT_PAGE, hiddenRecent)} more</Button>
+                    ) : null}
+                  </>
+                )}
+              </section>
+            ) : null}
+
+            {model.completed > 0 ? (
+              <Link to="/projects" search={{ state: "closed" }} onClick={onNavigate} className="focus-inset mt-2 flex min-h-8 items-center gap-1.5 rounded-control px-2 text-xs text-faint hover:bg-raised/60 hover:text-fg pointer-coarse:min-h-11">
+                {model.completed} completed or cancelled <ArrowRight className="size-3" aria-hidden />
+              </Link>
+            ) : null}
+          </>
         )}
       </div>
 
+      <NewProjectDialog
+        open={newProjectOpen}
+        onOpenChange={setNewProjectOpen}
+        existing={(groups || []).map((g) => g.name)}
+        onCreated={(id) => { if (id) { prefs.setOpenProject(id, "projects"); if (prefs.collapsed.projects) prefs.toggleSection("projects"); } }}
+      />
       {dialog && dialogSession ? (
         <>
           <SessionRenameDialog session={dialogSession} open={dialog.kind === "rename"} onOpenChange={(o) => !o && setDialog(null)} />
@@ -198,123 +440,5 @@ export function SessionsSidebar({ onNavigate, className }: { onNavigate?: () => 
         </>
       ) : null}
     </nav>
-  );
-}
-
-function SectionBlock({ section, collapsed, onToggle, recentShown, onMoreRecent, active, tabbable, onFocusRow, isAdmin, pins, menuFor, setMenuFor, setDialog, onNavigate, onNewInGroup }: {
-  section: Section; collapsed: boolean; onToggle: () => void; recentShown: number; onMoreRecent: () => void; active: string | null; tabbable: string | null;
-  onFocusRow: (id: string) => void; isAdmin: boolean; pins: ReturnType<typeof usePins>; menuFor: string | null; setMenuFor: (id: string | null) => void; setDialog: (d: Dialog) => void; onNavigate?: () => void; onNewInGroup?: () => void;
-}) {
-  const isNeeds = section.kind === "needs";
-  const open = isNeeds || !collapsed;
-  const rows = section.kind === "recent" ? section.sessions.slice(0, recentShown) : section.sessions;
-  const headingId = `sidebar-sec-${section.key.replace(/[^a-z0-9-]/gi, "_")}`;
-  return (
-    <section aria-labelledby={headingId} className="mt-1.5 first:mt-0">
-      <div className="group/head flex items-center gap-0.5">
-        {isNeeds ? (
-          <h3 id={headingId} className="flex min-h-7 flex-1 items-center gap-1.5 px-1.5 text-xs font-medium text-faint">
-            {section.title} <span className="tabular-nums">{section.sessions.length}</span>
-          </h3>
-        ) : (
-          <h3 id={headingId} className="flex-1">
-            <DisclosureButton aria-expanded={open} onClick={onToggle} className="w-full gap-1 rounded-control px-1.5 text-xs font-medium text-faint hover:bg-raised/60">
-              <ChevronRight className={cn("size-3.5 shrink-0 transition-transform duration-(--duration-fast)", open && "rotate-90")} aria-hidden />
-              {section.kind === "pinned" ? <Pin className="size-3 shrink-0" aria-hidden /> : null}
-              <span className="truncate">{section.title}</span> <span className="tabular-nums">{section.sessions.length}</span>
-            </DisclosureButton>
-          </h3>
-        )}
-        {onNewInGroup ? (
-          <Tooltip content={`New session in ${section.title}`}>
-            <Button variant="quiet" size="icon-sm" aria-label={`New session in ${section.title}`} className="shrink-0 opacity-0 focus-visible:opacity-100 group-hover/head:opacity-100 pointer-coarse:opacity-100" onClick={onNewInGroup}><Plus /></Button>
-          </Tooltip>
-        ) : null}
-      </div>
-      {open ? (
-        <>
-          <ul className="flex flex-col gap-px">
-            {rows.map((s) => (
-              <SidebarRow
-                key={s.sessionId}
-                session={s}
-                active={active === s.sessionId}
-                tabbable={tabbable === s.sessionId}
-                pinned={pins.isPinned(s.sessionId)}
-                onFocusRow={onFocusRow}
-                isAdmin={isAdmin}
-                onTogglePin={() => pins.toggle(s.sessionId)}
-                menuOpen={menuFor === s.sessionId}
-                onMenuOpenChange={(o) => setMenuFor(o ? s.sessionId : null)}
-                onAction={(kind) => { setMenuFor(null); setDialog({ id: s.sessionId, kind }); }}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </ul>
-          {section.kind === "recent" && section.sessions.length > recentShown ? (
-            <Button variant="quiet" size="sm" className="mt-0.5 w-full justify-start px-2 text-faint pointer-coarse:min-h-11" onClick={onMoreRecent}>Show {Math.min(RECENT_PAGE, section.sessions.length - recentShown)} more</Button>
-          ) : null}
-          {!rows.length ? <p className="px-2 py-1 text-xs text-faint">Empty. Move sessions here from their menu.</p> : null}
-        </>
-      ) : null}
-    </section>
-  );
-}
-
-function SidebarRow({ session, active, tabbable, pinned, onFocusRow, isAdmin, onTogglePin, menuOpen, onMenuOpenChange, onAction, onNavigate }: {
-  session: Session; active: boolean; tabbable: boolean; pinned: boolean; onFocusRow: (id: string) => void; isAdmin: boolean; onTogglePin: () => void;
-  menuOpen: boolean; onMenuOpenChange: (open: boolean) => void; onAction: (kind: NonNullable<Dialog>["kind"]) => void; onNavigate?: () => void;
-}) {
-  const st = sessionState(session);
-  // System sessions are not ordinary sessions: the SDK refuses rename, complete, cancel and delete on them.
-  // An admin restarts them instead.
-  const manage = canModify(session);
-  const system = Boolean(session.isSystem);
-  const closed = st.key === "completed" || st.key === "cancelled";
-  return (
-    <li className="group/row relative">
-      <Link
-        to="/s/$sessionId"
-        params={{ sessionId: session.sessionId }}
-        aria-current={active ? "page" : undefined}
-        data-sidebar-row
-        data-session-id={session.sessionId}
-        tabIndex={tabbable ? 0 : -1}
-        onFocus={() => onFocusRow(session.sessionId)}
-        onClick={onNavigate}
-        title={session.title}
-        className={cn(
-          "focus-inset flex min-h-8 items-center gap-2 rounded-control pl-2 pr-2 text-sm pointer-coarse:pr-12 transition-colors duration-(--duration-fast) pointer-coarse:min-h-11",
-          active ? "bg-raised font-medium text-fg" : "text-muted hover:bg-raised/60 hover:text-fg",
-        )}
-      >
-        <StateGlyph state={st.key} pulse={false} className="size-2" />
-        <span className="min-w-0 flex-1 truncate">{session.title || "Untitled session"}</span>
-        {session.unseenCanvas ? <span className="size-1.5 shrink-0 rounded-full bg-accent" role="img" aria-label="Canvas updated" /> : null}
-        <span className="sr-only">, {st.word}{pinned ? ", pinned" : ""}</span>
-      </Link>
-      <div className={cn("absolute right-0.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-control bg-raised pl-0.5", menuOpen ? "flex" : "hidden group-hover/row:flex group-focus-within/row:flex pointer-coarse:flex pointer-coarse:bg-transparent")}>
-        <Tooltip content={pinned ? "Unpin" : "Pin"}>
-          <Button variant="quiet" size="icon-sm" tabIndex={-1} className="pointer-coarse:hidden" aria-label={`${pinned ? "Unpin" : "Pin"} ${session.title || "session"}`} aria-pressed={pinned} onClick={onTogglePin}>{pinned ? <PinOff /> : <Pin />}</Button>
-        </Tooltip>
-        <Menu open={menuOpen} onOpenChange={onMenuOpenChange}>
-          <MenuTrigger asChild>
-            <Button variant="quiet" size="icon-sm" tabIndex={-1} aria-label={`Actions for ${session.title || "session"}`}><MoreHorizontal /></Button>
-          </MenuTrigger>
-          <MenuContent align="start" className="w-55" onCloseAutoFocus={(e) => { const row = document.querySelector<HTMLElement>(`a[data-sidebar-row][data-session-id="${CSS.escape(session.sessionId)}"]`); if (row) { e.preventDefault(); row.focus(); } }}>
-            <MenuItem disabled={!manage} icon={<Pencil />} onSelect={() => onAction("rename")}>Rename</MenuItem>
-            <MenuItem icon={pinned ? <PinOff /> : <Pin />} onSelect={onTogglePin} hint="Press P in the list">{pinned ? "Unpin" : "Pin"}</MenuItem>
-            <MenuItem icon={<FolderInput />} onSelect={() => onAction("move")}>Move to group…</MenuItem>
-            <MenuItem icon={<Share2 />} onSelect={() => onAction("share")}>Share…</MenuItem>
-            <MenuItem icon={<Link2 />} onSelect={() => copySessionLink(session.sessionId)}>Copy link</MenuItem>
-            <MenuSeparator />
-            <MenuItem icon={<CheckCircle2 />} disabled={closed || !manage} onSelect={() => onAction("complete")}>Complete</MenuItem>
-            <MenuItem icon={<Ban />} danger disabled={closed || !manage} onSelect={() => onAction("cancel")}>Cancel</MenuItem>
-            <MenuItem icon={<Trash2 />} danger disabled={!manage} onSelect={() => onAction("delete")}>Delete</MenuItem>
-            {system && isAdmin ? (<><MenuSeparator /><MenuItem icon={<RotateCcw />} onSelect={() => onAction("restart")} hint="The way to reset a system session">Restart…</MenuItem></>) : null}
-          </MenuContent>
-        </Menu>
-      </div>
-    </li>
   );
 }

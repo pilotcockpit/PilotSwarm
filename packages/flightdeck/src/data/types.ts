@@ -42,7 +42,6 @@ export interface Session {
   /** Demo-only enrichments the API does not carry yet (see capability-map B-items). */
   step?: string;
   spine?: SpineMark[];
-  pinned?: boolean;
   unseenCanvas?: boolean;
   /** "me" when the viewer owns it, otherwise the owner's display name (normalised from the API's owner object). */
   owner?: string;

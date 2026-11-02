@@ -12,7 +12,7 @@ Closed on demo data by the Playwright suite (`npm run test:e2e`, 4 projects: des
 | V1 | Files: edit, conflict resolution, Changes (git) view, upload, rename, delete, unsaved-changes guards | `e2e/files.spec.ts` |
 | V2 | Admin > Knowledge purge, embedder Stop, namespace delete, Maintenance prune, system-session restart typed confirms | `e2e/knowledge.spec.ts` |
 | V3 | Providers: hold dialog, allowance, exact-integer limits, remove, add (password key cleared), paused banner, defaults | `e2e/providers-hold.spec.ts` |
-| V4 | Share sheet roles/undo/widening, view-only reasons, Move to group, canvas public link (shown once, rotate, remove), working-folder conflict | `e2e/sharing.spec.ts` |
+| V4 | Share sheet roles/undo/widening, view-only reasons, Move to project, canvas public link (shown once, rotate, remove), working-folder conflict | `e2e/sharing.spec.ts` |
 | V6 | Automated accessibility: axe on every route, tab, sheet and confirm the specs open (also once with real motion, no reducedMotion); no sideways scroll; no console errors; phone tap targets under 24px fail; Undo reachable by keyboard inside open sheets | `e2e/a11y-smoke.spec.ts` (incl. `desktop-light-motion`), keyboard specs in `providers-hold`, `sharing`, `library` |
 | V7 | Phone top bar: Share and session actions reachable from the session menu; the theme is in the More sheet | `e2e/sharing.spec.ts` (phone projects), `e2e/a11y-smoke.spec.ts` |
 
@@ -22,6 +22,30 @@ Still open:
 |---|---|---|
 | V5 | Every new screen against a LIVE backend (real API shapes, real permissions, real latency) | A smoke run against a dev PilotSwarm server with a member and an admin account; each ported operation called once; failures filed |
 | V6b | Assistive technology: a manual VoiceOver pass on Share, Add provider and the file editor; 200% zoom | A person does it once and files what they find; axe cannot judge announcement quality |
+
+## Sessions sidebar (built 2026-11-01; design in docs/ux-audit/2026-11-01/sessions-ux/06-final-design-for-owner.md)
+
+No project: sessions in no project (or in one that was deleted) are shown as a derived **No project** group: its own sidebar section beside Projects (five rows, a link to the rest), and the last group on the Projects page. It is not stored, so it cannot be renamed or deleted; "Take out of its project" files a session there. It appears only once the person has made a project. (In code it is `DEFAULT_PROJECT_ID`.)
+
+The Projects page (`/projects`) is the one page for projects and their sessions: search finds either, filters narrow the sessions, and projects are managed there. `/sessions` redirects to it with the same filters.
+
+Naming: the product calls a backend session group a **Project** (private, one per root tree, nothing to do with the working folder). Code and API names keep `group`/`groupId`.
+
+Built: shared derivation (`src/data/session-tree/`), Needs you / Pinned / Projects / Recent, settled Recent order with "Refresh order", roaming pins and dismissals, one attention count for sidebar, Overview, nav badge, tab title and the Projects page (`state=attention`, `project=`).
+
+| ID | What | Closes when |
+|---|---|---|
+| S1 | Projects can be created, renamed and deleted on the Projects page. Still missing: a description and a manual order (the backend keeps both: `description` and group `metadata`) | The page offers them |
+| S2 | Dismissals and pinned projects live under a `flightdeck` key in the profile settings. The classic portal replaces the whole document from its own state, so its next save erases that key (session pins use the classic `pinnedSessionIds` key and survive). A dismissed failure reappears and a pinned project has to be pinned again | The classic portal is retired, or its normaliser keeps the `flightdeck` key |
+| S3 | Two devices changing the pin list within the same moment can lose one change: the profile endpoint replaces the document and has no version check | A patch or compare-and-swap operation on profile settings |
+| S4 | List rows lack `pendingQuestion`, `pauseState`, cron and `lastActiveAt`, so a hold only shows when the list row carries `pauseState`, and the question text comes from `waitReason` | Backend list-row fields (design doc, P1) |
+| S5 | Attention age is the session's last update, not when it began waiting | Backend attention timestamps |
+| S6 | Needs you covers the viewer's own sessions only. A shared session needs its owner, not you | Owner decision revisited if delegated responsibility is wanted |
+| S7 | The Completed view is the existing Completed state filter on the Projects page, not a tab of its own | Lens tabs on the page, if wanted |
+| S10 | The Context panel now shows project, started by, context tier and the session ID. Still to add: where the model came from, last active (apart from last updated), tokens in/out and cache-hit ratio (see G19), regenerations, who it is shared with, and the agent package version. Orchestration ID, snapshot sizes and hydration counts stay in Activity > Details | The panel is extended; tokens wait on G19 |
+| S11 | Audit 2026-11-01: after lazy-loading every area except Overview, the first load is 543 kB (163 kB gzip, down from 990 kB). What remains is the shell, Overview, the data layer and `marked`/`dompurify` | Split the markdown and canvas code behind the views that use them; measure again |
+| S9 | The router marks every link to the open session with `aria-current="page"`, so a session shown in Recent and in its project is announced twice (the page heading no longer carries it as well, since the 2026-11-01 audit) | Rows render their own link element, or the router stops setting it |
+| S8 | Counts reflect the loaded sessions; there is no "partial" marker while the list is still paging | List paging with a completeness flag |
 
 ## API and SDK gaps (candidates for upstream issues)
 
@@ -45,6 +69,7 @@ Still open:
 | G8 | No provider "test connection" operation | Status is shown after save |
 | G9 | No operation to resolve a flag-change audit row's user to a name | Directory lookup, then short id |
 | G10 | `getProviderUsage` and flag audit shapes are only documented in code | Normalised in `data/ops/contracts.ts` |
+| G19 | Session list rows carry no tokens or cache-hit ratio. They come from a separate per-session call (`getSessionMetricSummary`; the whole tree through `getSessionTreeStats`), so showing them in the Context panel costs one extra read when the panel opens | The panel makes that one read on open, or the list rows carry token totals |
 
 ## Possible bugs in the classic portal (verify, then report)
 
@@ -98,6 +123,16 @@ when they do not (320px), so labels never overlap. Board-tile composers keep the
 296px wide at 320px, its row is already full, and the model popover is wider than the tile, so changing a model
 stays a session-level act.
 
+## Working folder dialog vs the backend (checked 2026-11-01)
+
+Backend record (`SessionWorkspace`, `packages/sdk/src/types.ts`): `{ root, folder?, extra?: { [name]: { root, folder?, required? } } }`. A root is a named location the deployment exports (`listRoots()`); `folder` is a path inside it. Extras are attached before every turn next to the working folder, at most 4 (`MAX_WORKSPACE_EXTRAS`); `required: false` lets a turn run without an extra that cannot be attached.
+
+Done: the dialog keeps each extra's `required` flag (a "Wait for this folder" switch), caps additional folders at 4, labels every field, and picks the location from the roots the server lists. Each folder is drawn as one path (`work / projects/flight-deck`), and an extra's name follows where it points until the person names it.
+
+| ID | Gap | Closes when |
+|---|---|---|
+| W5 | There is no operation to list the directories inside a root, so the path inside a location is typed, and a folder that does not exist is only found on save (`WORKSPACE_FOLDER_MISSING`) | A browse-a-root operation, then a folder picker |
+
 ## E2E paused
 
 The Playwright suite (`e2e/`, `playwright.config.ts`) is intentionally not maintained while the UX settles. Nothing was
@@ -105,6 +140,8 @@ deleted. When the owner says so, repair and re-run it in one pass (`npm run test
 
 Known stale or unverified, from the sidebar, density and theme work:
 
+- **Session header**: the Canvas, Files, Activity, Delegation and Context icon buttons are gone (the tab bar is the one place to
+  choose a view), so any spec that clicks them must click the tab instead (`getByRole("tab", { name: … })`). The header "More" menu is gone too: Change model and Working folder are the composer chips, and Copy session ID is in Session actions.
 - **Everything that touches the sidebar**: `e2e/sidebar.spec.ts`, `e2e/a11y-smoke.spec.ts`, `e2e/files.spec.ts`,
   `e2e/sharing.spec.ts` and any spec that navigates through the rail or the account menu.
 - **The collapse toggle**: it moved to the top of the sidebar ("Collapse sidebar" / "Expand sidebar", an icon at the

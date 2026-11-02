@@ -47,7 +47,7 @@ export function Chip({ className, active, ...props }: React.ButtonHTMLAttributes
       type="button"
       aria-pressed={active}
       className={cn(
-        "inline-flex h-[26px] items-center gap-1.5 rounded-control border px-2.5 text-xs font-medium transition-colors pointer-coarse:h-11 pointer-coarse:px-3.5",
+        "inline-flex h-[26px] shrink-0 items-center gap-1.5 rounded-control border px-2.5 text-xs font-medium transition-colors pointer-coarse:h-11 pointer-coarse:px-3.5",
         active ? "border-accent/60 bg-accent-tint text-fg" : "border-line-strong text-muted hover:bg-raised hover:text-fg",
         className,
       )}
