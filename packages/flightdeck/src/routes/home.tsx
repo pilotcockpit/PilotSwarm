@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { canvasName } from "@/canvas/CanvasFrame";
 import { ArrowRight, ArrowUpRight, CheckCheck, FileText, LayoutPanelLeft, Plus, ServerCrash } from "lucide-react";
 import { TopBar } from "@/shell/AppShell";
@@ -228,6 +228,17 @@ export function useRecentOutputs(sessions: Session[], limit = 8) {
   const results = useQueries({
     queries: recent.map((s) => ({ queryKey: ["artifacts", s.sessionId], queryFn: () => source.listArtifacts(s.sessionId), staleTime: 10_000 })),
   });
+  // Nothing polls these lists. A session whose activity moved (the session list is polled) may have written a new output, so
+  // only its list is read again; a new canvas shows up within one poll, without every session being asked every few seconds.
+  const client = useQueryClient();
+  const activity = React.useRef(new Map<string, unknown>());
+  React.useEffect(() => {
+    for (const s of recent) {
+      const before = activity.current.get(s.sessionId);
+      activity.current.set(s.sessionId, s.updatedAt);
+      if (before !== undefined && before !== s.updatedAt) void client.invalidateQueries({ queryKey: ["artifacts", s.sessionId] });
+    }
+  }, [recent, client]);
   return React.useMemo(() => {
     const out: Array<Artifact & { session: Session }> = [];
     results.forEach((r, i) => (r.data || []).forEach((a) => out.push({ ...a, session: recent[i] })));
