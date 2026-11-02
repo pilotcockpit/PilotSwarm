@@ -36,15 +36,19 @@ the browser's pins; pinned sub-agents appear under Pinned on the Projects page; 
 to a finished session, or one opened when there are no projects, now opens the section that
 shows it. The Outputs page no longer draws agent-written documents: each card is text and an
 Inspect button, and the page holds no frame until Inspect is pressed. The Overview and Outputs
-lists re-read a session's outputs when its activity moves. "Canvas updated" dots are not yet
-driven by live data (open items S12, G20).
+lists re-read a session's outputs when its activity moves, and "Canvas updated" (the dot on
+rows and headings, the Outputs count, the Canvas tab dot) is worked out in the browser, so it
+works on a live server, not only on demo data (open items S12, G20). On a phone the Projects
+page now has New project. The first-run screens (no sessions, no projects) are covered by
+`?scenario=empty` and their own specs. The old sidebar's leftover browser keys are removed once.
 
 **Flight Deck: brand, metadata and tests.** Icons, web manifest, social images, per-page
 metadata and `noindex` headers (`vercel.json`, `public/_headers`), and page illustrations.
-The unit suite grew to 450 tests and the whole Playwright suite (4 projects, 541 tests) was
+The unit suite grew to 466 tests and the whole Playwright suite (4 projects, 575 tests) was
 brought up to date and passes. New scripts: `npm run dev:flightdeck`, `build:flightdeck`,
-`test:flightdeck` and `test:flightdeck:e2e`. Flight Deck is not yet part of the PR checks
-(open item Q5). Not verified against a live backend (V5, V8, V9).
+`test:flightdeck` and `test:flightdeck:e2e`. PR checks now build Flight Deck and run its unit
+tests; the Playwright suite is a local gate (open item Q5). Not verified against a live
+backend (V5, V8, V9).
 
 **Stale bound answers can now fail closed (orchestration 1.0.83).** An answer to a
 pending question that no longer matches the open question used to run as an

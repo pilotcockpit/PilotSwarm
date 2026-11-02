@@ -28,7 +28,8 @@ import { ago, bytes, clock, cn, plural, shortId } from "@/lib/utils";
 import { describeEvent, eventTime, statLabel } from "@/lib/event-text";
 import { fillComposer } from "@/lib/composer";
 import { cardVariants } from "@/components/ui/card";
-import { canvasSlot, isCanvasFile } from "./home";
+import { canvasSlot, isCanvasFile } from "@/lib/canvas-files";
+import { latestCanvasTime, markCanvasSeen } from "@/data/canvas-signals";
 
 // ── Canvas ───────────────────────────────────────────────────────────────
 
@@ -53,6 +54,10 @@ export function useCanvases(sessionId: string) {
 
 export function CanvasView({ session, slot, focus, onSlot, onFocus, phone, onUsePrompt }: { session: Session; slot?: number; focus: boolean; onSlot: (slot: number) => void; onFocus: (v: boolean) => void; phone?: boolean; onUsePrompt?: (prompt: string) => void }) {
   const { canvases, loading } = useCanvases(session.sessionId);
+  // Looking at the Canvas view is how a canvas becomes seen: the dot goes when the newest one is on screen.
+  const { data: published } = useArtifacts(session.sessionId);
+  const newest = latestCanvasTime(published);
+  React.useEffect(() => { markCanvasSeen(session.sessionId, newest); }, [session.sessionId, newest]);
   const [zoom, setZoom] = React.useState(1);
   const [shareOpen, setShareOpen] = React.useState(false);
   useIntent("share-canvas", `/s/${session.sessionId}`, () => setShareOpen(true));

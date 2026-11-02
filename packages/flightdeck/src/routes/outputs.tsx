@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/tabs";
 import { ProductIllustration } from "@/components/product-illustration";
 import { ago, bytes } from "@/lib/utils";
-import { OutputCard, canvasSlot, isCanvasFile, useRecentOutputs } from "./home";
+import { OutputCard, useRecentOutputs } from "./home";
+import { canvasSlot, isCanvasFile } from "@/lib/canvas-files";
 
 const route = getRouteApi("/outputs");
 

@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, lazyRouteComponent, Outlet, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/shell/AppShell";
 import { AttentionTitle } from "@/shell/attention";
+import { CanvasSignals } from "@/shell/canvas-signals";
 import { HomePage } from "@/routes/home";
 import { NotFound } from "@/routes/not-found";
 
@@ -18,6 +19,7 @@ const rootRoute = createRootRoute({
   component: () => (
     <AppShell>
       <AttentionTitle />
+      <CanvasSignals />
       <Outlet />
     </AppShell>
   ),

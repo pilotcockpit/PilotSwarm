@@ -1,3 +1,4 @@
+import { useUnseenCanvases } from "@/data/canvas-signals";
 import * as React from "react";
 import { announceAnswerRejected } from "@/lib/answer-rejection";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -71,11 +72,26 @@ export function useSource() {
 // The session list re-reads every 4s: the Web API does not push list changes
 // yet (capability map B-item "push session-list changes over the WebSocket").
 
-export function useSessions() {
+/** The session list as the server sent it. */
+export function useServerSessions() {
   const { source } = useSource();
   // A hidden tab only keeps polling when it has been asked to notify: that is the one job that needs it.
   const [notify] = usePref<"on" | "off">("fd.notify", "off");
   return useQuery({ queryKey: ["sessions"], queryFn: () => source.listSessions(), refetchInterval: 4_000, refetchIntervalInBackground: notify === "on" });
+}
+
+/**
+ * The session list, with `unseenCanvas` filled in by the browser where the server does not say (see data/canvas-signals.ts).
+ * A row that already carries the field keeps it.
+ */
+export function useSessions() {
+  const query = useServerSessions();
+  const unseen = useUnseenCanvases();
+  const data = React.useMemo(
+    () => (query.data && unseen.size ? query.data.map((s) => (s.unseenCanvas === undefined && unseen.has(s.sessionId) ? { ...s, unseenCanvas: true } : s)) : query.data),
+    [query.data, unseen],
+  );
+  return React.useMemo(() => ({ ...query, data }), [query, data]);
 }
 
 export function useSessionRow(id: string | undefined): Session | undefined {

@@ -25,7 +25,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { ActivityView, CanvasView, DelegationView, FilesView, useCanvases } from "./session-views";
 import { cn, shortId } from "@/lib/utils";
 import type { SessionView } from "@/router";
-import { isCanvasFile } from "./home";
+import { isCanvasFile } from "@/lib/canvas-files";
 import { TabStrip, type TabItem } from "@/components/ui/tabs";
 import { sessionIsViewOnly } from "@/lib/session-access";
 import { createSessionComposerMemory } from "@/lib/session-composer";

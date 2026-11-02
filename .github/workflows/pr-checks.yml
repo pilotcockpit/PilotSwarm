@@ -83,3 +83,7 @@ jobs:
           npm run test:campaign:dashboard:unit
       - name: Application unit tests
         run: npm test --workspace=pilotswarm
+      - name: Flight Deck build and unit tests
+        run: |
+          npm run build:flightdeck
+          npm run test:flightdeck

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { canManage, canModify } from "./session-actions";
-import { canvasSlot, isCanvasFile } from "@/routes/home";
+import { canvasSlot, isCanvasFile } from "@/lib/canvas-files";
 
 const s = (extra: Record<string, unknown> = {}) => ({ sessionId: "s1", title: "t", status: "idle", ...extra }) as any;
 

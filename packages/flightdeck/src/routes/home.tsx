@@ -1,11 +1,12 @@
 import * as React from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { canvasName } from "@/canvas/CanvasFrame";
 import { ArrowRight, ArrowUpRight, CheckCheck, FileText, LayoutPanelLeft, Plus, ServerCrash } from "lucide-react";
 import { TopBar } from "@/shell/AppShell";
 import { useUi } from "@/shell/ui-state";
-import { useProfile, useSessions, useSource } from "@/data/source";
+import { useProfile, useSessions } from "@/data/source";
+import { useArtifactFeed } from "@/data/ops/artifact-feed";
+import { canvasSlot, isCanvasFile } from "@/lib/canvas-files";
 import { describeError, failureKey, sessionState } from "@/data/state";
 import { useAttention } from "@/components/sidebar/use-attention";
 import type { Artifact, Session } from "@/data/types";
@@ -220,25 +221,11 @@ function LoadingList() {
  * outputs of your most recently active sessions.
  */
 export function useRecentOutputs(sessions: Session[], limit = 8) {
-  const { source } = useSource();
   const recent = React.useMemo(
     () => sessions.slice().sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0)).slice(0, limit),
     [sessions, limit],
   );
-  const results = useQueries({
-    queries: recent.map((s) => ({ queryKey: ["artifacts", s.sessionId], queryFn: () => source.listArtifacts(s.sessionId), staleTime: 10_000 })),
-  });
-  // Nothing polls these lists. A session whose activity moved (the session list is polled) may have written a new output, so
-  // only its list is read again; a new canvas shows up within one poll, without every session being asked every few seconds.
-  const client = useQueryClient();
-  const activity = React.useRef(new Map<string, unknown>());
-  React.useEffect(() => {
-    for (const s of recent) {
-      const before = activity.current.get(s.sessionId);
-      activity.current.set(s.sessionId, s.updatedAt);
-      if (before !== undefined && before !== s.updatedAt) void client.invalidateQueries({ queryKey: ["artifacts", s.sessionId] });
-    }
-  }, [recent, client]);
+  const results = useArtifactFeed(recent);
   return React.useMemo(() => {
     const out: Array<Artifact & { session: Session }> = [];
     results.forEach((r, i) => (r.data || []).forEach((a) => out.push({ ...a, session: recent[i] })));
@@ -254,14 +241,6 @@ export function useRecentOutputs(sessions: Session[], limit = 8) {
 }
 
 const toTime = (v: unknown) => (typeof v === "number" ? v : new Date(String(v || 0)).getTime() || 0);
-
-export function isCanvasFile(name: string) {
-  return /^canvas([2-5])?\.html$/.test(name);
-}
-export function canvasSlot(name: string) {
-  const m = name.match(/^canvas([2-5])?\.html$/);
-  return m ? Number(m[1] || 1) : 0;
-}
 
 /** One published file in the Overview's Outputs list: what it is, where it came from and when. Opens it in its session. */
 function FileRow({ output: o, project }: { output: Artifact & { session: Session }; project?: string | null }) {

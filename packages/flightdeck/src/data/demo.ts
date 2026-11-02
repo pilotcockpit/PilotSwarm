@@ -242,15 +242,29 @@ const flags: FeatureFlag[] = [
 
 import { callDemoOp } from "./ops";
 import { demoShouldFail, extendDemoHook, installDemoHook, recordDemoCall } from "./ops/demo-hook";
-import { demoGroupList, effectiveGroupId, setDemoSessionRows } from "./demo-groups";
+import { demoGroupList, effectiveGroupId, resetDemoGroups, setDemoSessionRows } from "./demo-groups";
+/**
+ * `?scenario=empty` (kept in this browser until `?scenario=default`) starts the demo as a brand-new account: no sessions,
+ * no projects, no outputs. It is how the first-run screens are looked at and tested.
+ */
+function emptyScenario(): boolean {
+  try {
+    const asked = new URL(window.location.href).searchParams.get("scenario");
+    if (asked) localStorage.setItem("fd.demoScenario", asked);
+    return (asked ?? localStorage.getItem("fd.demoScenario")) === "empty";
+  } catch { return false; }
+}
+
 export function createDemoSource(): DataSource {
   installDemoHook();
-  const byId = new Map(sessions.map((s) => [s.sessionId, { ...s }]));
+  const empty = emptyScenario();
+  resetDemoGroups(empty);
+  const byId = new Map((empty ? [] : sessions).map((s) => [s.sessionId, { ...s }]));
   const events = new Map<string, SessionEvent[]>();
-  for (const [id, list] of Object.entries(timelines)) {
+  for (const [id, list] of Object.entries(empty ? {} : timelines)) {
     events.set(id, list.map((e, i) => ({ seq: i + 1, sessionId: id, eventType: e.eventType, data: e.data, createdAt: new Date(e.at).toISOString() })));
   }
-  const files = new Map(Object.entries(artifacts).map(([id, list]) => [id, list.map((a) => ({ ...a }))]));
+  const files = new Map(Object.entries(empty ? {} : artifacts).map(([id, list]) => [id, list.map((a) => ({ ...a }))]));
   const listeners = new Map<string, Set<(e: SessionEvent) => void>>();
   published.clear();
   serverEdits.clear();

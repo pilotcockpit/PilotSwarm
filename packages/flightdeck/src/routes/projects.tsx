@@ -134,6 +134,8 @@ export function ProjectsPage() {
         </div>
         {/* On a phone the filters are one row that scrolls sideways instead of three rows that push the list away. */}
         <div className="fd-scroll-x flex min-w-0 items-center gap-2 max-sm:w-full sm:contents">
+          {/* The top bar's actions do not fit a phone, and an account with no sessions has no sidebar sections to start from. */}
+          <Button variant="quiet" size="sm" className="shrink-0 sm:hidden" onClick={() => setNewProject(true)}><ProjectIcon /> New project</Button>
           <div className="flex items-center gap-1" role="group" aria-label="Whose sessions">
             {([["mine", "Mine"], ["shared", "Others"], ["all", "All"]] as const).map(([v, label]) => (
               <Chip key={v} active={who === v} onClick={() => setSearch({ who: v === "all" ? undefined : v })}>{label}</Chip>

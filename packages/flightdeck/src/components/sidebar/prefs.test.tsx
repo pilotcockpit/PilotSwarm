@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { act, render } from "@/test/render";
 import { usePref } from "@/shell/prefs";
-import { prefKey, readStringSet } from "./prefs";
+import { forgetOldSidebarKeys, prefKey, readStringSet } from "./prefs";
 
 (globalThis as any).window = globalThis;
 
@@ -37,5 +37,19 @@ describe("a preference still changes when the browser refuses storage", () => {
     await act(() => out.set!("b"));
     expect(out.value).toBe("b");
     await r.unmount();
+  });
+});
+
+describe("the keys the old sidebar left behind", () => {
+  it("removes the fold and open-project keys of every person, and nothing else", () => {
+    const store = new Map<string, string>([
+      ["fd.sidebar.collapsed@demo:p:a", "{}"], ["fd.sidebar.project@live:p:b", "x"], ["fd.sidebar.collapsed@pending", "{}"],
+      ["fd.pins@demo:p:a", "[]"], ["fd.theme", "dark"], ["fd.sidebarWidth", "300"],
+    ]);
+    forgetOldSidebarKeys({ get length() { return store.size; }, key: (i) => [...store.keys()][i] ?? null, removeItem: (k) => void store.delete(k) });
+    expect([...store.keys()].sort()).toEqual(["fd.pins@demo:p:a", "fd.sidebarWidth", "fd.theme"]);
+  });
+  it("does not throw when storage is refused", () => {
+    expect(() => forgetOldSidebarKeys({ get length(): number { throw new Error("denied"); }, key: () => null, removeItem: () => undefined })).not.toThrow();
   });
 });

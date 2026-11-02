@@ -11,7 +11,7 @@ import { sessionFacts } from "./session-facts";
 import { Button } from "@/components/ui/button";
 import { ScheduleActions } from "@/components/session/schedule-actions";
 import { contextFill, ownerName, VisibilityLabel } from "@/components/session/session-meta";
-import { canvasSlot, isCanvasFile } from "@/routes/home";
+import { canvasSlot, isCanvasFile } from "@/lib/canvas-files";
 import { ago, bytes, cn, plural, shortId, tokens } from "@/lib/utils";
 import type { SessionView } from "@/router";
 

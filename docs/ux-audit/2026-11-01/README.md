@@ -38,8 +38,7 @@ submit, folder names the SDK rejects, a pin migration that could lose pins, over
 read overwriting a saved write, pinned sub-agents missing, deep links to hidden sessions, worker-only locations),
 all fixed with tests.
 
-**Not covered.** Real devices and assistive technology (open item V6b); a live backend (V5, V8, V9); the empty
-first-run Overview (V10). The audit is automated checks plus screenshots, not a user study.
+**Not covered.** Real devices and assistive technology (open item V6b); a live backend (V5, V8, V9). The first-run screens (no sessions, no projects) were added afterwards and have their own specs. The audit is automated checks plus screenshots, not a user study.
 
 ## Provenance of generated images
 

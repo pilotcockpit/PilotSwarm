@@ -181,9 +181,23 @@ const subscribe = (l: () => void) => { listeners.add(l); return () => { listener
 /** Back to a fresh load: everything folded, or just the sections named open. For tests and for signing out. */
 export function resetSidebarView(open: readonly string[] = []) { setView(open.length ? { open: new Set(open), project: "" } : FOLDED); }
 
+/**
+ * The sidebar used to remember which sections were folded and which project was open, in `fd.sidebar.collapsed@…` and
+ * `fd.sidebar.project@…`. It no longer does (it loads folded), so those keys are removed once, whoever wrote them.
+ */
+export function forgetOldSidebarKeys(given?: Pick<Storage, "length" | "key" | "removeItem">) {
+  try {
+    const storage = given ?? localStorage;
+    const old: string[] = [];
+    for (let i = 0; i < storage.length; i++) { const k = storage.key(i); if (k && /^fd\.sidebar\.(collapsed|project)@/.test(k)) old.push(k); }
+    old.forEach((k) => storage.removeItem(k));
+  } catch { /* storage unavailable: nothing was kept */ }
+}
+
 /** This visit's view of the sidebar: which sections are open, and which project (at most one) is open. Everything starts folded. */
 export function useSidebarPrefs() {
   const scope = usePrefsScope();
+  React.useEffect(() => { forgetOldSidebarKeys(); }, []);
   const current = React.useSyncExternalStore(subscribe, () => view, () => FOLDED);
   // One project is open at a time, under Pinned or under Projects: it never opens in both, which would list its sessions twice.
   const openProject = React.useMemo((): { id: string; where: "pinned" | "projects" } | null => {

@@ -4,7 +4,7 @@
 
 interface Row { sessionId: string; groupId?: string | null }
 
-export const demoGroupList: Array<{ groupId: string; title: string }> = [
+const FIXTURE_GROUPS = [
   { groupId: "g-release", title: "Release 0.8.8" },
   { groupId: "g-ops", title: "Ops" },
   { groupId: "g-research", title: "Research" },
@@ -13,8 +13,16 @@ export const demoGroupList: Array<{ groupId: string; title: string }> = [
   { groupId: "g-personal", title: "Personal" },
   { groupId: "g-infra", title: "Infra" },
 ];
+export const demoGroupList: Array<{ groupId: string; title: string }> = FIXTURE_GROUPS.map((g) => ({ ...g }));
 
 const placements = new Map<string, string | null>();
+
+/** A new demo source starts from the fixtures again: the seven projects, or none for the empty account. */
+export function resetDemoGroups(empty: boolean) {
+  demoGroupList.length = 0;
+  if (!empty) demoGroupList.push(...FIXTURE_GROUPS.map((g) => ({ ...g })));
+  placements.clear();
+}
 let rows: () => Row[] = () => [];
 
 /** The demo source says where its sessions live, so member counts can be counted. */
