@@ -23,8 +23,7 @@ belong in `docs/ux-audit/`, rather than either shipping directory.
 
 This extends the seven-dot swarm geometry already present in Flight Deck's
 `public/favicon.svg`; it does not introduce Microsoft corporate artwork or imply
-Microsoft endorsement. It is a proposed PilotSwarm web identity kit, subject to
-upstream maintainers' acceptance. The existing repository license remains
+Microsoft endorsement. It is the PilotSwarm web identity kit for Flight Deck. The existing repository license remains
 applicable to project artwork; the font has its own license below.
 
 Use the light wordmark on light surfaces and the dark wordmark on dark surfaces.

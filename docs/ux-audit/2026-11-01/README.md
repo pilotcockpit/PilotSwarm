@@ -46,6 +46,5 @@ first-run Overview (V10). The audit is automated checks plus screenshots, not a 
 The welcome and page illustrations were made with built-in image generation and exported to optimised WebP; the
 prompts are in [page-illustrations/prompts.json](page-illustrations/prompts.json) and the overview README. They are
 decorative (empty alt text) and meant to carry no third-party marks. They are committed with the rest of the package
-under the repository's MIT licence; whether that is right for generated artwork is for the owner to confirm before
-anything is proposed upstream (open item Q7). The brand mark, icons and variable font are in [assets/brand](../../../assets/brand/README.md); the font
+under the repository's MIT licence; no separate licensing is needed for them. The brand mark, icons and variable font are in [assets/brand](../../../assets/brand/README.md); the font
 carries its own SIL OFL text.
