@@ -302,7 +302,11 @@ export function OutputCard({ output: o, index, preview = false }: { output: Arti
   const Icon = canvas ? LayoutPanelLeft : FileText;
   return (
     <WorkCard index={index} className="group flex min-h-48 flex-col">
-      {preview ? <div className="m-3 mb-0 overflow-hidden rounded-pane border border-line">{canvas ? <ArtifactInspector html={html} filename={o.filename} title={name} sessionId={o.session.sessionId} slot={slot} loading={htmlLoading} failed={htmlError} fit={canvas ? fit : "none"} updatedAt={o.updatedAt} /> : <ArtifactPreview filename={o.filename} />}</div> : null}
+      {canvas ? (
+        <div className={preview ? "m-3 mb-0 overflow-hidden rounded-pane border border-line" : undefined}>
+          <ArtifactInspector html={html} filename={o.filename} title={name} sessionId={o.session.sessionId} slot={slot} loading={htmlLoading} failed={htmlError} fit={fit} updatedAt={o.updatedAt} thumbnail={preview} />
+        </div>
+      ) : preview ? <div className="m-3 mb-0 overflow-hidden rounded-pane border border-line"><ArtifactPreview filename={o.filename} /></div> : null}
       <WorkCardBody className="flex flex-1 flex-col gap-3">
         <span className="flex items-center gap-2 text-xs text-muted"><Icon className="size-4" aria-hidden />{canvas ? "Canvas" : "File"}{unseen ? <span className="ml-auto inline-flex items-center gap-1.5 text-accent"><span className="size-1.5 rounded-full bg-accent" aria-hidden />Updated</span> : null}</span>
         <h2 className="break-words text-lg font-semibold leading-snug"><Link to="/s/$sessionId" params={{ sessionId: o.session.sessionId }} search={canvas ? { view: "canvas", slot } : { view: "files", files: "outputs", file: o.filename }} className="inline-block min-h-6 underline-offset-2 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">{loadingName ? <span className="block h-5 w-2/3 animate-pulse rounded-chip bg-raised" aria-label="Loading canvas title" /> : name}</Link></h2>

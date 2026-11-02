@@ -406,6 +406,12 @@ aria-hidden wrapper. The overlay Inspect button owns the preview action; title
 and footer links open the output in its source session. Loading or failed HTML
 disables Inspect. Non-HTML covers show real filenames and metadata.
 
+**Where a document is drawn.** An agent's page is untrusted, so it is drawn only where a person has chosen a few of
+them. The Overview Canvases tiles show a small preview of the newest three. The Outputs page, a list of every output,
+draws nothing from a document: each card is text and an Inspect button, and the page holds no frame until Inspect is
+pressed (`thumbnail={false}`, covered by `e2e/artifact-preview.spec.ts`). The same sanitiser, no-network wrapper, empty
+sandbox and size limits apply wherever it is drawn.
+
 [ArtifactInspector](src/components/artifact-inspector.tsx) mounts the actual
 document in a read-only dialog. It preserves real document content and checked
 values through its own DOMPurify instance, disables form controls, strips editable

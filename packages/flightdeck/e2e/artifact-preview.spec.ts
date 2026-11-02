@@ -54,9 +54,22 @@ async function untilHittable(page: Page, frame: import("@playwright/test").Locat
 }
 /** The card for the document the test just published: Outputs lists newest first. */
 const cardOf = (page: Page) => page.getByRole("article").first();
-/** The Outputs page, where each canvas is a card with a preview and an Inspect button. */
+/** The Outputs page, where each canvas is a card with an Inspect button; nothing from the document is drawn until it is pressed. */
 const outputs = (page: Page, info: import("@playwright/test").TestInfo) => gotoDemo(page, "/outputs?tab=canvases", info);
 const reads = async (page: Page, filename: string) => (await demoCalls(page)).filter((c) => (c.op === "readArtifactPreview" || c.op === "readArtifact") && c.params?.filename === filename);
+
+test("an agent's document is not drawn on the list: no frame until Inspect, then one frame with an empty sandbox", async ({ page }, info) => {
+  await outputs(page, info);
+  await publish(page, { filename: "canvas3.html", content: HOSTILE });
+  const inspect = page.getByRole("button", { name: "Inspect Hostile fixture" });
+  await expect(inspect).toBeEnabled();
+  await expect(page.locator("main iframe")).toHaveCount(0); // the page holds only text and buttons
+  const sheet = await Sheet.open(page, inspect, /Hostile fixture/);
+  const frames = sheet.dialog.locator("iframe");
+  await expect(frames).toHaveCount(1);
+  await expect(frames).toHaveAttribute("sandbox", ""); // no scripts, no same-origin, no forms, no navigation
+  await expect(page.locator("main iframe")).toHaveCount(0);
+});
 
 test("a hostile canvas renders as reading-only: nothing navigates, nothing leaves the sandbox", async ({ page }, info) => {
   const errors = watchConsole(page);

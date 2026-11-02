@@ -48,7 +48,7 @@ export function OutputsPage() {
           {loading && !list.length ? <div role="status" aria-label="Loading outputs" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map((n) => <Skeleton key={n} className="h-40 w-full" />)}</div> : (catalog.isError || aggregate.errorCount) && !list.length ? null : list.length === 0 ? (
             <Panel><EmptyState level={2} icon={<FolderOutput />} illustration={q ? undefined : <ProductIllustration kind="outputs" />} title={q ? "No matching outputs" : tab === "canvases" ? "Your canvases will appear here" : "Your files will appear here"} action={q ? <Button variant="quiet" onClick={() => navigate({ search: (p: any) => ({ ...p, q: undefined }), replace: true })}><X /> Clear search</Button> : <Link to="/projects" className="inline-flex min-h-8 items-center text-sm text-accent hover:underline">Browse sessions</Link>}>{tab === "canvases" ? "When an agent draws a canvas it appears here, newest first, with a dot when it changed since you looked." : "Files you attach and files agents publish to a session's Outputs show up here."}</EmptyState></Panel>
           ) : tab === "canvases" ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{list.map((o, i) => <OutputCard key={`${o.session.sessionId}/${o.filename}`} output={o} index={i} preview />)}</div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{list.map((o, i) => <OutputCard key={`${o.session.sessionId}/${o.filename}`} output={o} index={i} />)}</div>
           ) : (
             <Panel className="overflow-x-auto">
               <table className="w-full text-sm">

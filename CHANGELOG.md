@@ -34,11 +34,12 @@ demand (first load 990 kB to 543 kB). Fixes found by review: creating a project 
 new-session form no longer also submits that form; a failed pin migration no longer deletes
 the browser's pins; pinned sub-agents appear under Pinned on the Projects page; a deep link
 to a finished session, or one opened when there are no projects, now opens the section that
-shows it.
+shows it. The Outputs page no longer draws agent-written documents: each card is text and an
+Inspect button, and the page holds no frame until Inspect is pressed.
 
 **Flight Deck: brand, metadata and tests.** Icons, web manifest, social images, per-page
 metadata and `noindex` headers (`vercel.json`, `public/_headers`), and page illustrations.
-The unit suite grew to 449 tests and the whole Playwright suite (4 projects, 537 tests) was
+The unit suite grew to 449 tests and the whole Playwright suite (4 projects, 541 tests) was
 brought up to date and passes. New scripts: `npm run dev:flightdeck`, `build:flightdeck`,
 `test:flightdeck` and `test:flightdeck:e2e`. Flight Deck is not yet part of the PR checks
 (open item Q5). Not verified against a live backend (V5, V8, V9).

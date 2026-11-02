@@ -11,16 +11,20 @@ import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui
 /** Inspect the actual published document. Its preview grows into the reading
  * surface with a native shared-element transition; no motion library or new API.
  */
-export function ArtifactInspector({ html, filename, title, sessionId, slot, loading, failed, fit = "card", updatedAt }: {
+export function ArtifactInspector({ html, filename, title, sessionId, slot, loading, failed, fit = "card", updatedAt, thumbnail = true }: {
   html?: string; filename: string; title: string; sessionId: string; slot: number; loading: boolean; failed: boolean;
   /** Where the document fits: "inspector" means the card has no preview but the reading view can load it on open. */
   fit?: PreviewFit; updatedAt?: string | number;
+  /** false: the card draws no preview of the document. It is rendered only when the person chooses Inspect, in the read-only dialog. */
+  thumbnail?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   // A document the card did not load is read on open, bounded to the inspector limit; never in full.
   const loadOnOpen = !html && fit !== "none";
   const reading = useBoundedArtifactText({ sessionId, filename, updatedAt, maxBytes: INSPECTOR_PREVIEW_BYTES, enabled: open && loadOnOpen });
   const doc = html ?? (reading.data && !reading.data.truncated ? reading.data.text : undefined);
+  const note = fit === "none" ? "Too large to preview" : fit === "inspector" ? "Large document. Inspect to read it." : undefined;
+  const disabled = (!html && !loadOnOpen) || loading || failed;
   const tooLarge = !doc && (fit === "none" || Boolean(reading.data?.truncated));
   const [ownsTransition, setOwnsTransition] = React.useState(false);
   const trigger = React.useRef<HTMLButtonElement>(null);
@@ -49,13 +53,21 @@ export function ArtifactInspector({ html, filename, title, sessionId, slot, load
     void transition.finished.catch(() => {}).finally(() => { if (motionRevision.current === revision) setOwnsTransition(false); });
   };
   return <Dialog open={open} onOpenChange={changeOpen}>
-    <div className="relative" style={{ viewTransitionName: ownsTransition && !open ? "fd-output-inspection" : "none" }}>
-      <ArtifactPreview html={html} filename={filename} loading={loading} failed={failed} note={fit === "none" ? "Too large to preview" : fit === "inspector" ? "Large document. Inspect to read it." : undefined} />
-      <Button ref={trigger} variant="quiet" disabled={(!html && !loadOnOpen) || loading || failed} onClick={() => changeOpen(true)}
-        aria-label={`Inspect ${title}`} className="absolute inset-0 h-full w-full rounded-none p-0 hover:bg-transparent">
-        <span className="absolute bottom-3 right-3 inline-flex min-h-8 items-center gap-2 rounded-control border border-line bg-overlay px-3 text-sm text-fg pointer-coarse:min-h-11"><Expand /> Inspect</span>
-      </Button>
-    </div>
+    {thumbnail ? (
+      <div className="relative" style={{ viewTransitionName: ownsTransition && !open ? "fd-output-inspection" : "none" }}>
+        <ArtifactPreview html={html} filename={filename} loading={loading} failed={failed} note={note} />
+        <Button ref={trigger} variant="quiet" disabled={disabled} onClick={() => changeOpen(true)}
+          aria-label={`Inspect ${title}`} className="absolute inset-0 h-full w-full rounded-none p-0 hover:bg-transparent">
+          <span className="absolute bottom-3 right-3 inline-flex min-h-8 items-center gap-2 rounded-control border border-line bg-overlay px-3 text-sm text-fg pointer-coarse:min-h-11"><Expand /> Inspect</span>
+        </Button>
+      </div>
+    ) : (
+      // Nothing from the document is drawn until the person asks: agent-written pages are untrusted, and a list of them is not a reason to render them all.
+      <div className="m-3 mb-0 flex items-center justify-between gap-3 rounded-pane border border-line bg-raised/50 px-3 py-2" style={{ viewTransitionName: ownsTransition && !open ? "fd-output-inspection" : "none" }}>
+        <span className="min-w-0 truncate text-xs text-muted">{note ?? (failed ? "Preview unavailable" : "Opens a read-only preview")}</span>
+        <Button ref={trigger} variant="quiet" size="sm" disabled={disabled} onClick={() => changeOpen(true)} aria-label={`Inspect ${title}`}><Expand /> Inspect</Button>
+      </div>
+    )}
     <DialogContent title={title} description="Read-only preview of the published canvas. Open the output to see it in its session."
       className="fd-document-dialog top-8 h-5/6 max-h-dvh w-full max-w-5xl rounded-work data-[state=open]:animate-none"
       onCloseAutoFocus={(e) => { e.preventDefault(); trigger.current?.focus(); }}>
