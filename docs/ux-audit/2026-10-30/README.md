@@ -128,10 +128,9 @@ The information-architecture review accepted the final desktop/mobile evidence
 and confirmed the reported interaction corrections in source. Remaining
 integration and accessibility acceptance limits above still apply.
 
-The required Claude commit review was attempted through the shared runner but
-failed before inference because the CLI reported `Not logged in`. It produced
-no signoff. The implementation is staged on `dev`; it is not committed, pushed,
-deployed, or accepted as production-ready by that failed review.
+A commit-time review attempted on 30 October produced no signoff (the review tool was not logged in), so this
+audit's own conclusions rest on the visual, interaction and information-architecture reviews above. The work was
+committed later and reviewed again; see the [1 November record](../2026-11-01/README.md).
 
 Questions skipped: the user explicitly requested an autonomous implementation
 without questions. Product assumptions and evidence limits are stated above.

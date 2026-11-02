@@ -13,7 +13,7 @@ explicit dimensions and responsive sizing, and adds no dependencies or motion.
 Final asset: [welcome-paper-flight.webp](../../../../packages/flightdeck/public/assets/welcome-paper-flight.webp),
 624×416 with transparent alpha, 29,136 bytes. Built-in image generation was used
 for both the initial image and one background-cleanup pass; cwebp exported the
-final optimized rendition. The original generations were retained locally.
+final optimized rendition. The original generations are kept by the author and are not in the repository.
 
 ## Verification
 

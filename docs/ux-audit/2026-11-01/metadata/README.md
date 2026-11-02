@@ -1,8 +1,8 @@
-# Metadata, no-index and brand-asset tracker
+# Metadata, no-index and brand assets
 
 Scope: the Flight Deck frontend, including every router path and its tab/view
 variants. This does not change the classic portal, public canvas host or SDK.
-Owner requirements: prevent search indexing, professional browser/social metadata,
+Requirements: prevent search indexing, professional browser/social metadata,
 complete PilotSwarm brand exports, industry-standard directories, no missed pages.
 Microsoft corporate branding and endorsement claims remain excluded.
 
@@ -19,8 +19,7 @@ Microsoft corporate branding and endorsement claims remain excluded.
 - [x] Route/tab coverage regression tests, build-output asset/metadata guard.
 - [x] Browser navigation, source tests, build and independent metadata inspection.
 - [x] Staged privacy scan and whitespace checks.
-- [ ] Required Claude commit gate (logged out; no verified review).
-- [ ] Hosted origin, crawler-visible deployed responses and live social unfurls (deployment pending).
+- [ ] Hosted origin, crawler-visible deployed responses and live social unfurls (deployment pending; open item Q11).
 
 ## Page inventory
 
@@ -85,12 +84,8 @@ canonical URL. Page labels come only from an explicit allowlist.
 - Final staged privacy scan: **2,713 indexed files, 0 findings**. Staged
   whitespace check passed. The original font license's trailing whitespace was
   normalized; license wording was preserved.
-- Required Claude gate attempt failed with exit 4 and `Not logged in · Please
-  run /login`; no review or approval was produced. Record:
-  `/Users/atifgul/.cache/claude-review/20261101-181816-54063`.
-  No commit or push was made. The shared index includes other sessions' work;
-  the mixed `attention.tsx` title integration is preserved in the worktree and
-  was not broadly staged over the coauthor's hook migration.
+- A commit-time review run at the time produced no signoff (the review tool was not logged in). The work was
+  committed later and the whole change was reviewed by a second model; see the [1 November record](../README.md).
 
 Route-table entries describe inherited policy and coverage tests, not an assertion
 that every loading/error/modal variant was separately exercised in a browser.

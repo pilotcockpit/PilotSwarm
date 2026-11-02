@@ -3,7 +3,7 @@
 The owner requested attractive images on other pages while retaining a
 professional admin tool, then rejected the first Library filing-box image. The
 replacement is an open technical field guide in the existing paper/cobalt/ivory
-visual family. No owner acceptance is claimed.
+visual family. The owner has not yet accepted them.
 
 ## Implemented
 
@@ -23,7 +23,7 @@ visual family. No owner acceptance is claimed.
 
 The three new WebP assets total 102,106 bytes, about 100 KiB. They were generated
 with the built-in image tool and exported with cwebp, preserving original aspect
-ratios and alpha. Original generations remain in the local Codex output folder.
+ratios and alpha. The original generations are kept by the author and are not in the repository.
 The rejected filing-box export was removed from public assets. Exact initial
 and replacement prompts are in [prompts.json](prompts.json).
 

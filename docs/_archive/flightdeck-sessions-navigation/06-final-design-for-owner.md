@@ -1,6 +1,6 @@
 # Sessions navigation: final design for the owner (after two Codex rounds)
 
-Status: Codex round 2 verdict **SIGN OFF WITH CHANGES**; the changes are folded in below. Inputs: `00` audit, `01` product designer, `02` UX researcher, `03` information architect, `04`/`05` syntheses, `05a`/`05b` Codex rounds. Nothing here is built yet. All design numbers (five rows, five folders, caps) are hypotheses to validate, not research findings.
+Status: archived; built as described in the design record (folders became Projects). Codex round 2 verdict **SIGN OFF WITH CHANGES**; the changes are folded in below. Inputs: `00` audit, `01` product designer, `02` UX researcher, `03` information architect, `04`/`05` syntheses, `05a`/`05b` Codex rounds. All design numbers (five rows, five folders, caps) are hypotheses to validate, not research findings.
 
 ## The model in one paragraph
 The sidebar is for **jumping and triage**; `/sessions` is the **fleet** surface. The sidebar shows, top to bottom: New session, Search, **Needs you**, **Pinned**, **Recent**, and optional **Folders**. A session lives in at most one private folder (placing a root moves its whole tree); Needs you and Pinned are views that reference sessions and never move them. Hierarchy shows up only for delegation (sub-agents), on demand. Hover peek, drag and drop, swipe, ⌘1-9, cause-grouped queue rows and "stuck" detection are cut.

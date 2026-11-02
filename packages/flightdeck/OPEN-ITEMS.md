@@ -37,7 +37,7 @@ Still open:
 | V5 | Every new screen against a LIVE backend (real API shapes, real permissions, real latency) | A smoke run against a dev PilotSwarm server with a member and an admin account; each ported operation called once; failures filed |
 | V6b | Assistive technology: a manual VoiceOver pass on Share, Add provider and the file editor; 200% zoom | A person does it once and files what they find; axe cannot judge announcement quality |
 
-## Sessions sidebar (built 2026-11-01; design in docs/ux-audit/2026-11-01/sessions-ux/06-final-design-for-owner.md)
+## Sessions sidebar (built 2026-11-01; design record in docs/proposals-impl/flightdeck-sessions-navigation.md)
 
 No project: sessions in no project (or in one that was deleted) are shown as a derived **No project** group: its own sidebar section beside Projects (five rows, a link to the rest), and the last group on the Projects page. It is not stored, so it cannot be renamed or deleted; "Take out of its project" files a session there. It appears only once the person has made a project. (In code it is `DEFAULT_PROJECT_ID`.)
 
@@ -67,7 +67,7 @@ Built: shared derivation (`src/data/session-tree/`), Needs you / Pinned / Projec
 |---|---|---|
 | G1 | No Web API operation to pause, resume or fire a session's schedule (cron) outside a turn | Controls ask the agent in chat |
 | G2 | No operation to list canvas apps | Library shows a note linking to Outputs |
-| G11 | No safe per-person navigation store. The profile settings document exists but the classic portal's normaliser whitelists keys and replaces it (`web-app.js` 325-380, 660-672), so new keys written by Flight Deck are erased by the classic portal's next save; group metadata is visible to the classic portal and TUI, has no reserved-identity or size contract, and replaces arrays wholesale. Pins, collapsed sections and dismissals are per browser. Fix: a small per-user preferences document with a revision and compare-and-swap operations (see docs/ux-audit/2026-11-01/sessions-ux/06-final-design-for-owner.md) | Per browser, labelled |
+| G11 | No safe per-person navigation store. The profile settings document exists but the classic portal's normaliser whitelists keys and replaces it (`web-app.js` 325-380, 660-672), so new keys written by Flight Deck are erased by the classic portal's next save; group metadata is visible to the classic portal and TUI, has no reserved-identity or size contract, and replaces arrays wholesale. Pins, collapsed sections and dismissals are per browser. Fix: a small per-user preferences document with a revision and compare-and-swap operations (see docs/proposals-impl/flightdeck-sessions-navigation.md) | Per browser, labelled |
 | G12 | Session list rows carry no working folder, so the sidebar cannot group by project folder (Claude Code's default) | Groups are the person's own; agent grouping is offered |
 | G13 | The creatable-agent catalog keeps one agent per normalised name and lists shared packages first (`app/tui/src/node-sdk-transport.js` `listCreatableAgents`, ~649-658). A private copy that repeats a shared agent's name is dropped from the catalog, although the docs say a bare name resolves to your own copy. Read from code, not run against a live server | Flight Deck follows the catalog: the shared agent is listed, the private copy's panel says "a shared agent with this name is listed instead". Fix upstream by preferring the viewer's enabled copy, then drop the wording |
 | G14 | The profile does not expose `adminScope`; a restricted admin is treated as a normal user by the server but looks like an admin here | Admin-only controls show, and the server refuses the action |
@@ -118,6 +118,7 @@ Built: shared derivation (`src/data/session-tree/`), Needs you / Pinned / Projec
 | Q8 | Outputs cards now show a framed preview with an Inspect button (so the inspector and its size limits are reachable from a page); this is a visible design change made while repairing the artifact specs, not yet reviewed by the owner | Owner accepts it, or removes the `preview` prop on `OutputCard` and the artifact specs move to the Overview canvas tiles |
 | Q9 | The Projects page and the Overview start box (with the project picker) are covered by model, logic and end-to-end tests, not by component render tests, because the test renderer cannot render Radix popovers or cmdk | A renderer that supports portals, or those components split so the logic renders without them |
 | Q10 | The earlier sidebar kept section folds and the open project in `fd.sidebar.*@…` browser keys; they are no longer read and are never removed | A one-time cleanup of those keys on load |
+| Q11 | The static host files (`vercel.json`, `public/_headers`, `public/_redirects`) and the `noindex` headers are verified against the dev and preview servers only; no hosted origin exists yet, so crawler-visible responses and social unfurls are unverified. `vercel.json` sets one fixed Content-Security-Policy (`frame-src`) | A deployment, then a check of the real response headers; a CSP review before it serves anything sensitive |
 
 ## End-to-end suite
 

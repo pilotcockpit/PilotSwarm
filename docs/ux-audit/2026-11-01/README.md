@@ -9,7 +9,7 @@ behaviour is described in [the Flight Deck README](../../../packages/flightdeck/
 
 | Folder | What it holds |
 |---|---|
-| [sessions-ux](sessions-ux/) | The sessions-navigation work: a backend audit, three designer memos, two review rounds with Codex, and [the final design for the owner](sessions-ux/06-final-design-for-owner.md) with the owner's answers (builder audience; pins and dismissals roam; the classic portal's profile format may be overwritten; shared-session attention belongs to the owner). |
+| [Design record](../../proposals-impl/flightdeck-sessions-navigation.md) | The projects and sessions-navigation design as built: concepts, behaviour, derivation rules, persistence, decisions and alternatives. The AI-assisted working notes behind it (backend audit, role memos, two Codex review rounds, the owner's answers) are [archived](../../_archive/flightdeck-sessions-navigation/README.md). |
 | [overview-graphic](overview-graphic/) | The Overview welcome illustration and its checks. |
 | [page-illustrations](page-illustrations/) | Illustrations for the empty Boards and Outputs pages and the Library header, the prompts used, and two rejected directions. |
 | [metadata](metadata/) | Page titles, descriptions, `noindex` headers, icons and social images, and how they were verified. |
