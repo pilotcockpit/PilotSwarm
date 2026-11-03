@@ -5,7 +5,12 @@ import { isPhone } from "./helpers";
 export async function openAllSections(list: Locator) {
   await expect(list.getByRole("heading").first()).toBeVisible(); // the sections appear once the sessions have loaded
   const closed = list.locator("h2 button[aria-expanded='false']");
-  for (let i = 0; i < 8 && (await closed.count()) > 0; i++) await closed.first().click();
+  // A section can appear after the first ones (Pinned arrives with the account's settings): keep unfolding until nothing
+  // new has turned up for a few looks in a row.
+  let calm = 0;
+  for (let i = 0; i < 60 && calm < 4; i++) {
+    if ((await closed.count()) > 0) { await closed.first().click(); calm = 0; } else { calm++; await list.page().waitForTimeout(120); }
+  }
 }
 
 /**

@@ -7,7 +7,9 @@ import { applyTheme, useTheme } from "./prefs";
 
 // One table, two implementations: the rule in React and the inline script in index.html that runs before first paint.
 const stored = [null, "", "system", "light", "dark", "bogus", "DARK", " dark", "true", "0"];
-const prepaint = indexHtml.match(/<script>([\s\S]*?)<\/script>/)![1];
+// The first inline script is the pre-paint rule; found by position, not by a pattern over markup.
+const prepaintStart = indexHtml.indexOf("<script>") + "<script>".length;
+const prepaint = indexHtml.slice(prepaintStart, indexHtml.indexOf("</script>", prepaintStart));
 
 function runPrepaint(value: string | null, osDark: boolean): boolean {
   let dark = false;

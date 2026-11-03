@@ -74,7 +74,7 @@ export function CanvasFrame({ html, title, zoom = 1, className }: { html: string
 export function canvasName(html: string | undefined, slot: number) {
   const text = String(html || "");
   const title = text.match(/<title[^>]*>([^<]{1,80})<\/title>/i)?.[1]?.trim();
-  const h1 = text.match(/<h1[^>]*>([\s\S]{1,160}?)<\/h1>/i)?.[1]?.replace(/<[^>]+>/g, "").trim();
+  const h1 = text.match(/<h1[^>]*>([\s\S]{1,160}?)<\/h1>/i)?.[1]?.replace(/<[^>]*>/g, "").replace(/[<>]/g, "").trim(); // tags out, then any stray angle bracket: nothing that could open an element is left
   const name = title || h1;
   return name ? name.replace(/\s*·.*$/, "").slice(0, 40) : `Canvas ${slot}`;
 }

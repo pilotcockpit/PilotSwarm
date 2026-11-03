@@ -1193,7 +1193,7 @@ function render() {
   closeLayer();
   if (!h) home();
   else if (h.startsWith('s/')) session(h.slice(2));
-  else ({ sessions, boards, outputs, library, providers, admin, settings }[h.split('/')[0]] || home)();
+  else { const pages = { sessions, boards, outputs, library, providers, admin, settings }; const key = h.split('/')[0]; (Object.hasOwn(pages, key) ? pages[key] : home)(); }
   document.getElementById('content').scrollTop = 0;
 }
 document.addEventListener('click', (e) => {

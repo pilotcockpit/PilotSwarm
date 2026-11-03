@@ -209,7 +209,9 @@ export function disarmDeclaredShadowRoots(html) {
 // window after the page's own handlers, so a page that handles its own clicks
 // (preventDefault) keeps them; "#" links, javascript: links and downloads are
 // left alone.
-const LINK_GUARD = `<script>(function(){var M=${JSON.stringify(EXTERNAL_LINK_MESSAGE)};function ask(u){try{parent.postMessage({type:M,href:new URL(String(u),document.baseURI).href},"*")}catch(x){}}addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href],area[href]");if(!a||e.defaultPrevented||a.hasAttribute("download"))return;var h=a.getAttribute("href")||"";if(!h||h.charAt(0)==="#"||/^javascript:/i.test(h))return;e.preventDefault();ask(h)});window.open=function(u){if(u)ask(u);return null}})();</script>`;
+// Embedded in a <script>: no "<" (so no "</script>") and no line separators can come out of the literal, whatever the constant holds.
+const MESSAGE_LITERAL = JSON.stringify(EXTERNAL_LINK_MESSAGE).replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+const LINK_GUARD = `<script>(function(){var M=${MESSAGE_LITERAL};function ask(u){try{parent.postMessage({type:M,href:new URL(String(u),document.baseURI).href},"*")}catch(x){}}addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href],area[href]");if(!a||e.defaultPrevented||a.hasAttribute("download"))return;var h=a.getAttribute("href")||"";if(!h||h.charAt(0)==="#"||/^javascript:/i.test(h))return;e.preventDefault();ask(h)});window.open=function(u){if(u)ask(u);return null}})();</script>`;
 
 // MoA tiles hand Tab and Escape back to the dashboard.
 const PANEL_KEY_BRIDGE = `<script>window.addEventListener('keydown',function(e){if(e.isTrusted&&!e.altKey&&!e.metaKey&&!e.ctrlKey&&(e.key==='Tab'||e.key==='Escape')){e.preventDefault();e.stopImmediatePropagation();parent.postMessage({type:'moa-panel-key',key:e.key,backwards:e.shiftKey},'*')}},true);</script>`;
@@ -221,6 +223,14 @@ const PANEL_KEY_BRIDGE = `<script>window.addEventListener('keydown',function(e){
  * disagree on where those end. The page's own doctype, later, is ignored, and
  * a policy the page adds can only narrow this one.
  */
+/**
+ * The same wrapper with no script in it, for a frame that only reads (its sandbox allows no scripts, and the page's own
+ * are removed before it gets here): the doctype, the policy and the disarmed shadow roots, and nothing the guards would run.
+ */
+export function wrapReadOnlyDocument(html) {
+    return HEAD + disarmDeclaredShadowRoots(String(html ?? "").replace(/^\uFEFF/, ""));
+}
+
 export function wrapSandboxedDocument(html, { panelKeys = false } = {}) {
     const text = disarmDeclaredShadowRoots(String(html ?? "").replace(/^\uFEFF/, ""));
     return HEAD

@@ -1,14 +1,8 @@
 import * as React from "react";
 import createDOMPurify from "dompurify";
 import { FileText } from "lucide-react";
-import { wrapSandboxedDocument } from "@ps/sandbox";
+import { wrapReadOnlyDocument } from "@ps/sandbox";
 import { INSPECTOR_PREVIEW_BYTES } from "@/lib/preview-limits";
-
-const scriptedHead = wrapSandboxedDocument("");
-// This is trusted wrapper markup, not a regex sanitizer for agent HTML. Keep
-// its canonical policy/DNS guards; scriptful link/WebRTC guards are unnecessary
-// in a scriptless reading frame and would only produce blocked-script warnings.
-const staticHead = scriptedHead.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
 
 /** Past this many characters a document is not parsed at all: UTF-8 text of at most the inspector's byte limit. */
 const MAX_SANITIZE_CHARS = INSPECTOR_PREVIEW_BYTES;
@@ -49,10 +43,9 @@ export function sanitizeArtifactHtml(html: string): string {
 }
 
 function readOnlyDocument(html: string) {
-  if (typeof window === "undefined") return staticHead;
-  const clean = sanitizeArtifactHtml(html);
-  // Retain the shared wrapper's shadow-root disarming of the sanitized body.
-  return staticHead + wrapSandboxedDocument(clean).slice(scriptedHead.length);
+  // The shared wrapper's doctype, policy and disarmed shadow roots, with no script: the frame allows none.
+  if (typeof window === "undefined") return wrapReadOnlyDocument("");
+  return wrapReadOnlyDocument(sanitizeArtifactHtml(html));
 }
 
 /** Authentic document preview: same no-network wrapper, with scripting disabled.

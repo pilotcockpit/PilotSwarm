@@ -9,7 +9,7 @@ async function openFiles(page: Page, info: import("@playwright/test").TestInfo) 
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Release readiness");
   await expect(page.getByRole("list", { name: /Contents of flight-deck/ })).toBeVisible();
 }
-const row = (page: Page, name: string) => page.getByRole("button", { name: new RegExp(`^${name.replace(/[.]/g, "\\.")}\\b`) }).first();
+const row = (page: Page, name: string) => page.getByRole("button", { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`) }).first();
 async function openFile(page: Page, name: string) {
   await row(page, name).click();
   await expect(page.getByRole("button", { name: `Download ${name}` })).toBeVisible();
