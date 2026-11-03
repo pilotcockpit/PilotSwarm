@@ -81,13 +81,18 @@ test("a dated timestamp is shown in full, not truncated", () => {
     // The TIME column was a fixed 8 chars — enough for "20:10:19" but not for a
     // dated stamp, so rows from an earlier day clipped to "26 Jul …" and lost
     // the time entirely. That is the row where the date matters most.
-    const dayMs = 24 * 60 * 60 * 1000;
+    // Yesterday by the CALENDAR, not "24 hours ago": on the day clocks go back a
+    // local day is 25 hours, and 24 hours before 23:30 is still that same day, so
+    // the row would be time-only and the test would fail for that one evening.
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(12, 0, 0, 0); // noon: two seconds later cannot cross midnight either
     // BOTH events must be old: the view filters to a recent activity window and
     // only falls back to the full set when nothing lands inside it, so a single
     // fresh event would hide the dated row this test exists to check.
     const events = [
-        { eventType: "session.turn_started", data: { iteration: 1 }, createdAt: new Date(Date.now() - dayMs).toISOString(), seq: 1 },
-        { eventType: "session.turn_started", data: { iteration: 2 }, createdAt: new Date(Date.now() - dayMs + 2000).toISOString(), seq: 2 },
+        { eventType: "session.turn_started", data: { iteration: 1 }, createdAt: yesterday.toISOString(), seq: 1 },
+        { eventType: "session.turn_started", data: { iteration: 2 }, createdAt: new Date(yesterday.getTime() + 2000).toISOString(), seq: 2 },
     ];
     const view = selectInspector(stateWithEvents(events), { width: WIDTH });
     assertRealView(view);

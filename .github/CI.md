@@ -3,8 +3,9 @@
 For installation and runnable local/CI setup steps, see [Local tests and CI setup](../docs/developer/contributing/local-ci-and-tests.md).
 
 Every pull request runs **PR checks / Basic checks** without cloud credentials:
-workspace builds, deployment tooling, CI policy checks, SDK API/unit tests and
-application unit tests. Forks use the same checks. Full live integration runs
+workspace builds, deployment tooling, CI policy checks, SDK API/unit tests,
+application unit tests and the Flight Deck build and unit tests (its Playwright suite is
+a local gate: `npm run test:flightdeck:e2e`, about four minutes, browsers installed once). Forks use the same checks. Full live integration runs
 use workflow/control code from trusted `main` and the protected `azure-deploy`
 environment. Maintainers may explicitly select a reviewed PR head as test source.
 

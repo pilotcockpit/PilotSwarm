@@ -1,0 +1,22 @@
+{
+  "src/components/state.tsx": 3,
+  "src/components/ui/button.tsx": 2,
+  "src/components/ui/dialog.tsx": 2,
+  "src/components/ui/kbd.tsx": 2,
+  "src/components/ui/menu.tsx": 2,
+  "src/components/ui/misc.tsx": 7,
+  "src/components/ui/tabs.tsx": 1,
+  "src/components/ui/tooltip.tsx": 1,
+  "src/routes/admin.tsx": 2,
+  "src/routes/boards.tsx": 1,
+  "src/routes/home.tsx": 3,
+  "src/routes/library.tsx": 1,
+  "src/routes/new-session.tsx": 2,
+  "src/routes/projects.tsx": 2,
+  "src/routes/providers.tsx": 1,
+  "src/routes/session-views.tsx": 4,
+  "src/routes/session.tsx": 3,
+  "src/routes/settings.tsx": 1,
+  "src/shell/AppShell.tsx": 2,
+  "src/shell/CommandPalette.tsx": 1
+}

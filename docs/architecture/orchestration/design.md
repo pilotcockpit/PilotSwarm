@@ -11,9 +11,9 @@ It does **not** own tool implementations or Copilot SDK session state. Those
 live in worker activities and the session manager.
 
 Primary source: [`packages/sdk/src/orchestration/`](../../../packages/sdk/src/orchestration).
-The current latest version is `1.0.82`. Frozen prior versions live as siblings
+The current latest version is `1.0.83`. Frozen prior versions live as siblings
 (single files `packages/sdk/src/orchestration_1_0_47.ts` … `_1_0_51.ts`, then
-directories `orchestration_1_0_52/` … `orchestration_1_0_81/`) and run
+directories `orchestration_1_0_52/` … `orchestration_1_0_82/`) and run
 unchanged for any in-flight execution that started against them.
 
 In 1.0.81, Stop and Steer are handled inside the worker's turn activity through
@@ -25,6 +25,10 @@ In 1.0.82, queued work no longer waits behind a timer (issue 192): `drain` runs
 queued prompts and answers at once whatever timer is armed, and `decide` merges
 every queued prompt past timer items into one turn. The KV FIFO compacts
 instead of dropping items. Version 1.0.81 and older keep the old queue.
+
+In 1.0.83, an answer can bind strictly to the question it was written for
+(`requireQuestionMatch`): see [Bound answers](#bound-answers-1083). Version 1.0.82
+and older keep the lenient handling.
 
 ---
 
@@ -228,7 +232,7 @@ Each dequeued message is routed by shape:
 | `{cancelPending: ["id1", …]}` | add ids to `state.cancelledMessageIds`; drop matching prompts already in stash |
 | `{type: "cmd", …}` | flush stash to FIFO, then `handleCommand` |
 | `{prompt: "[CHILD_UPDATE from=… type=…]\n…"}` | `applyChildUpdate` (deduped per drain pass), maybe `bufferChildUpdate`, maybe resolve `wait_for_agents` |
-| `{answer, wasFreeform}` | stash `{kind:"answer", answer, wasFreeform}` |
+| `{answer, wasFreeform, expectedQuestion?, requireQuestionMatch?}` | stash `{kind:"answer", answer, wasFreeform, expectedQuestion}` (1.0.83: plus `requireQuestionMatch: true` when the message set it to exactly `true`) |
 | `{prompt, bootstrap?, requiredTool?, clientMessageIds?}` | possibly augment with timer-interrupt context, then stash `{kind:"prompt", …}` |
 | else | log and skip |
 
@@ -875,3 +879,40 @@ replayed verbatim afterwards.
 - [System Reference](../system-reference.md) — primitives reference
 - [Implemented proposal: flat event loop](../../proposals-impl/orchestration-flat-event-loop.md)
 - [Implemented proposal: directory refactor](../../proposals-impl/orchestration-directory-refactor.md)
+
+---
+
+## Bound answers (1.0.83)
+
+An answer message carries `expectedQuestion`, the `{question, iteration}` its writer
+saw. `processAnswer` compares it with `pendingInputQuestion`:
+
+| Case | 1.0.82 and older, and 1.0.83 without the flag | 1.0.83 with `requireQuestionMatch: true` |
+|---|---|---|
+| matches the open question | the question closes; the turn prompt names the question and the reply | same |
+| does not match (another writer answered, a newer question is open, a client reconnected on stale state) | kept as ordinary input: the raw answer runs as a prompt and the open question stays open | **no turn runs.** The open question and its hold timer are left alone. One `session.answer_rejected` event is recorded |
+| no valid binding: `expectedQuestion` omitted, `null`, `{}`, or without a non-empty `question` string | kept as ordinary input | rejected the same way (fail closed). The stash never guesses a binding for a strict answer, and the management and web clients refuse to send this combination in the first place |
+
+The lenient path exists so a person's words are never lost. It is wrong for an
+answer that is a command in disguise, such as the choice "Delete old files": run
+against a newer question it executes something nobody asked for. A caller that
+cannot afford that sets the flag. Existing callers (the TUI, reconnecting
+clients) do not, and are unchanged.
+
+`session.answer_rejected` data: `{ reason, expectedQuestion, currentQuestion }`, where
+`reason` is `invalid-binding` (no usable `{question, iteration?}`), `no-open-question`
+(a valid binding, but nothing is being asked) or `stale-question` (another question, or
+another iteration, is open), and `currentQuestion` is `{question, iteration}` or `null`.
+A strict answer needs all three: a valid binding, an open question, and the same text
+(and the same iteration, when one was given).
+Clients show it ("the question changed, review it and answer again") and offer the
+current question; the rejected text is not queued anywhere.
+
+**Replay and rollout.** The new branch changes the yields `processAnswer` makes
+(a recorded event instead of a turn), so 1.0.82 is frozen in `orchestration_1_0_82/`
+and in-flight 1.0.82 sessions keep replaying on it, still lenient. The flag is
+honoured only once a session runs 1.0.83: workers must roll to a build that registers
+1.0.83, and a session upgrades at its next continue-as-new. Until then a caller that
+sets the flag gets the old behavior from that session, so the client-side check
+(re-read the open question just before sending) remains worth keeping.
+

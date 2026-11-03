@@ -117,12 +117,14 @@ The browser then enforces, in order:
    serialized, 2048-char strings) are refused. Validation never throws, even
    on structured-clone-legal garbage (cycles, BigInt).
 3. **Rate limit** — burst 3 per 3 s per session.
-4. **Creator-only, fail-closed** — the server accepts a canvas action only
-   from the session creator (`viewerIsOwner`); shared writers and admins are
-   refused, and a missing/unloaded snapshot refuses. The client mirrors the
-   check for UX; the server is authoritative. Rationale: shared viewers see a
-   UI whose state may have mutated — only the creator's view is known to
-   correspond to what the agent drew.
+4. **Writers only, fail-closed** — the server accepts a canvas action from
+   anyone who may write the session: the owner, an admin, a person with a
+   write grant, or anyone when the session is `shared_write`. Read-only
+   viewers and share-link bearers are refused (their requests land in the KV
+   as `suggested`), and a missing/unloaded snapshot refuses. Rationale: a
+   writer can already send a chat message, so an action is no new power. The
+   client mirrors the check for UX; the server is authoritative
+   (`packages/app/web/runtime.js`).
 
 Conforming actions arrive as user messages
 `[canvas-action] {"action": ..., "data": ...}` — self-labeling, hidden from
@@ -263,6 +265,35 @@ set it) means what it says.
 - **Caps**: document ≤900 KB (store text cap is 1 MiB); ticks ≤32 KB;
   contract 16×16 fields / 4 KB (+1 KB `data`); action payloads ≤8 KB with
   2048-char strings; card prose 400 chars/field.
+- **Sandbox** (`packages/app/ui/react/src/sandboxed-document.js`): every
+  canvas, HTML artifact preview and shared canvas is wrapped before it
+  reaches its frame through `srcdoc` (never a `blob:` URL), with nothing
+  the page wrote ahead of the wrapper:
+  - a Content-Security-Policy that allows no network of any kind, with DNS
+    prefetching off;
+  - WebRTC removed before the page runs (CSP does not govern it in
+    Chromium, and ICE gathering against a STUN server would carry data out),
+    and no way to get it back from a fresh window: nested frames, objects and
+    embeds are removed as they appear (shadow roots included), shadow roots
+    declared in markup are disarmed, and the run-time APIs that build them
+    from HTML strings are removed;
+  - a frame sandbox of `allow-scripts` only: no popups, forms or top-level
+    navigation;
+  - the portal page's `frame-src 'self' https://login.microsoftonline.com`
+    policy (and `X-DNS-Prefetch-Control: off`) on every way the shell is
+    served, so a canvas cannot navigate its own frame to an outside URL, or
+    to a `blob:` or `data:` page it built without the wrapper;
+  - links and `window.open` become a request to the portal, which shows the
+    destination host and full URL, one request at a time, and opens it in a
+    new tab only when the person confirms (or blocks the page's links).
+  The share-link document route serves the canvas as inert text for the
+  share viewer to wrap; opened directly, nothing in it runs. Residual risk:
+  the WebRTC defence is enforced by script in the page, not by the browser,
+  because Chromium has no policy that disables WebRTC for a frame; it is
+  tested against every fresh-window route found so far
+  (`test/e2e/canvas-sandbox.spec.mjs`), but a new browser feature could open
+  another. DNS prefetching is turned off by the standard switches but could
+  not be observed in tests. Everything was verified in Chromium only.
 - **Authoring rules** (enforced by the sandbox, taught by the `html-visuals`
   skill): fully self-contained, no network, no storage; `parent` property
   reads throw — `parent.postMessage` is the one allowed call; colors on

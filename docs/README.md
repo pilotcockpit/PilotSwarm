@@ -36,6 +36,7 @@ The Web API — the one integration surface — and every client over it.
 - [Web API Reference](./api/reference.md) — every operation, auth, errors, WebSocket streaming (generated from the operations table)
 - [Building a Custom UX](./api/building-a-custom-ux.md) — your own UI over the API: bootstrap, subscribe, replay, browser sign-in
 - [Choosing a Client](./api/clients.md) — raw HTTP vs `ApiClient` vs SDK clients vs MCP: which to use when
+- [Flight Deck](../packages/flightdeck/README.md) — the redesigned browser dashboard built on this API: run it, extend it, its [design system](../packages/flightdeck/DESIGN.md) and [open items](../packages/flightdeck/OPEN-ITEMS.md)
 
 ## 5. [Developer Guide](./developer/README.md)
 

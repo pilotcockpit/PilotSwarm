@@ -8297,6 +8297,51 @@ body.ps-dragging-sessions .ps-session-list-button.is-insert-before {
   z-index: 3;
 }
 
+/* A sandboxed page asked to open a link. The full destination is shown before
+   anything opens, so a URL carrying data out is visible to the person. */
+.ps-external-link-prompt {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  width: min(520px, calc(100% - 28px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--ps-border);
+  border-radius: 6px;
+  background: var(--ps-chrome-strong);
+  color: var(--ps-foreground);
+  font-size: 12px;
+  z-index: 4;
+}
+
+.ps-external-link-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.ps-external-link-host {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.ps-external-link-url {
+  max-height: 6em;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--ps-muted);
+}
+
+.ps-external-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 /* The blank canvas is a standard teaching message, not an empty pane — it
    explains the feature at the exact moment the user is looking at its
    absence. */

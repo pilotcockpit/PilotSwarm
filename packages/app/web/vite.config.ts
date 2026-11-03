@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import license from "rollup-plugin-license";
 import { fileURLToPath } from "node:url";
+import { PORTAL_SHELL_HEADERS } from "../ui/react/src/sandboxed-document.js";
 
 // Third-party notices for everything the portal's browser bundle includes:
 // each package's name, version, license and full license text, written next
@@ -58,6 +59,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // The same frame policy the portal server sends, so `npm run web:dev`
+    // behaves like production for canvases (sandboxed-document.js).
+    headers: { ...PORTAL_SHELL_HEADERS },
     proxy: {
       // ws:true forwards the /api/v1/ws WebSocket upgrade to the portal
       // server; it is harmless for the plain HTTP /api/v1 routes. Without it,
@@ -76,10 +80,20 @@ export default defineConfig({
     outDir: "dist",
     rollupOptions: {
       output: {
-        manualChunks: {
-          react: ["react", "react-dom"],
-          msal: ["@azure/msal-browser"],
-          pilotswarm: ["pilotswarm/ui-core", "pilotswarm/ui-react"],
+        // Vite 8 bundles with Rolldown, which takes manualChunks as a function.
+        // Same three vendor chunks as before: React, MSAL, and the shared
+        // PilotSwarm UI layer (ui/core + ui/react, aliased above). Modules the
+        // UI only reaches through import() (the workspace editor) stay in
+        // their own lazy chunks instead of joining the eager one.
+        manualChunks(id, { getModuleInfo }) {
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return "react";
+          if (/[\\/]node_modules[\\/]@azure[\\/]msal-(browser|common)[\\/]/.test(id)) return "msal";
+          if (/[\\/]packages[\\/]app[\\/]ui[\\/](core|react)[\\/]src[\\/]/.test(id)) {
+            const info = getModuleInfo(id);
+            if (info && info.importers.length === 0 && info.dynamicImporters.length > 0) return undefined;
+            return "pilotswarm";
+          }
+          return undefined;
         },
       },
     },

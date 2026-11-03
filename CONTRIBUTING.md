@@ -36,11 +36,15 @@ packages/
     mcp/         —   MCP server (Web API mode)
     ui/          —   shared UI layers (pilotswarm/ui-core, pilotswarm/ui-react)
   horizon-store/ — optional enhanced facts/graph provider (dynamically imported)
+  flightdeck/    — Flight Deck: the redesigned browser dashboard, a separate app over the same Web API
+                   (React + Vite; see packages/flightdeck/README.md; `npm run test:flightdeck`)
 docs/            — see docs/README.md (quickstart, user guide, architecture, API, developer)
 deploy/          — Dockerfiles, Kubernetes manifests, runtime supervisor
 ```
 
-Most contributions live under `packages/sdk/src/`.
+Most contributions live under `packages/sdk/src/`. Flight Deck changes also need its
+end-to-end specs updated (`npm run test:flightdeck:e2e`) and an entry in its
+[open items](packages/flightdeck/OPEN-ITEMS.md) for anything left undone.
 
 ## Pull Request Conventions
 

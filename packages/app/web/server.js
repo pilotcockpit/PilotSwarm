@@ -15,6 +15,7 @@ import { errorDetail } from "./api/error-detail.js";
 import { attachWebSockets } from "./api/ws.js";
 import { createCanvasPlane } from "./api/canvas-plane.js";
 import { createLivePlane } from "./api/live-plane.js";
+import { PORTAL_SHELL_HEADERS } from "../ui/react/src/sandboxed-document.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.join(__dirname, "dist");
@@ -111,8 +112,20 @@ export function buildListenConnection(storageOptions, env = process.env) {
     }
 }
 
+// Canvas and artifact frames may show only the portal's own documents: a
+// sandboxed page that navigates its own frame to an outside URL is refused
+// before the request leaves the browser (sandboxed-document.js). Every way
+// the shell is served gets these, /index.html included.
+export const portalStaticOptions = Object.freeze({
+    index: false,
+    setHeaders(res, filePath) {
+        if (filePath.endsWith(".html")) res.set(PORTAL_SHELL_HEADERS);
+    },
+});
+
 function sendSpaIndex(res) {
     res.set("Cache-Control", "no-store, max-age=0");
+    res.set(PORTAL_SHELL_HEADERS);
     res.sendFile(path.join(DIST_DIR, "index.html"));
 }
 
@@ -237,9 +250,10 @@ export async function startServer(opts = {}) {
     // requireAuth — the token IS the capability, scoped to exactly one
     // canvas's document and live state. Both answer 404 for any failure
     // (missing, expired-by-reset, malformed) so nothing about link validity
-    // leaks. The doc is served under CSP sandbox: even a direct navigation
-    // renders it with an OPAQUE origin, so agent-authored canvas HTML can
-    // never script against the portal origin.
+    // leaks. The doc is DATA for the share viewer, which wraps it in the same
+    // policy as every canvas (sandboxed-document.js). Opened directly it is
+    // inert text: never a live page that could run, or navigate itself away
+    // with the canvas's data, outside the viewer's protections.
     app.get("/api/canvas-share/doc", async (req, res) => {
         try {
             const doc = await runtime.getCanvasShareDoc(String(req.query.t || ""));
@@ -247,9 +261,10 @@ export async function startServer(opts = {}) {
                 res.status(404).type("text/plain").send("Not found");
                 return;
             }
-            res.set("Content-Security-Policy", "sandbox allow-scripts");
+            res.set("Content-Security-Policy", "sandbox; default-src 'none'");
+            res.set("X-Content-Type-Options", "nosniff");
             res.set("Cache-Control", "no-store, max-age=0");
-            res.type("text/html").send(doc.html);
+            res.type("text/plain").send(doc.html);
         } catch {
             res.status(404).type("text/plain").send("Not found");
         }
@@ -365,7 +380,7 @@ export async function startServer(opts = {}) {
         app.use("/assets", (_req, res) => {
             res.status(404).type("text/plain").send("Asset not found");
         });
-        app.use(express.static(DIST_DIR, { index: false }));
+        app.use(express.static(DIST_DIR, portalStaticOptions));
         app.get(/^\/(?!api\/).*/, (_req, res) => {
             sendSpaIndex(res);
         });

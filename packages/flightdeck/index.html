@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="color-scheme" content="dark light" />
+    <!-- site-metadata:start -->
+    <title>PilotSwarm · Flight Deck</title>
+    <meta name="description" content="A web workspace for durable agent sessions, projects, canvases and outputs. Explore the proposed PilotSwarm web experience." />
+    <meta name="robots" content="noindex, nofollow, nosnippet, noimageindex" />
+    <meta name="googlebot" content="noindex, nofollow, nosnippet, noimageindex" />
+    <meta name="application-name" content="PilotSwarm" />
+    <meta name="apple-mobile-web-app-title" content="PilotSwarm" />
+    <meta name="theme-color" content="#f6f7f8" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PilotSwarm" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="PilotSwarm · Flight Deck" />
+    <meta property="og:description" content="A web workspace for durable agent sessions, projects, canvases and outputs. Explore the proposed PilotSwarm web experience." />
+    <meta property="og:image" content="/social/og-default.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PilotSwarm swarm mark with the words Your agent workspace and Flight Deck web experience preview." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PilotSwarm · Flight Deck" />
+    <meta name="twitter:description" content="A web workspace for durable agent sessions, projects, canvases and outputs. Explore the proposed PilotSwarm web experience." />
+    <meta name="twitter:image" content="/social/twitter-card.png" />
+    <meta name="twitter:image:alt" content="PilotSwarm swarm mark with the words Your agent workspace and Flight Deck web experience preview." />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#315fcb" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <!-- site-metadata:end -->
+    <script>
+      // Apply the theme before first paint so there is no flash. Nothing chosen means System: follow the
+      // operating system. A stored explicit choice (light or dark) always wins.
+      function paintTheme(dark) {
+        document.documentElement.classList.toggle("dark", dark);
+        document.querySelector?.('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0e0f11" : "#f6f7f8");
+      }
+      try {
+        var t = localStorage.getItem("fd.theme") || "system";
+        var dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+        paintTheme(dark);
+      } catch (e) {
+        try { paintTheme(matchMedia("(prefers-color-scheme: dark)").matches); } catch (e2) {}
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,48 @@
+{
+  "name": "pilotswarm-flightdeck",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Flight Deck: the redesigned PilotSwarm browser dashboard, a separate app over the same Web API that runs beside the classic portal.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && node scripts/token-guard.mjs && vite build && node scripts/check-dist.mjs && node --experimental-strip-types scripts/check-metadata.mjs",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test:ux": "node --experimental-strip-types --test src/lib/session-access.test.mjs src/lib/session-composer.test.mjs",
+    "tokens:check": "node scripts/token-guard.mjs",
+    "test:dist": "node scripts/check-dist.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test": "vitest run --exclude \"**/*.test.mjs\" --exclude \"e2e/**\" --exclude \"node_modules/**\" && node --test src/lib/*.test.mjs scripts/check-dist.test.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/recursive": "5.3.0",
+    "@tanstack/react-query": "5.104.3",
+    "@tanstack/react-router": "1.170.45",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "cmdk": "1.1.1",
+    "dompurify": "3.4.15",
+    "lucide-react": "1.58.0",
+    "marked": "16.4.2",
+    "radix-ui": "1.8.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-resizable-panels": "4.14.5",
+    "sonner": "2.0.8",
+    "tailwind-merge": "3.7.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "5.2.0",
+    "react-reconciler": "0.33.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "vite": "8.3.4"
+  }
+}

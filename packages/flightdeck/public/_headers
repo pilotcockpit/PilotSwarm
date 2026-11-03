@@ -1,0 +1,6 @@
+/*
+  X-Robots-Tag: noindex, nofollow, nosnippet, noimageindex
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Content-Security-Policy: frame-src 'self' https://login.microsoftonline.com
+  X-DNS-Prefetch-Control: off

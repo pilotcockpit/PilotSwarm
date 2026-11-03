@@ -1,5 +1,70 @@
 # Changelog
 
+## Unreleased
+
+**Flight Deck: sessions are organised in projects.** Flight Deck (`packages/flightdeck`, a
+separate browser app over the same Web API; the classic portal is untouched) now treats a
+session group as a **Project**. One derivation (`src/data/session-tree`) feeds the sidebar and
+the new Projects page (`/projects`; `/sessions` redirects to it with the same filters). The
+sidebar has Needs you, Pinned, Projects, No project and Recents, and loads fully folded.
+Pins, pinned projects and dismissed failures roam with the account in the profile settings
+document, written through a queued read-modify-write so a failed or late save only undoes
+itself. "Needs you" is one definition shared by the sidebar, Overview, the navigation badge
+and the tab title. Search on the Projects page finds projects and sessions. This needs no
+backend change; two limits are recorded in
+[the open items](packages/flightdeck/OPEN-ITEMS.md) (S2: the classic portal's next profile
+save erases the `flightdeck` key, so dismissals and pinned projects reset; S3: two devices
+saving in the same moment can lose one pin).
+
+**Flight Deck: Overview, session header and composer.** Overview is a start box, Needs you,
+Canvases and Outputs. The session header shows the project before the title and keeps only
+the title, state and actions; views are one tab bar (Chat, Context, Canvas, Files,
+Delegation, Activity). The composer shows the agent, model and working-folder chips with
+icons and the key hints. The Context panel adds project, started by, context tier and the
+session ID. The working-folder dialog was rebuilt around the backend's record: a location
+picked from the roots the server lists (with "Other location…" for a worker-only root), a
+path, and up to four additional folders whose generated names follow the SDK's name rules.
+One tab component (`TabStrip`, `Segmented`) replaces the hand-built tab bars.
+
+**Flight Deck: accessibility, responsive and load-time fixes.** Folded rail links carry
+their names and counts; heading levels no longer skip; the current page is marked once;
+tabs and segmented controls are 44 px on touch screens; six session tabs fit a 375 px phone;
+the Projects filters scroll in one row on a phone; every area except Overview loads on
+demand (first load 990 kB to 543 kB). Fixes found by review: creating a project from a
+new-session form no longer also submits that form; a failed pin migration no longer deletes
+the browser's pins; pinned sub-agents appear under Pinned on the Projects page; a deep link
+to a finished session, or one opened when there are no projects, now opens the section that
+shows it. The Outputs page no longer draws agent-written documents: each card is text and an
+Inspect button, and the page holds no frame until Inspect is pressed. The Overview and Outputs
+lists re-read a session's outputs when its activity moves, and "Canvas updated" (the dot on
+rows and headings, the Outputs count, the Canvas tab dot) is worked out in the browser, so it
+works on a live server, not only on demo data (open items S12, G20). On a phone the Projects
+page now has New project. The first-run screens (no sessions, no projects) are covered by
+`?scenario=empty` and their own specs. The old sidebar's leftover browser keys are removed once.
+
+**Flight Deck: brand, metadata and tests.** Icons, web manifest, social images, per-page
+metadata and `noindex` headers (`vercel.json`, `public/_headers`), and page illustrations.
+The unit suite grew to 466 tests and the whole Playwright suite (4 projects, 575 tests) was
+brought up to date and passes. New scripts: `npm run dev:flightdeck`, `build:flightdeck`,
+`test:flightdeck` and `test:flightdeck:e2e`. PR checks now build Flight Deck and run its unit
+tests; the Playwright suite is a local gate (open item Q5). Not verified against a live
+backend (V5, V8, V9).
+
+**Stale bound answers can now fail closed (orchestration 1.0.83).** An answer to a
+pending question that no longer matches the open question used to run as an
+ordinary prompt, so a choice such as "Delete old files" written for one question
+could execute while a different question was open. `sendAnswer` now accepts
+`requireQuestionMatch: true`: an answer that is not bound to the question open at
+that moment runs no turn, leaves the question and its hold timer untouched, and
+records a `session.answer_rejected` event (`stale-question`, `no-open-question` or
+`invalid-binding`). The option is opt-in, so existing callers keep today's lenient
+behaviour. The management and web clients refuse to send a strict answer without a
+valid `expectedQuestion`. This changes the orchestration, so 1.0.82 is frozen and
+1.0.83 is the new latest; workers must roll to a build that registers 1.0.83, and a
+session upgrades at its next continue-as-new (sessions still on 1.0.82 ignore the
+flag). See [the bug report](docs/bugreports/stale-bound-answer-runs-as-a-prompt.md)
+and [Bound answers](docs/architecture/orchestration/design.md#bound-answers-1083).
+
 ## 0.8.7 — 2026-10-28
 
 **Adopt the PostgreSQL lock-safety fix.** The SDK pins the official npm

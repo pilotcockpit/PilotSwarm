@@ -1,0 +1,22 @@
+[
+  {
+    "key": "library",
+    "prompt": "Original premium editorial spot illustration for PilotSwarm professional agent-work software. Cohesive tactile folded-paper art, matte warm ivory and rich cobalt blue with exactly one small ochre accent. Three-quarter perspective, crisp carefully cut silhouettes, shading only on object surfaces. Balanced compact composition readable at 140 CSS px. Fully transparent alpha outside the objects and in gaps, no floor, no backdrop, no broad diffuse shadow or white haze, no glow, no enclosing badge, no lettering or watermark, no robots, no mascots, no glossy plastic, no realistic UI or invented metrics. Subject: a beautifully made open cobalt paper folio containing three upright ivory recipe/index cards with tasteful abstract indigo marks and staggered folded tabs; the single ochre tab marks one card. The folio suggests an organized library of agent capabilities. A single coherent still-life, no airplane, no other props.",
+    "status": "rejected by owner"
+  },
+  {
+    "key": "outputs",
+    "prompt": "Original premium editorial spot illustration for PilotSwarm professional agent-work software. Cohesive tactile folded-paper art, matte warm ivory and rich cobalt blue with exactly one small ochre accent. Three-quarter perspective, crisp carefully cut silhouettes, shading only on object surfaces. Balanced compact composition readable at 140 CSS px. Fully transparent alpha outside the objects and in gaps, no floor, no backdrop, no broad diffuse shadow or white haze, no glow, no enclosing badge, no lettering or watermark, no robots, no mascots, no glossy plastic, no realistic UI or invented metrics. Subject: a neat small ivory archival portfolio holding two finished paper prints, the foremost print bearing only a large elegant cobalt curved paper-cut shape (not a chart) and a small ochre corner tab. A tactile collection of completed work, a single coherent still-life. No airplane, no checkmark, no progress, no data, no buttons.",
+    "status": "implemented"
+  },
+  {
+    "key": "boards",
+    "prompt": "Original premium editorial spot illustration for PilotSwarm professional agent-work software. Cohesive tactile folded-paper art, matte warm ivory and rich cobalt blue with exactly one small ochre accent. Three-quarter perspective, crisp carefully cut silhouettes, shading only on object surfaces. Balanced compact composition readable at 140 CSS px. Fully transparent alpha outside the objects and in gaps, no floor, no backdrop, no broad diffuse shadow or white haze, no glow, no enclosing badge, no lettering or watermark, no robots, no mascots, no glossy plastic, no realistic UI or invented metrics. Subject: two elegant ivory paper panels arranged side by side as a small folding tabletop display, joined by one narrow folded cobalt hinge; a small cobalt inset paper rectangle on each and a single ochre corner tab. This is a physical paper object suggesting two work views together, a single coherent still-life. No screen UI, no network nodes, no cable spaghetti, no buttons, no text.",
+    "status": "implemented"
+  },
+  {
+    "key": "library-guide",
+    "status": "implemented after owner correction",
+    "prompt": "Use case: stylized-concept. Create a refined editorial illustration for the header of a professional software Agent Library. Subject: one beautifully crafted open technical field guide, seen in an elegant low three-quarter view, with thin warm-ivory pages, a rich cobalt-blue cloth spine and cover, and three precisely folded page tabs, one muted ochre, the rest pale blue. On the open spread, a few crisp cobalt paper-cut geometric marks suggest reusable knowledge and capabilities; no legible text or realistic UI. The book should feel light, open, intelligent and inviting, not like office storage. Premium tactile paper illustration, crisp silhouettes, subtle dimensional shading on the objects themselves, confident mature art direction. Wide low composition, approximately 3:2, ample transparent breathing room. This must read clearly as an OPEN BOOK at 160 CSS pixels wide. Entire book inside the frame. True transparent alpha around the subject. No filing box, file cabinet, folder, container, stack of index cards, briefcase, robot, face, flying objects, gears, glowing nodes, sparkles, glossy plastic, diffuse halo, background, floor, enclosing shape, lettering, logo or watermark. Cohesive ivory/cobalt/ochre palette; quiet professional warmth."
+  }
+]

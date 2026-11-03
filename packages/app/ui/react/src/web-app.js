@@ -10,6 +10,7 @@ import { WorkspacePane, WORKSPACE_CHANGED_EVENT, announceWorkspaceChange, downlo
 // shared module.
 import { createPortal } from "react-dom";
 import { appendAnimatedDotsToRuns, useAnimatedDots, useSpinnerFrame } from "./chat-status.js";
+import { EXTERNAL_LINK_MESSAGE, SANDBOXED_FRAME_SANDBOX, normalizeExternalLink, wrapSandboxedDocument } from "./sandboxed-document.js";
 import {
     normalizeMoa,
     UI_COMMANDS,
@@ -2962,8 +2963,10 @@ function BinaryArtifactPreviewPanel({ title, color, focused, theme, filename, co
  *    allow-same-origin is what forces the frame into an opaque origin. The
  *    artifact's tooltips, SVG interactions and layout scripts all work; its
  *    script cannot read the portal's localStorage, cookies, bearer token, or
- *    reach across into the parent DOM. Popups are allowed so external links
- *    still work; forms and top-level navigation are not.
+ *    reach across into the parent DOM. Popups, forms and top-level
+ *    navigation are not allowed, and the injected policy blocks the network:
+ *    external links reach the portal as a request it confirms with the
+ *    person first (sandboxed-document.js).
  */
 /**
  * Re-run a rendered artifact's layout when the frame's width changes.
@@ -3188,13 +3191,14 @@ function useElementBox(ref) {
     return box;
 }
 
-// A canvas link opens in a new tab, never in the canvas frame: a page loaded
-// there would stand in the canvas's place, and the frame's bridges (canvas-ws,
-// canvas-kv, actions) answer by frame. Runs on window, after the page's own
-// click handlers, and leaves "#" links, targets and downloads alone.
-const CANVAS_LINK_GUARD = `<script>addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[href],area[href]');if(!a||e.defaultPrevented||a.hasAttribute('download'))return;var h=a.getAttribute('href')||'';if(!h||h.charAt(0)==='#'||/^javascript:/i.test(h))return;var t=a.getAttribute('target');if(t&&t!=='_self')return;e.preventDefault();try{window.open(new URL(h,document.baseURI).href,'_blank','noopener')}catch(x){}});</script>`;
-
-function fetchArtifactHtmlObjectUrl(controller, sessionId, filename, panelKeys = false, linkGuard = false) {
+// Every agent-authored HTML document (canvas or artifact preview) is wrapped
+// the same way before it reaches a frame: see sandboxed-document.js for the
+// policy and the link guard. Frames get the document through srcdoc, never a
+// blob: URL: the portal's frame policy refuses blob: documents, so a page
+// cannot replace itself with a blob it built, which would arrive without the
+// wrapper. Each document gets an id the frames use to tell revisions apart.
+let sandboxedDocumentSeq = 0;
+function fetchSandboxedHtmlDocument(controller, sessionId, filename, panelKeys = false) {
     const downloadResponse = controller?.transport?.api?.downloadArtifactResponse;
     if (typeof downloadResponse !== "function") {
         return Promise.reject(new Error("artifact download unavailable"));
@@ -3206,22 +3210,94 @@ function fetchArtifactHtmlObjectUrl(controller, sessionId, filename, panelKeys =
             // content-type. An artifact stored as application/octet-stream
             // would otherwise make the iframe offer a download instead of
             // rendering, and a missing charset would mojibake UTF-8 content.
-            const bytes = await response.arrayBuffer();
             // Only MoA canvases opt into panel navigation; ordinary canvases
-            // retain native Tab behavior. A canvas gets the link guard; an
-            // artifact preview keeps its exact document bytes.
-            const bridge = (panelKeys ? `<script>window.addEventListener('keydown',function(e){if(e.isTrusted&&!e.altKey&&!e.metaKey&&!e.ctrlKey&&(e.key==='Tab'||e.key==='Escape')){e.preventDefault();e.stopImmediatePropagation();parent.postMessage({type:'moa-panel-key',key:e.key,backwards:e.shiftKey},'*')}},true);</script>` : "")
-                + (linkGuard ? CANVAS_LINK_GUARD : "");
-            let parts = [bytes];
-            if (bridge) {
-                const html = new TextDecoder().decode(bytes);
-                // Keep the doctype first so panel navigation cannot change
-                // the canvas from standards mode into quirks mode.
-                const prolog = /^(?:\uFEFF|\s|<!--[\s\S]*?-->)*<!doctype[^>]*>/i.exec(html)?.[0] || "";
-                parts = [html.slice(0, prolog.length), bridge, html.slice(prolog.length)];
-            }
-            return URL.createObjectURL(new Blob(parts, { type: "text/html;charset=utf-8" }));
+            // retain native Tab behavior.
+            const html = new TextDecoder().decode(await response.arrayBuffer());
+            sandboxedDocumentSeq += 1;
+            return { id: `doc-${sandboxedDocumentSeq}`, html: wrapSandboxedDocument(html, { panelKeys }) };
         });
+}
+
+// One link request at a time per frame: while the person reads a destination
+// the page cannot swap it, and after a choice it must wait before asking again.
+const LINK_REQUEST_COOLDOWN_MS = 1500;
+
+/**
+ * The host side of a sandboxed page's link requests (sandboxed-document.js).
+ * offer() takes what the page sent; reset() forgets a block when the frame
+ * shows a different document.
+ */
+export function useExternalLinkRequests() {
+    const [request, setRequest] = React.useState(null);
+    const pendingRef = React.useRef(null);
+    const blockedRef = React.useRef(false);
+    const closedAtRef = React.useRef(0);
+    const offer = React.useCallback((href) => {
+        const url = normalizeExternalLink(href);
+        if (!url || blockedRef.current || pendingRef.current) return;
+        if (Date.now() - closedAtRef.current < LINK_REQUEST_COOLDOWN_MS) return;
+        pendingRef.current = url;
+        setRequest(url);
+    }, []);
+    const close = React.useCallback(({ block = false } = {}) => {
+        pendingRef.current = null;
+        closedAtRef.current = Date.now();
+        if (block) blockedRef.current = true;
+        setRequest(null);
+    }, []);
+    const reset = React.useCallback(() => {
+        pendingRef.current = null;
+        blockedRef.current = false;
+        closedAtRef.current = 0;
+        setRequest(null);
+    }, []);
+    return { request, offer, close, reset };
+}
+
+/**
+ * A sandboxed page asked to open a link. Nothing opens until the person sees
+ * where it goes and says so: a page that has read the session's files could
+ * otherwise send them out in a URL. The host is shown on its own, since a long
+ * URL can hide it; focus starts on Cancel and goes back where it was.
+ */
+export function ExternalLinkPrompt({ href, onClose }) {
+    const cancelRef = React.useRef(null);
+    React.useEffect(() => {
+        const previous = document.activeElement;
+        cancelRef.current?.focus();
+        return () => {
+            if (previous && previous.isConnected && typeof previous.focus === "function") previous.focus();
+        };
+    }, []);
+    if (!href) return null;
+    let host = "";
+    try { host = new URL(href).host; } catch { /* normalized upstream */ }
+    return React.createElement("div", {
+        className: "ps-external-link-prompt",
+        role: "dialog",
+        "aria-modal": "false",
+        "aria-labelledby": "ps-external-link-title",
+        "aria-describedby": "ps-external-link-url",
+        onKeyDown: (event) => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } },
+    },
+        React.createElement("p", { id: "ps-external-link-title", className: "ps-external-link-title" },
+            "This page wants to open ", React.createElement("strong", { className: "ps-external-link-host" }, host)),
+        React.createElement("code", { id: "ps-external-link-url", className: "ps-external-link-url" }, href),
+        React.createElement("div", { className: "ps-external-link-actions" },
+            React.createElement("button", {
+                type: "button",
+                className: "ps-artifact-pane-btn",
+                onClick: () => onClose({ block: true }),
+            }, "Block links from this page"),
+            React.createElement("button", { type: "button", ref: cancelRef, className: "ps-artifact-pane-btn", onClick: () => onClose() }, "Cancel"),
+            React.createElement("button", {
+                type: "button",
+                className: "ps-artifact-pane-btn",
+                onClick: () => {
+                    try { window.open(href, "_blank", "noopener,noreferrer"); } catch { /* popup blocked */ }
+                    onClose();
+                },
+            }, "Open in a new tab")));
 }
 
 function HtmlArtifactPreviewPanel({
@@ -3234,7 +3310,7 @@ function HtmlArtifactPreviewPanel({
     const setMode = React.useCallback((next) => {
         controller.dispatch({ type: "files/htmlViewMode", mode: next });
     }, [controller]);
-    const [frameUrl, setFrameUrl] = React.useState(null);
+    const [frameDoc, setFrameDoc] = React.useState(null); // { id, html }
     const [error, setError] = React.useState(null);
     // Measured on the wrapper, not the iframe: an iframe being remounted is
     // briefly absent, and observing an element that disappears would drop the
@@ -3266,31 +3342,36 @@ function HtmlArtifactPreviewPanel({
     // something as ordinary as rotating the phone.
     const frames = useHtmlPreviewReload(frameHostRef, mode === "rendered" && !fitActive, `${sessionId}/${filename}`, zoom);
 
-    // The object URL is owned by this component — created on mount, revoked on
-    // unmount or artifact change. It deliberately does not share the thumbnail
-    // LRU: that cache revokes at its cap, which would blank a frame the user
-    // is still reading.
+    // The document is owned by this component — fetched on mount and on
+    // artifact change.
     React.useEffect(() => {
-        setFrameUrl(null);
+        setFrameDoc(null);
         setError(null);
         if (mode !== "rendered" || !controller || !sessionId || !filename) return undefined;
         let cancelled = false;
-        let created = null;
-        fetchArtifactHtmlObjectUrl(controller, sessionId, filename)
-            .then((url) => {
-                created = url;
-                if (cancelled) {
-                    URL.revokeObjectURL(url);
-                    return;
-                }
-                setFrameUrl(url);
-            })
+        fetchSandboxedHtmlDocument(controller, sessionId, filename)
+            .then((doc) => { if (!cancelled) setFrameDoc(doc); })
             .catch((err) => { if (!cancelled) setError(err?.message || String(err)); });
-        return () => {
-            cancelled = true;
-            if (created) URL.revokeObjectURL(created);
-        };
+        return () => { cancelled = true; };
     }, [controller, sessionId, filename, mode]);
+
+    // Links the rendered document asks to open (sandboxed-document.js). Only
+    // this panel's own frames are heard; the person confirms before anything
+    // opens.
+    const links = useExternalLinkRequests();
+    const resetLinks = links.reset;
+    React.useEffect(() => { resetLinks(); }, [sessionId, filename, resetLinks]);
+    const offerLink = links.offer;
+    React.useEffect(() => {
+        const onMessage = (event) => {
+            if (event.data?.type !== EXTERNAL_LINK_MESSAGE || !event.source) return;
+            const host = frameHostRef.current;
+            const ours = host && [...host.querySelectorAll("iframe")].some((frame) => frame.contentWindow === event.source);
+            if (ours) offerLink(event.data.href);
+        };
+        window.addEventListener("message", onMessage);
+        return () => window.removeEventListener("message", onMessage);
+    }, [offerLink]);
 
     const deepLink = buildArtifactLinkUrl(sessionId, filename);
     const actions = chromeless ? null : React.createElement(React.Fragment, null,
@@ -3315,7 +3396,7 @@ function HtmlArtifactPreviewPanel({
             ? React.createElement("div", { className: "ps-html-preview-status" },
                 React.createElement("p", null, `Could not load ${filename}: ${error}`),
                 React.createElement("p", null, "Use Download to save the file and open it locally."))
-            : frameUrl
+            : frameDoc
                 // Live and pending are rendered together while a reload is in
                 // flight; the pending one is offscreen-transparent until its
                 // load fires. Keys are `frame:<nonce>` in BOTH roles so
@@ -3353,10 +3434,11 @@ function HtmlArtifactPreviewPanel({
                                     transformOrigin: "top left",
                                 }
                                 : undefined,
-                        src: frameUrl,
+                        srcDoc: frameDoc.html,
                         title: filename || "HTML artifact",
-                        // No allow-same-origin — see the block comment above.
-                        sandbox: "allow-scripts allow-popups allow-popups-to-escape-sandbox",
+                        // No allow-same-origin and no popups — see the block
+                        // comment above and sandboxed-document.js.
+                        sandbox: SANDBOXED_FRAME_SANDBOX,
                         // Opaque origin ≠ "self", so the autoplay policy would
                         // silently mute an interactive artifact (same fix the
                         // canvas frame carries).
@@ -3380,7 +3462,9 @@ function HtmlArtifactPreviewPanel({
             // while fitting; without clipping, that overflow would hand the host
             // a horizontal scrollbar for content that is already fully visible.
             className: `ps-html-preview-host${fitActive || zoom !== 1 ? " is-fitting" : ""}`,
-        }, body)
+        }, body, links.request
+            ? React.createElement(ExternalLinkPrompt, { key: links.request, href: links.request, onClose: links.close })
+            : null)
         : body;
 
     return React.createElement(Panel, { title, color, focused, theme, actions, className: "ps-html-preview" }, hosted);
@@ -8147,10 +8231,13 @@ function CanvasFrame({ controller, sessionId, slot = 1, latestRev, zoom, visible
     // what is in the frame now is not the drawn canvas. It gets nothing from
     // the bridges below until the canvas is loaded again.
     const [leftPage, setLeftPage] = React.useState(false);
+    // Links the live page asks to open, one at a time, confirmed by the person.
+    const links = useExternalLinkRequests();
+    const resetLinks = links.reset;
+    React.useEffect(() => { resetLinks(); }, [sessionId, slot, resetLinks]);
     React.useEffect(() => { setLeftPage(false); }, [live?.url]);
-    // Blob URLs tracked in a ref so cleanup can revoke directly — setState
-    // updaters are neither a reliable post-unmount hook nor a pure place for
-    // side effects (StrictMode double-invokes them).
+    // Document ids of the live and staging revisions, tracked in a ref so a
+    // load event can tell whether its frame is still the current one.
     const urlsRef = React.useRef({ live: null, staging: null });
     const autoRetryRef = React.useRef({ rev: 0, used: false });
     const hostRef = React.useRef(null);
@@ -8205,6 +8292,10 @@ function CanvasFrame({ controller, sessionId, slot = 1, latestRev, zoom, visible
             // window that asked). Writes and actions stay live-frame only.
             const fromStaging = Boolean(stagingIframeElRef.current && event.source === stagingIframeElRef.current.contentWindow && stagingIframeElRef.current.dataset.session === sessionId);
             if (!fromLive && !fromStaging) return;
+            if (payload.type === EXTERNAL_LINK_MESSAGE) {
+                if (fromLive) links.offer(payload.href);
+                return;
+            }
             if (payload.type === "moa-panel-key") {
                 if (fromLive && document.activeElement === frameEl && ["Tab", "Escape"].includes(payload.key)) panelKeyRef.current?.(payload.key, payload.backwards === true);
                 return;
@@ -8392,17 +8483,13 @@ function CanvasFrame({ controller, sessionId, slot = 1, latestRev, zoom, visible
         if (!controller || !sessionId || !latestRev) return undefined;
         let cancelled = false;
         let retryTimer = null;
-        fetchArtifactHtmlObjectUrl(controller, sessionId, slot <= 1 ? "canvas.html" : `canvas${slot}.html`, panelKeys, true)
-            .then((url) => {
-                if (cancelled) { URL.revokeObjectURL(url); return; }
-                // A staging revision that never loaded is superseded here —
-                // revoke it, or every rapid redraw leaks a document-sized blob.
-                if (urlsRef.current.staging && urlsRef.current.staging !== urlsRef.current.live) {
-                    URL.revokeObjectURL(urlsRef.current.staging);
-                }
-                urlsRef.current.staging = url;
+        fetchSandboxedHtmlDocument(controller, sessionId, slot <= 1 ? "canvas.html" : `canvas${slot}.html`, panelKeys)
+            .then((doc) => {
+                if (cancelled) return;
+                // A staging revision that never loaded is simply superseded.
+                urlsRef.current.staging = doc.id;
                 setLoadError(null);
-                setStaging({ url, rev: latestRev, sessionId });
+                setStaging({ url: doc.id, html: doc.html, rev: latestRev, sessionId });
             })
             .catch(() => {
                 if (cancelled) return;
@@ -8424,12 +8511,8 @@ function CanvasFrame({ controller, sessionId, slot = 1, latestRev, zoom, visible
 
     // Session switch / unmount: drop both frames — a different session is a
     // different document, and showing the old canvas under a new session is a
-    // lie. Revocation goes through the ref, not state updaters.
+    // lie.
     React.useEffect(() => () => {
-        if (urlsRef.current.staging && urlsRef.current.staging !== urlsRef.current.live) {
-            URL.revokeObjectURL(urlsRef.current.staging);
-        }
-        if (urlsRef.current.live) URL.revokeObjectURL(urlsRef.current.live);
         urlsRef.current = { live: null, staging: null };
         setLive(null);
         setStaging(null);
@@ -8440,10 +8523,8 @@ function CanvasFrame({ controller, sessionId, slot = 1, latestRev, zoom, visible
         // Only the CURRENT staging revision promotes — a load event from a
         // frame the fetch effect already superseded must not go live again.
         if (!frame || urlsRef.current.staging !== frame.url) return;
-        const oldLive = urlsRef.current.live;
         urlsRef.current.live = frame.url;
         urlsRef.current.staging = null;
-        if (oldLive && oldLive !== frame.url) URL.revokeObjectURL(oldLive);
         setLive(frame);
         setStaging((current) => (current && current.url === frame.url ? null : current));
         // Record the geometry this revision loaded at (in page-viewport
@@ -8573,10 +8654,10 @@ function CanvasFrame({ controller, sessionId, slot = 1, latestRev, zoom, visible
             className: `ps-html-preview-frame${frame === live ? "" : " is-staging"}`,
             "data-session": frame.sessionId || "",
             style: zoomStyle,
-            src: frame.url,
+            srcDoc: frame.html,
             title: "Session canvas",
             // Same sandbox contract as artifact previews — no allow-same-origin.
-            sandbox: "allow-scripts allow-popups allow-popups-to-escape-sandbox",
+            sandbox: SANDBOXED_FRAME_SANDBOX,
             // The autoplay Permissions Policy defaults to `self`, and a
             // sandboxed frame has an OPAQUE origin — so a canvas page could
             // build an AudioContext, get no error, and emit nothing. Granting
@@ -8587,6 +8668,9 @@ function CanvasFrame({ controller, sessionId, slot = 1, latestRev, zoom, visible
                 ? () => promote(frame)
                 : (event) => { event.currentTarget.dataset.leftPage = "1"; setLeftPage(true); },
         })),
+        links.request
+            ? React.createElement(ExternalLinkPrompt, { key: links.request, href: links.request, onClose: links.close })
+            : null,
         leftPage && !loadError
             ? React.createElement("div", { className: "ps-canvas-load-error", role: "status" },
                 React.createElement("span", null, "The canvas opened another page here, so that page gets nothing from this session."),

@@ -172,33 +172,35 @@ test("a canvas whose manifest the server refuses says why, outside the page", as
     await expect(notice).toHaveCount(0);
 });
 
-test("a canvas link opens a new tab; a page the canvas moves to gets nothing from the session", async ({ page }) => {
-    // The other page asks the bridge for the session's folders once it has loaded.
-    await page.context().route("https://thirdparty.example/**", (route) => route.fulfill({ contentType: "text/html", body: `<!doctype html><body><p id="away">away</p><script>
-        addEventListener("message", (e) => { if (e.data && e.data.type === "canvas-ws-result") document.body.dataset.answer = JSON.stringify(e.data); });
-        addEventListener("load", () => setTimeout(() => {
-            if (parent !== window) parent.postMessage({ type: "canvas-ws", id: "stolen", op: "info" }, "*");
-            setTimeout(() => { document.body.dataset.done = "yes"; }, 1200);
-        }, 300));
-    </script></body>` }));
+test("a canvas link opens a new tab once confirmed; the canvas cannot move itself to another page", async ({ page }) => {
+    const reached = [];
+    await page.context().route("https://thirdparty.example/**", (route) => {
+        reached.push(new URL(route.request().url()).pathname);
+        return route.fulfill({ contentType: "text/html", body: "<!doctype html><p id=\"away\">away</p>" });
+    });
     const linking = APP.replace('<pre id="out"></pre>', '<pre id="out"></pre><a id="leave" href="https://thirdparty.example/away.html">docs</a><button id="go" type="button" onclick="location.href=\'https://thirdparty.example/moved.html\'">Move</button>');
     const { calls, frame } = await drawApp(page, ANSWERS, linking);
     await expect(frame.locator("#info")).toHaveText(/commands on/);
 
-    // A plain link: a new tab, the canvas stays.
-    const [popup] = await Promise.all([page.waitForEvent("popup"), frame.locator("#leave").click()]);
+    // A plain link: the portal shows where it goes, then opens a new tab; the
+    // canvas stays.
+    await frame.locator("#leave").click();
+    const prompt = page.getByRole("dialog", { name: /This page wants to open/ });
+    await expect(prompt).toContainText("https://thirdparty.example/away.html");
+    const [popup] = await Promise.all([page.waitForEvent("popup"), prompt.getByRole("button", { name: "Open in a new tab" }).click()]);
     await expect(popup).toHaveURL("https://thirdparty.example/away.html");
     await popup.close();
     await expect(frame.locator("#info")).toHaveText(/commands on/);
 
-    // The page moves itself: what loads in the frame is not the canvas.
+    // The page tries to move itself: the portal's frame policy refuses the
+    // outside page before any request leaves the browser, and the canvas
+    // comes back with one click.
     const before = calls.length;
     await frame.locator("#go").click();
-    await expect(frame.locator("body")).toHaveAttribute("data-done", "yes");
-    await expect(frame.locator("body")).not.toHaveAttribute("data-answer", /./);
-    expect(calls.slice(before).filter((c) => c.call.op === "info"), "the server never heard from that page").toEqual([]);
     const notice = page.getByRole("status").filter({ hasText: "opened another page here" });
     await expect(notice).toBeVisible();
+    expect(reached.filter((p) => p === "/moved.html"), "the outside page was never requested").toEqual([]);
+    expect(calls.slice(before).filter((c) => c.call.op === "info"), "the server never heard from another page").toEqual([]);
     await notice.getByRole("button", { name: "Show the canvas again" }).click();
     await expect(frame.locator("#info")).toHaveText(/commands on/);
 });

@@ -1,7 +1,6 @@
-# Default owner for everything. Replace with a team (e.g. @pilotcockpit/maintainers)
-# once the organization has more than one maintainer.
-* @atifgul99
-
-# Release, CI and deployment changes always need an owner review.
-/.github/ @atifgul99
-/deploy/ @atifgul99
+# No code owners are configured yet. When the project has maintainers, add a default owner and owners for the
+# areas that need a review before merge, for example:
+#
+#   * @your-org/maintainers
+#   /.github/ @your-org/maintainers
+#   /deploy/ @your-org/maintainers

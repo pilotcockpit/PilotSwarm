@@ -1,0 +1,311 @@
+@import "tailwindcss";
+@import "@fontsource-variable/recursive/full.css";
+
+/* Flight Deck design system (docs/proposals/ux-redesign/design-system.md).
+   Two tiers: these semantic custom properties are the only thing components
+   read; Tailwind sees them through @theme inline. Colour means agent state
+   and nothing else; one accent marks selection, focus, links and the single
+   primary action on a screen. */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f6f7f8;
+  --surface: #ffffff;
+  --raised: #eff1f3;
+  --overlay: #ffffff;
+  --line: #e3e5e8;
+  --line-subtle: #eef0f2;
+  --line-strong: #858b94;
+  --fg: #111214;
+  --muted: #565a61;
+  --faint: #62666d;
+  /* Light state colours are darkened so they hold 4.5:1 as text on their own tints. */
+  --accent: #1a5fcc;
+  --accent-fg: #ffffff;
+  --live: #09705f;
+  --waiting: #855607;
+  --failed: #b8293a;
+  --ok: #1a6e46;
+  /* Needs you is the one state that wants a person, so it gets its own hue: accent already means link, selection and focus. */
+  --needs: #6b3fc2;
+  /* How much of a hue a tint carries; the dark theme needs more to read on its ground. */
+  --tint: 9%;
+  --scrim: rgb(14 15 17 / 0.45);
+  /* Elevation is a response, not a resting state: pop is for what floats (menus, dialogs),
+     lift is the hover response of an interactive card. */
+  --shadow-pop: 0 8px 28px -6px rgb(17 18 20 / 0.18), 0 2px 6px -2px rgb(17 18 20 / 0.1);
+  --shadow-lift: 0 6px 16px -8px rgb(17 18 20 / 0.2), 0 1px 2px rgb(17 18 20 / 0.06);
+  color-scheme: light;
+}
+
+/* Tints are derived from their hue, in both themes, so a hue changes in one place. */
+:root, .dark {
+  --accent-tint: color-mix(in oklab, var(--accent) var(--tint), transparent);
+  --live-tint: color-mix(in oklab, var(--live) var(--tint), transparent);
+  --waiting-tint: color-mix(in oklab, var(--waiting) var(--tint), transparent);
+  --failed-tint: color-mix(in oklab, var(--failed) var(--tint), transparent);
+  --ok-tint: color-mix(in oklab, var(--ok) var(--tint), transparent);
+  --needs-tint: color-mix(in oklab, var(--needs) var(--tint), transparent);
+}
+
+.dark {
+  --bg: #0e0f11;
+  --surface: #141518;
+  --raised: #1b1c20;
+  --overlay: #202126;
+  --line: #26272c;
+  --line-subtle: #1d1e22;
+  --line-strong: #64666f;
+  --fg: #ececee;
+  --muted: #b3b5bd;
+  --faint: #9a9ca5;
+  --accent: #5c9dff;
+  --accent-fg: #0b1220;
+  --live: #3ec7b0;
+  --waiting: #e2a93b;
+  --failed: #f2666f;
+  --ok: #57c785;
+  --needs: #b497ff;
+  --tint: 13%;
+  --scrim: rgb(0 0 0 / 0.62);
+  --shadow-pop: 0 12px 36px -8px rgb(0 0 0 / 0.6), 0 2px 8px -2px rgb(0 0 0 / 0.45);
+  --shadow-lift: 0 8px 20px -8px rgb(0 0 0 / 0.55), 0 1px 2px rgb(0 0 0 / 0.3);
+  color-scheme: dark;
+}
+
+/* One layout: 30px rows and controls, 14px/22px body. Coarse pointers raise rows and controls to 44px below. */
+:root { --row: 30px; --control: 30px; --body: 14px; --body-lh: 22px; }
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-overlay: var(--overlay);
+  --color-line: var(--line);
+  --color-line-subtle: var(--line-subtle);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-tint: var(--accent-tint);
+  --color-live: var(--live);
+  --color-waiting: var(--waiting);
+  --color-failed: var(--failed);
+  --color-ok: var(--ok);
+  --color-needs: var(--needs);
+  --color-scrim: var(--scrim);
+  --color-live-tint: var(--live-tint);
+  --color-waiting-tint: var(--waiting-tint);
+  --color-failed-tint: var(--failed-tint);
+  --color-ok-tint: var(--ok-tint);
+  --color-needs-tint: var(--needs-tint);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Recursive Variable", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 20px;
+  --text-base: 14px;
+  --text-base--line-height: 22px;
+  --text-prose: 15px;
+  --text-prose--line-height: 24px;
+  --text-lg: 18px;
+  --text-lg--line-height: 24px;
+  --text-xl: 22px;
+  --text-xl--line-height: 28px;
+  --text-display: 28px;
+  --text-display--line-height: 36px;
+  --text-body: var(--body);
+  --text-body--line-height: var(--body-lh);
+
+  --radius-chip: 4px;
+  --radius-control: 6px;
+  --radius-pane: 8px;
+  --radius-dialog: 10px;
+  --radius-work: 14px;
+
+  --spacing-row: var(--row);
+  --spacing-control: var(--control);
+
+  --shadow-pop: var(--shadow-pop);
+  --shadow-lift: var(--shadow-lift);
+
+  /* Motion. 120ms hover and press, 180ms panels and menus, 260ms an arrival that
+     travels. out-fd for standing changes, emphasized for arrivals, in-fd for exits. */
+  --ease-out-fd: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-fd: cubic-bezier(0.4, 0, 1, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
+
+  /* Stacking: sticky chrome, overlays and menus, tooltips, toasts. Nothing else gets a z-index. */
+  --z-sticky: 40;
+  --z-overlay: 50;
+  --z-tooltip: 60;
+  --z-toast: 70;
+
+  --animate-pulse-live: pulse-live 1.6s ease-in-out infinite;
+  @keyframes pulse-live {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  /* Arrivals. Travel is a variable, so reduced motion keeps the fade and drops the movement. */
+  --animate-enter: fd-enter var(--duration-slow) var(--ease-emphasized) backwards;
+  --animate-pop: fd-pop var(--duration-base) var(--ease-emphasized) backwards;
+  --animate-fade: fd-fade var(--duration-base) var(--ease-out-fd) backwards;
+  --animate-sheet: fd-sheet var(--duration-slow) var(--ease-emphasized) backwards;
+  --animate-sheet-left: fd-sheet-left var(--duration-slow) var(--ease-emphasized) backwards;
+  @keyframes fd-enter {
+    from { opacity: 0; transform: translateY(var(--fd-rise)); }
+  }
+  @keyframes fd-pop {
+    from { opacity: 0; transform: translateY(var(--fd-rise-sm)) scale(var(--fd-scale)); }
+  }
+  @keyframes fd-fade {
+    from { opacity: 0; }
+  }
+  @keyframes fd-sheet-left {
+    from { opacity: 0; transform: translateX(calc(var(--fd-slide) * -1)); }
+  }
+  @keyframes fd-sheet {
+    from { opacity: 0; transform: translateX(var(--fd-slide)); }
+  }
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: var(--body);
+    line-height: var(--body-lh);
+    font-variation-settings: "MONO" 0, "CASL" 0;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* The code voice: Recursive with its MONO axis on. IDs, agent and tool names,
+     paths, payloads, logs and numbers that line up. */
+  .font-mono, code, kbd, pre, samp {
+    font-family: var(--font-mono);
+    font-variation-settings: "MONO" 1, "CASL" 0;
+  }
+  ::selection { background: color-mix(in oklab, var(--accent) 24%, var(--surface)); color: var(--fg); }
+  /* Every interactive element shows a 2px accent ring; rows, tabs and rail links draw it inside (focus-inset). */
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  /* Native browser affordances belong to the same quiet palette as the shell. */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 8px; background: var(--line-strong); background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background-color: var(--muted); }
+  ::-webkit-scrollbar-corner { background: transparent; }
+  input, textarea, [contenteditable="true"] { caret-color: var(--accent); }
+  input, textarea, select { accent-color: var(--accent); }
+  button, [role="button"] { cursor: default; }
+  a { color: inherit; text-underline-offset: 0.2em; }
+  :root { --fd-rise: 6px; --fd-rise-sm: 4px; --fd-scale: 0.985; --fd-slide: 24px; }
+  /* Reduced motion keeps what carries meaning (fades, colour and state changes) and drops
+     travel, scale and every ambient loop. Spinners stay: they say "working". */
+  @media (prefers-reduced-motion: reduce) {
+    :root { --fd-rise: 0px; --fd-rise-sm: 0px; --fd-scale: 1; --fd-slide: 0px; }
+  }
+}
+
+@layer components {
+  /* A strip that scrolls sideways says so: a soft edge appears only on the side that has more. No scrollbar. */
+  .fd-scroll-x {
+    scrollbar-width: none;
+    background:
+      linear-gradient(to right, var(--bg) 30%, transparent) left center / 20px 100% no-repeat local,
+      linear-gradient(to left, var(--bg) 30%, transparent) right center / 20px 100% no-repeat local,
+      linear-gradient(to right, var(--line-strong), transparent) left center / 8px 100% no-repeat scroll,
+      linear-gradient(to left, var(--line-strong), transparent) right center / 8px 100% no-repeat scroll;
+  }
+  .fd-scroll-x::-webkit-scrollbar { display: none; }
+
+  /* One shared arrival for work objects; refreshes preserve their stable keys.
+     Hover/press explains which whole cards open. Articles with answer buttons
+     stay still, and reduced motion removes travel and staggering. */
+  .fd-work-card {
+    animation: fd-work-arrive 220ms var(--ease-emphasized) backwards;
+    animation-delay: calc(var(--work-order, 0) * 25ms);
+  }
+  .fd-work-card-link {
+    transition: border-color 140ms ease-out, background-color 140ms ease-out, transform 140ms var(--ease-emphasized);
+  }
+  .fd-work-card-link:hover, .fd-work-card-link:focus-visible { border-color: var(--line-strong); background-color: var(--surface); transform: translateY(-4px); }
+  .fd-work-card-link:active { transform: translateY(0); }
+  .fd-preview-sheet { transform-origin: 50% 70%; transition: transform 320ms var(--ease-emphasized); }
+  .fd-card-arrow { transition: transform 180ms var(--ease-emphasized); }
+  .fd-work-card-link:hover .fd-preview-sheet, .fd-work-card-link:focus-visible .fd-preview-sheet { transform: scale(1.035); }
+  .fd-work-card-link:hover .fd-card-arrow, .fd-work-card-link:focus-visible .fd-card-arrow { transform: translate(2px, -2px); }
+  @keyframes fd-work-arrive {
+    from { opacity: 0.65; transform: translateY(var(--fd-rise-sm)); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .focus-inset:focus-visible { outline-offset: -2px; }
+  .prose-fd { font-size: 14px; line-height: 22px; max-width: 72ch; overflow-wrap: anywhere; }
+  .prose-fd > * + * { margin-top: 0.6em; }
+  .prose-fd p { margin: 0; }
+  .prose-fd a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+  .prose-fd strong { font-weight: 650; }
+  .prose-fd ul { list-style: disc; padding-left: 1.25em; }
+  .prose-fd ol { list-style: decimal; padding-left: 1.25em; }
+  .prose-fd li + li { margin-top: 0.2em; }
+  .prose-fd h1, .prose-fd h2, .prose-fd h3 { font-weight: 650; font-size: 15px; margin-top: 1em; }
+  .prose-fd code { font-size: 12.5px; background: var(--raised); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .prose-fd pre { background: var(--raised); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; font-size: 12.5px; line-height: 18px; }
+  .prose-fd pre code { background: none; border: 0; padding: 0; }
+  .prose-fd table { border-collapse: collapse; font-size: 13px; }
+  .prose-fd th, .prose-fd td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; }
+  .prose-fd blockquote { border-left: 2px solid var(--line-strong); padding-left: 10px; color: var(--muted); }
+}
+
+/* A modal dialog turns pointer events off for the rest of the page; a toast raised from inside it
+   (Undo, Retry) must stay clickable. */
+[data-sonner-toast] { pointer-events: auto; }
+
+/* The output itself expands from its card into a reading surface and back.
+   Ordinary page content stays still behind this one shared-element transition. */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+::view-transition-group(fd-output-inspection),
+::view-transition-old(fd-output-inspection), ::view-transition-new(fd-output-inspection) {
+  animation-duration: 360ms;
+  animation-timing-function: var(--ease-emphasized);
+}
+::view-transition-old(fd-output-inspection), ::view-transition-new(fd-output-inspection) { height: 100%; object-fit: cover; }
+@media (max-width: 639px) { .fd-document-dialog { inset: 0; width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; transform: none; translate: none; } }
+
+/* Unlayered on purpose: these must beat the sizing tokens above and utility classes. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(fd-output-inspection), ::view-transition-old(fd-output-inspection), ::view-transition-new(fd-output-inspection) { animation: none; }
+  .fd-work-card { animation: none; }
+  .fd-work-card-link:hover, .fd-work-card-link:focus-visible, .fd-work-card-link:active { transform: none; }
+  .fd-work-card-link:hover .fd-preview-sheet, .fd-work-card-link:focus-visible .fd-preview-sheet,
+  .fd-work-card-link:hover .fd-card-arrow, .fd-work-card-link:focus-visible .fd-card-arrow { transform: none; }
+  /* Ambient loops stop, including pseudo-elements; the arrival fades keep running. */
+  .animate-pulse-live, .animate-pulse, [class*="animate-pulse"], [class*="animate-pulse"]::after { animation: none !important; }
+  /* Nothing slides or resizes: only colour, border, opacity and shadow may transition. */
+  *, *::before, *::after {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, outline-color !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (pointer: coarse) {
+  :root { --control: 44px; --row: 44px; }
+  /* 16px keeps iOS from zooming the page when a field takes focus. */
+  input, textarea, select { font-size: 16px; }
+}
+/* Very short viewports (200% zoom, landscape phones): keep reading space for the transcript. */
+@media (max-height: 520px) {
+  .fd-session-meta { display: none !important; }
+  .fd-composer textarea { min-height: 36px !important; }
+}

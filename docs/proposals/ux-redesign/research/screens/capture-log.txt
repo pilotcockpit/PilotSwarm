@@ -1,0 +1,15 @@
+saved d01-home
+saved d02-new-session
+saved d03-filter
+saved d04-canvas-pane
+saved d05-diagnostics
+saved d06-moa
+saved d07-budget
+saved d08-theme
+missing button: Show session details
+saved d10-slash-menu
+saved d11-admin
+admin tabs: []
+admin buttons: ["✕","Model Providers","My Providers","Shared Providers","Feature flags","Packages","Workers","↻","Add provider","+"]
+saved m01-home
+mobile buttons: ["Dismiss message","New session — choose model and agent","Filter sessions","Theme","Show canvas","Budget — providers, limits and usage","Master of Agents","Sessions — list and chat (tap for chat only)","Diagnostics — inspector and activity","Only top-level non-system sessions can be pinned","New group","System sessions are managed by administrators","Copy link — copy a direct link to this session","Restart this system session (complete, terminate, or hard delete)","⚙ PilotSwarm [+4]  <1min · —","Search sessions","Enter mobile zen","Attach images","Send prompt"]

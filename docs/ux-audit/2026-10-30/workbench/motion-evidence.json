@@ -1,0 +1,29 @@
+{
+  "source": "Actual click on isolated demo preview; DOM names during native transition",
+  "trigger": {
+    "bottom": 478.0859375,
+    "height": 229.5859375,
+    "left": 868.828125,
+    "right": 1276.9921875,
+    "top": 248.5,
+    "width": 408.1640625,
+    "x": 868.828125,
+    "y": 248.5
+  },
+  "dialogCount": 1,
+  "namedSurfaces": [
+    {
+      "rect": {
+        "bottom": 687.6637191772461,
+        "height": 588.6586303710938,
+        "left": 147.5046844482422,
+        "right": 1169.495346069336,
+        "top": 99.00508880615234,
+        "width": 1021.9906616210938,
+        "x": 147.5046844482422,
+        "y": 99.00508880615234
+      },
+      "style": "view-transition-name: fd-output-inspection;"
+    }
+  ]
+}
