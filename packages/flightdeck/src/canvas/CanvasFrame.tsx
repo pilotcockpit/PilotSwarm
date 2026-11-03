@@ -70,11 +70,23 @@ export function CanvasFrame({ html, title, zoom = 1, className }: { html: string
   );
 }
 
+/** Only the text of some markup: everything from a "<" to the next ">" is dropped, and a stray bracket drops the rest of its run, so no element can survive. */
+function textOf(markup: string): string {
+  let out = "";
+  let inTag = false;
+  for (const ch of markup) {
+    if (ch === "<") inTag = true;
+    else if (ch === ">") inTag = false;
+    else if (!inTag) out += ch;
+  }
+  return out;
+}
+
 /** A canvas's display name: its <title>, else its first heading, else "Canvas N". */
 export function canvasName(html: string | undefined, slot: number) {
   const text = String(html || "");
   const title = text.match(/<title[^>]*>([^<]{1,80})<\/title>/i)?.[1]?.trim();
-  const h1 = text.match(/<h1[^>]*>([\s\S]{1,160}?)<\/h1>/i)?.[1]?.replace(/<[^>]*>/g, "").replace(/[<>]/g, "").trim(); // tags out, then any stray angle bracket: nothing that could open an element is left
+  const h1 = textOf(text.match(/<h1[^>]*>([\s\S]{1,160}?)<\/h1>/i)?.[1] ?? "")?.trim();
   const name = title || h1;
   return name ? name.replace(/\s*·.*$/, "").slice(0, 40) : `Canvas ${slot}`;
 }
