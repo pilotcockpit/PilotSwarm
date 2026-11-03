@@ -14,12 +14,12 @@ work and proposed contract improvements.
 
 ## Method and evidence
 
-- Captured the running app in the Codex in-app browser before editing, using
+- Captured the running app in an in-app browser before editing, using
   both the live empty deployment and explicitly labeled demo data.
 - Three independent design agents assessed information architecture, interaction
   safety/accessibility, and the shell/visual system. Their recommendations were
   cross-reviewed and reconciled against the actual code and public API catalog.
-- Used Product Design audit guidance and Impeccable's Operate/craft standards.
+- Used product-design audit guidance and operational-UI craft standards.
   Immersive-design ideas were constrained to a useful onboarding asset; routine
   operational work has no decorative 3D or background animation.
 - Ran the deterministic design detector, then inspected rendered desktop and

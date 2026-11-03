@@ -563,13 +563,13 @@ found in review:
 
 - **Research** (2026-10-30): six parallel audits, in [research/](./research/):
   API capabilities, portal UI inventory, canvas, journeys and parity, visual
-  critique (design-taste-frontend, impeccable), usability and accessibility
-  (craft-ux, accessibility review, design critique, UX copy), driven against
+  critique, usability and accessibility
+  (UX craft review, accessibility review, design critique, UX copy), driven against
   a local portal with Playwright.
 - **Capability map**: all 178 Web API operations and every WebSocket message
   mapped to a home or a deliberate exclusion; its 15 gaps were folded into
   this README.
-- **Independent review** (Codex `gpt-6.1-sol`, high effort, read-only):
+- **Independent review** (a second AI model, read-only):
   verdict *sound with changes*. Applied: canvas security policy for both
   hosts and no escaping popups; Providers in tokens with a per-person
   allowance and a separate hold; the shared-core boundary and data ownership

@@ -28,7 +28,7 @@ Generation brief: an elegant folded cobalt paper glider lifting from three ivory
 document sheets, a small ochre tab, tactile matte paper, clean transparent
 silhouette, no legible text, metrics, logo or mascot. A second image-tool pass
 requested removal of diffuse background haze. Original generations remain in
-the local Codex image output directory; the optimized final asset lives here.
+the author's machine, not in the repository; the optimized final asset lives here.
 
 ## Page illustrations
 

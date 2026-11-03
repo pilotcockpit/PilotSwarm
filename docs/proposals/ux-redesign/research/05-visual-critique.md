@@ -5,10 +5,10 @@ Status: research, 2026-10-30. Part of the portal UX redesign. It pairs with
 
 **Method.** I followed two skills. From `design-taste-frontend` I used the app-screens run: the
 inspector and lint in `--app` mode, and a dealt style for each of the three directions. From
-`impeccable` I used critique mode: Nielsen scoring, persona walk-throughs and the detector with a
+a design-critique skill I used critique mode: Nielsen scoring, persona walk-throughs and the detector with a
 live overlay. The detector pass (Assessment B) ran in an isolated sub-agent. I ran the design review
 (Assessment A) in this context. Partial degradation: B's results came back before A was finished,
-so A is not fully unanchored. I did not write the impeccable snapshot to `.impeccable/critique/`,
+so A is not fully unanchored. I did not save the critique snapshot,
 because the brief limits writes to this research folder.
 
 **Evidence.** The original captures are `screens/d01..d13` and `m01` (see `capture-log.txt`). I added
@@ -914,20 +914,20 @@ html { font-family: var(--font-sans); font-size: var(--ps-body); background: var
    - Errors are raw strings.
    - Connection is 11px text.
    - Fix: the status map, the durable spine and an in-place error pattern (§4).
-   - Commands: `/impeccable clarify`, `/impeccable harden`.
+   - Commands: the clarify pass, the harden pass.
 2. **[P1] Monospace for all text and a size soup of 15 values (8.5–22px).**
    - Fix: Recursive with the MONO axis, a 6-step scale and a 12px floor.
-   - Command: `/impeccable typeset`.
+   - Command: the typeset pass.
 3. **[P1] Navigation is unlabelled icons, and destinations are mixed with pane toggles.**
    - Fix: a labelled sidebar for destinations, a top bar for scope and `⌘K`, and toolbars grouped per pane.
-   - Command: `/impeccable layout`.
+   - Command: the layout pass.
 4. **[P2] Colour has no meaning.**
    - The ANSI rainbow is used decoratively, selection takes five different colours, and the shell has a gradient and glass.
    - Fix: a one-accent, status-only budget.
-   - Command: `/impeccable quieter`.
+   - Command: the quieter pass.
 5. **[P2] The three-column squeeze and the empty board.**
    - Fix: fold rules, a minimum width for the list, and an empty board seeded from live sessions.
-   - Commands: `/impeccable adapt`, `/impeccable onboard`.
+   - Commands: the adapt pass, the onboard pass.
 
 ## 7. Questions for the owner
 

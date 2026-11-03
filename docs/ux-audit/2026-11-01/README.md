@@ -20,20 +20,20 @@ behaviour is described in [the Flight Deck README](../../../packages/flightdeck/
   One derivation drives the sidebar and the new Projects page. Pins, pinned projects and dismissals roam.
 - **Sidebar.** Needs you, Pinned, Projects, No project, Recents; loads folded; counts and icons shared with the page.
 - **Overview, session header, composer, tabs, working-folder dialog.** See the CHANGELOG entry.
-- **Audit of every page** (below), a Codex review of the staged change, and a full update of the Playwright suite.
+- **Audit of every page** (below), a second-model review of the staged change, and a full update of the Playwright suite.
 
 ## Audit of every page
 
 **Method.** Scripted checks over 14 views (Overview, Projects, the six session views, Boards, Outputs, Library,
 Providers, Admin, Settings) at phone (375), tablet (820) and desktop (1280) widths in light and dark, run in the
 demo data: contrast of every text node, accessible names of controls, heading order, landmarks, duplicate ids,
-sideways overflow, target sizes, console errors; the Impeccable design detector (0 anti-patterns); and screenshots
+sideways overflow, target sizes, console errors; a design-pattern detector (0 anti-patterns); and screenshots
 of the main pages and the New session dialog. Touch targets were measured under touch emulation.
 
 **Found and fixed.** Folded rail links had no accessible name (tablet); the page heading repeated the current-page
 marker; Outputs and the 404 page skipped a heading level and the sidebar headings sat at the wrong level; underline
 tabs and segmented items were under 44 px on touch; the six session tabs did not fit a phone; the Projects filters
-took five rows on a phone; the first load was 990 kB. A Codex review then found eight defects (a nested form
+took five rows on a phone; the first load was 990 kB. A second-model review then found eight defects (a nested form
 submit, folder names the SDK rejects, a pin migration that could lose pins, overlapping optimistic writes, a stale
 read overwriting a saved write, pinned sub-agents missing, deep links to hidden sessions, worker-only locations),
 all fixed with tests.

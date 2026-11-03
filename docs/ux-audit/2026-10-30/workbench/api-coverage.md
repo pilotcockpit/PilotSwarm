@@ -327,11 +327,8 @@ and no artifact download is **stale** against this checkout.
 
 ## Checks actually performed
 
-1. Ran `python3 ~/.agent-skills/scripts/agent_policy.py context --cwd "$PWD"`;
-   read resolved owner policy, complete project contract, shared repository
-   instructions, CONTRIBUTING and custom-UX integration guide.
-2. Inspected `git status --short`, `git diff --cached --stat`, and
-   `git worktree list`; stayed on shared `dev`, preserving existing staging.
+1. Read the project contract, shared repository instructions, CONTRIBUTING and the custom-UX integration guide.
+2. Inspected `git status --short` and `git diff --cached --stat`, preserving existing staging.
 3. Used `rg --files`, `rg -n`, `cat`, and `sed -n` across Flight Deck routes,
    components, data/ops/live/DataSource and corresponding SDK protocol,
    ApiClient, management/web-management, runtime and classic canvas handlers.
