@@ -16,6 +16,8 @@ including feature flags and messages of the day. Live Copilot chat tests now
 require a separate opt-in and an explicit non-Google model.
 The sync's CodeQL follow-up makes message dismissal/deletion dispatch explicit
 and validates timezone-bearing message timestamps without quadratic backtracking.
+Session search now scans query tokens explicitly, preserving the existing quoted
+phrases, field aliases and incomplete-input behavior.
 Desktop navigation commits a pending visit before Back or another gesture can
 replace its origin, so rapid navigation returns to the right session and draft.
 
@@ -130,7 +132,10 @@ The HorizonDB module and the CI database script now use the new API:
 
 - Bicep creates the settings group, then the cluster, then one pool
   (`DefaultPool`), then the password login, then the firewall rule on the
-  pool. A new pool starts on the built-in settings group; the deploy then
+  pool. Bicep PUTs the pool only to create it: HorizonDB rejects a pool
+  request that changes more than one property group, which a full PUT does
+  on clusters migrated from the old API. A new pool starts on the built-in
+  settings group; the deploy then
   attaches the extension group with a pool PATCH and waits until the pool
   reports it as `InSync` (about two minutes, one restart). The first PATCH
   on a new pool can end without attaching anything, so the deploy resends it

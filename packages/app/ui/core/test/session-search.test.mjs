@@ -10,6 +10,8 @@ import {
     selectSessionRows,
 } from "../src/index.js";
 
+import { normalizeSessionSearchText } from "../src/session-search.js";
+
 const owner = (displayName, email) => ({ provider: "entra", subject: email, displayName, email });
 
 function loadedState(sessions) {
@@ -140,4 +142,53 @@ test("search cache invalidates when a catalog entry changes without a new flat l
         byId: { ...state.sessions.byId, one: { ...state.sessions.byId.one, title: "Beta project" } } } };
     assert.equal(search(changed, "alpha").rows.length, 0);
     assert.equal(search(changed, "beta").rows.length, 1);
+});
+
+
+test("query tokenization preserves quoted values, aliases and incomplete input", () => {
+    assert.deepEqual(parseSessionSearchQuery(' OWNER:"Áda Lovelace" folder:Incidents unknown:value topic: "one""two" "" "unfinished '), {
+        source: 'OWNER:"Áda Lovelace" folder:Incidents unknown:value topic: "one""two" "" "unfinished',
+        terms: ["unknown value", "topic", "one", "two", "unfinished"],
+        filters: [{ field: "author", value: "ada lovelace" }, { field: "group", value: "incidents" }],
+    });
+    assert.deepEqual(parseSessionSearchQuery("author:"), { source: "author:", terms: ["author"], filters: [] });
+});
+
+test("query scanning stays compatible with the previous tokenizer on bounded generated inputs", () => {
+    // Keep the old grammar as a bounded compatibility oracle, never on long input.
+    const aliases = { author: "author", owner: "author", agent: "agent", status: "status", group: "group",
+        folder: "group", model: "model", id: "id", topic: "topic", summary: "summary" };
+    function previous(value) {
+        const source = String(value || "").trim();
+        const terms = [], filters = [];
+        const pattern = /(?:(\w+):)?(?:"([^"]+)"|(\S+))/g;
+        for (const match of source.matchAll(pattern)) {
+            const rawField = String(match[1] || "").toLowerCase();
+            const rawValue = match[2] ?? match[3] ?? "";
+            const normalized = normalizeSessionSearchText(rawValue);
+            if (!normalized) continue;
+            const field = aliases[rawField];
+            if (field) filters.push({ field, value: normalized });
+            else terms.push(normalizeSessionSearchText(rawField ? `${rawField} ${rawValue}` : rawValue));
+        }
+        return { source, terms: terms.filter(Boolean), filters };
+    }
+    const pieces = ['a', '0', '_', ':', '"', ' ', '\t', '\n', '\u00a0', 'é', '-', '.',
+        'author:', 'OWNER:', 'group:', 'model:', 'unknown:', 'constructor:', '__proto__:'];
+    let seed = 0x12345678;
+    for (let i = 0; i < 10000; i += 1) {
+        let query = "";
+        for (let j = 0; j < 12; j += 1) {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            query += pieces[seed % pieces.length];
+        }
+        assert.deepEqual(parseSessionSearchQuery(query), previous(query), JSON.stringify(query));
+    }
+});
+
+test("query scanning handles long unbroken and quoted search text", () => {
+    const value = "0".repeat(150000);
+    assert.deepEqual(parseSessionSearchQuery(value).terms, [value]);
+    assert.deepEqual(parseSessionSearchQuery(`topic:"${value}"`).filters, [{ field: "topic", value }]);
+    assert.deepEqual(parseSessionSearchQuery(`"${value}`).terms, [value]);
 });
