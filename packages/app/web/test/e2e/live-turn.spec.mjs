@@ -159,8 +159,10 @@ test("message previews are compact canvas-style disclosures with bounded scrolli
     await summary.press("Enter");
     const viewport = preview.locator(".ps-assistant-preview-viewport");
     await expect(viewport).toBeVisible();
+    // Native details opens before React's toggle handler fills the preview.
+    // Wait for overflowing content before measuring its bounded height.
+    await expect.poll(() => viewport.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
     expect((await viewport.boundingBox()).height).toBeLessThanOrEqual(280);
-    expect(await viewport.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
     await expect(viewport).toHaveCSS("border-top-width", "0px");
     await summary.press("Enter");
     await expect(viewport).not.toBeVisible();

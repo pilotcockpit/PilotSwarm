@@ -47,7 +47,7 @@ function nextFocus(prev: readonly string[], next: readonly string[], key: string
 export function SessionsSidebar({ onNavigate, className }: { onNavigate?: () => void; className?: string }) {
   const { data: sessions, isLoading, isError, refetch } = useSessions();
   const { data: groups } = useGroups();
-  const { data: profile } = useProfile();
+  const { data: profile, isPending: profilePending } = useProfile();
   const pins = usePins();
   const dismissed = useDismissedAttention();
   const prefs = useSidebarPrefs();
@@ -274,7 +274,7 @@ export function SessionsSidebar({ onNavigate, className }: { onNavigate?: () => 
 
   return (
     <nav aria-label="Sessions" className={cn("flex min-h-0 flex-1 flex-col", className)}>
-      <NeedsCountStatus count={model.needs.all.length} />
+      <NeedsCountStatus count={model.needs.all.length} ready={!isLoading && sessions !== undefined && !profilePending && pins.settled} />
       <div ref={listRef} onKeyDown={onKeyDown} onBlur={(e) => { if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget as Node) && !(e.relatedTarget as HTMLElement).closest?.("[role='dialog'],[role='menu']")) focusedRef.current = null; }} className="min-h-0 flex-1 overflow-y-auto px-1 pb-2" data-sessions-scroll>
         {/* Until the account's dismissals have loaded, Needs you is not known: showing the sections now would push them down when it appears. */}
         {isLoading || !pins.settled ? (

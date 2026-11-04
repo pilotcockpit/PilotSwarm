@@ -403,7 +403,13 @@ for (const {theme,width,admin=false,touchScale=false} of geometryCases) test(`${
     await expect(page.locator('.portal-header').getByRole('button',{name:'Zoom out',exact:true})).toBeVisible();
     await expect(page.locator('.portal-header').getByRole('combobox',{name:'Choose canvas',exact:true})).toBeVisible();
     await check('maximized canvas');
-    if(theme==='win95') await expect(page.locator('.portal-header').getByRole('button',{name:'Zoom out',exact:true})).toHaveCSS('color','rgb(255, 255, 255)');
+    if(theme==='win95') {
+        // Upstream uses raised grey controls on the navy title bar. Black
+        // text belongs to the button face, rather than white on grey.
+        const zoom=page.locator('.portal-header').getByRole('button',{name:'Zoom out',exact:true});
+        await expect(zoom).toHaveCSS('color','rgb(0, 0, 0)');
+        await expect(zoom).toHaveCSS('background-color','rgb(192, 192, 192)');
+    }
     await page.screenshot({path:test.info().outputPath('maximized-canvas.png')});
     await page.getByRole('button',{name:'Restore canvas',exact:true}).click();
     await check('restored canvas');

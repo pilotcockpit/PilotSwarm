@@ -69,6 +69,7 @@ jobs:
       - run: npm run build
       - name: Deployment and CI policy tests
         run: |
+          npm run test:lockfile
           npm run test:deploy-scripts
           node --test .github/scripts/test/*.test.mjs .github/scripts/integration/*.test.mjs
       - name: Install public model catalog for unit tests

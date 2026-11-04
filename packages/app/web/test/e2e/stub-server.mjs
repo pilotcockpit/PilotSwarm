@@ -190,8 +190,8 @@ function rpc(method, SESSIONS, PROFILE_SETTINGS = {}) {
     }
 }
 
-export function startStubServer(port = 0, { sessionCount = 6, transcriptTurns = 0, systemEvery = 0, assistantMarkdown = null, groups = [], themeId = null, groupMembers = {}, admin = false, parents = {} } = {}) {
-    assertFreshBundle();
+export function startStubServer(port = 0, { sessionCount = 6, transcriptTurns = 0, systemEvery = 0, assistantMarkdown = null, groups = [], themeId = null, groupMembers = {}, admin = false, parents = {}, checkBuildFreshness = true } = {}) {
+    if (checkBuildFreshness) assertFreshBundle();
     const SESSIONS = makeSessions(Math.max(1, sessionCount), groupMembers, parents);
     const WORKERS = admin ? makeWorkers(8, Date.now()) : [];
     let liveGroups = groups;
@@ -319,6 +319,16 @@ export function startStubServer(port = 0, { sessionCount = 6, transcriptTurns = 
         res.writeHead(200, headers);
         res.end(fs.readFileSync(file));
     });
+
+    // A test owns this server and calls close only after its assertions. An
+    // unfinished browser request must not keep teardown waiting for Node's
+    // request timeout (especially with virtual browser clocks paused).
+    const close = server.close.bind(server);
+    server.close = (...args) => {
+        const result = close(...args);
+        server.closeAllConnections();
+        return result;
+    };
 
     return new Promise((resolve) => {
         server.listen(port, "127.0.0.1", () => {

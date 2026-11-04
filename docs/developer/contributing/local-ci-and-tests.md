@@ -33,6 +33,7 @@ qualify the patched runtime; ordinary PR checks use the candidate's exact pin.
 npm ci
 [ -e .model_providers.json ] || cp .model_providers.example.json .model_providers.json
 npm run build
+npm run test:lockfile
 npm run test:deploy-scripts
 node --test .github/scripts/test/*.test.mjs .github/scripts/integration/*.test.mjs
 npm run test:api --workspace=pilotswarm-sdk
@@ -41,6 +42,13 @@ npm test --workspace=pilotswarm
 ```
 
 The Actions check installs the public example catalog in its disposable checkout.
+Fork syncs can import public Microsoft npm mirror URLs. Run
+`npm run normalize:lockfile` to verify each affected package's name, locked
+version and existing digest against public npm metadata, replace the mirror URL
+and use SHA-512 integrity. It changes no versions and detects edits made during
+verification before replacing the file. Its tests use stubbed metadata
+and make no network calls.
+
 For a fresh local checkout, copy `.model_providers.example.json` to
 `.model_providers.json` if that file does not already exist. Preserve any
 existing private catalog. These checks do not need Azure credentials.

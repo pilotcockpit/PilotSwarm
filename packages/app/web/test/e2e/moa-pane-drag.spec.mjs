@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { startStubServer } from './stub-server.mjs';
 import { normalizeMoa, activeMoaDashboard } from '../../../ui/core/src/moa.js';
+import { MOA_PANE_GAP_PX as GAP } from '../../src/moa/pane-layout.js';
 let stub, base;
 test.beforeAll(async () => { stub = await startStubServer(0, { sessionCount: 5, transcriptTurns: 40 }); base = `http://127.0.0.1:${stub.port}`; });
 test.afterAll(async () => { await new Promise(resolve => stub.server.close(resolve)); });
@@ -11,15 +12,18 @@ const example = split('root','row',chat('super',1),split('right','column',chat('
 const panel = (page,id) => page.locator(`[data-moa-panel="${id}"]`);
 async function fixture(page, {tree=example,theme='terminal-green',composerMode='per-chat'} = {}) {
     let settings = { themeId:theme, moa:{...normalizeMoa({tree,focusedPanelId:'b'}),composerMode} };
-    const errors=[], sends=[], reads=[];
+    const errors=[], sends=[], reads=[], historyLoads=[];
     page.on('pageerror',e=>errors.push(e.message));
     await page.route('**/api/v1/**', async route => {
-        const req=route.request(), path=new URL(req.url()).pathname;
+        const req=route.request(), url=new URL(req.url()), path=url.pathname;
         const reply=result=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,result})});
         if (path.endsWith('/me/profile/settings')) { settings=structuredClone(req.postDataJSON().settings); return reply({profileSettings:settings}); }
         if (path.endsWith('/me/profile')) return reply({isAdmin:false,profileSettings:settings});
         if (/\/sessions\/[^/]+\/messages$/.test(path)) { sends.push({path,...req.postDataJSON()}); return reply({queued:true}); }
         if (/\/sessions\/[^/]+$/.test(path)) reads.push(path);
+        // Polls request a delta with limit=200. Full history loads and warm
+        // re-entry catch-up use a larger window and must not happen on a swap.
+        if (/\/management\/sessions\/[^/]+\/events$/.test(path) && (!url.searchParams.has('afterSeq') || url.searchParams.get('limit')!=='200')) historyLoads.push(path);
         return route.fallback();
     });
     await page.setViewportSize({width:1600,height:1000});
@@ -27,7 +31,7 @@ async function fixture(page, {tree=example,theme='terminal-green',composerMode='
     await page.getByRole('button',{name:'Master of Agents',exact:true}).click();
     await expect(panel(page,'b')).toBeVisible();
     await expect(panel(page,'paw').getByLabel('Session status')).toContainText('Working');
-    return {errors,sends,reads,tree:()=>activeMoaDashboard(settings.moa).tree};
+    return {errors,sends,reads,historyLoads,tree:()=>activeMoaDashboard(settings.moa).tree};
 }
 async function startDrag(page,source,target,edge='center',extend=false) {
     const head=await panel(page,source).locator(':scope > header .ps-moa-panel-title').boundingBox();
@@ -73,7 +77,7 @@ for(const theme of ['terminal-green','win95','winamp','ms-dos','github-light','w
     });
 }
 
-test('swap keeps pane DOM, draft, queued prompt, scroll position and connections',async({page})=>{
+test('swap keeps pane DOM, draft, queued prompt, scroll position and history caches',async({page})=>{
     const f=await fixture(page);
     const b=panel(page,'b');
     await b.locator(':scope > header').click();
@@ -85,6 +89,9 @@ test('swap keeps pane DOM, draft, queued prompt, scroll position and connections
     await b.evaluate(el=>{window.beforePane=el; window.beforeText=el.querySelector('textarea');});
     const oldB=await bounds(page,'b'), oldPaw=await bounds(page,'paw');
     const beforeReads=f.reads.length;
+    const targetLoads=()=>f.historyLoads.filter(path=>[sid(2),sid(3)].some(id=>path.includes(id)));
+    for(const id of [sid(2),sid(3)]) await expect.poll(()=>targetLoads().some(path=>path.includes(id))).toBe(true);
+    const beforeHistoryLoads=targetLoads().length;
     const scrollNode=b.locator('.ps-chat-panel .ps-scroll-panel');
     await expect(scrollNode).toBeVisible();
     await scrollNode.evaluate(el=>{el.scrollTop=100; window.beforeScroll=el;});
@@ -105,7 +112,11 @@ test('swap keeps pane DOM, draft, queued prompt, scroll position and connections
     // A new width reflows earlier text. Compare the visible content anchor,
     // not the old pixel offset (which would move the reader to another line).
     expect(await scrollNode.evaluate(el=>Math.abs(window.dragAnchor.getBoundingClientRect().top-el.getBoundingClientRect().top-window.dragAnchorTop))).toBeLessThan(2);
-    expect(f.reads.length).toBe(beforeReads);
+    // A real periodic metadata refresh is allowed; reloading either pane's
+    // history is not. The positive checks above prove this recorder saw both
+    // initial loads, rather than comparing two vacuously empty collections.
+    await expect.poll(()=>f.reads.length,{timeout:7000}).toBeGreaterThan(beforeReads);
+    expect(targetLoads()).toHaveLength(beforeHistoryLoads);
     expect(f.sends).toHaveLength(1); expect(f.sends[0].path).toContain(sid(3));
     expect(f.errors).toEqual([]);
 });
@@ -231,17 +242,17 @@ for (const edge of ['left','right','top','bottom']) {
         await expect(page.locator('.ps-moa-drag-hint')).toContainText(`Split ${edge} half`);
         const preview=await page.locator('.ps-moa-preview-pane.is-source').boundingBox();
         const row=edge==='left'||edge==='right';
-        near(preview.width,row?(target.width-8)/2:target.width);
-        near(preview.height,row?target.height:(target.height-8)/2);
+        near(preview.width,row?(target.width-GAP)/2:target.width);
+        near(preview.height,row?target.height:(target.height-GAP)/2);
         expect(f.tree()).toEqual(initial);
         await page.mouse.up();
         const b=await bounds(page,'b'), paw=await bounds(page,'paw');
         near(b.width,preview.width); near(b.height,preview.height);
         near(paw.width,b.width); near(paw.height,b.height);
-        if(edge==='left') near(b.x+b.width+8,paw.x);
-        if(edge==='right') near(paw.x+paw.width+8,b.x);
-        if(edge==='top') near(b.y+b.height+8,paw.y);
-        if(edge==='bottom') near(paw.y+paw.height+8,b.y);
+        if(edge==='left') near(b.x+b.width+GAP,paw.x);
+        if(edge==='right') near(paw.x+paw.width+GAP,b.x);
+        if(edge==='top') near(b.y+b.height+GAP,paw.y);
+        if(edge==='bottom') near(paw.y+paw.height+GAP,b.y);
         expect(await bounds(page,'super')).toEqual(untouched);
         await expect.poll(()=>f.tree().second.first.ratio).toBe(50);
         await page.getByRole('button',{name:'Undo',exact:true}).click();
@@ -285,4 +296,33 @@ test('pane headers and control panel omit redundant focus and arrangement contro
     await expect(panel(page,'c')).toHaveClass(/is-focused/);
     await expect(panel(page,'c').getByText('Focused',{exact:true})).toHaveCount(0);
     expect(f.errors).toEqual([]);
+});
+
+test('a press just beside a thin divider resizes and never starts a pane move',async({page})=>{
+    const f=await fixture(page);
+    for (const [id,offset] of [['right',5],['right',-5],['bottom',5],['bottom',-5]]) {
+        const seam=page.locator(`[data-moa-divider="${id}"]`), box=await seam.boundingBox();
+        const vertical=(await seam.getAttribute('aria-orientation'))==='vertical';
+        const x=vertical?box.x+box.width/2+offset:box.x+box.width/3, y=vertical?box.y+box.height/3:box.y+box.height/2+offset;
+        expect(await page.evaluate(([x,y])=>Boolean(document.elementFromPoint(x,y)?.closest('.ps-moa-divider')),[x,y])).toBe(true);
+        const before=structuredClone(f.tree());
+        await page.mouse.move(x,y); await page.mouse.down();
+        await page.mouse.move(vertical?x+60:x,vertical?y:y+60,{steps:8});
+        await expect(page.locator('.ps-moa-drop-preview')).toHaveCount(0);
+        await page.mouse.up();
+        await expect.poll(()=>JSON.stringify(f.tree())).not.toBe(JSON.stringify(before));
+        const leaves=t=>t.type==='split'?[...leaves(t.first),...leaves(t.second)]:[t.id];
+        expect(leaves(f.tree())).toEqual(leaves(before));
+    }
+    expect(f.errors).toEqual([]);
+});
+
+test('a divider drag keeps the gap centred under the pointer',async({page})=>{
+    await fixture(page);
+    const seam=page.locator('[data-moa-divider="bottom"]'), box=await seam.boundingBox();
+    const x=box.x+box.width/2, y=box.y+box.height/3;
+    await page.mouse.move(x,y); await page.mouse.down(); await page.mouse.move(x+90,y,{steps:6});
+    const moved=await seam.boundingBox();
+    expect(Math.abs(moved.x+moved.width/2-(x+90))).toBeLessThan(1.5);
+    await page.mouse.up();
 });
