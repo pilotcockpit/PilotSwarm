@@ -1028,8 +1028,9 @@ export class PortalRuntime {
             case "getCurrentMotd":
                 return this.transport.mgmt.getCurrentMotd({ principal: owner, isAdmin });
             case "dismissMotd":
+                return this.transport.mgmt.dismissMotd({ principal: owner, isAdmin }, safeParams.motdId);
             case "deleteMotd":
-                return this.transport.mgmt[method]({ principal: owner, isAdmin }, safeParams.motdId);
+                return this.transport.mgmt.deleteMotd({ principal: owner, isAdmin }, safeParams.motdId);
             case "getMotdImage":
                 return this.transport.mgmt.getMotdImage({ principal: owner, isAdmin }, safeParams.motdId, safeParams.mobile);
             case "listMotds":

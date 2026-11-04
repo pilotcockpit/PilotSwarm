@@ -91,7 +91,8 @@ export class MotdStore {
         const textValid = (value: unknown) => typeof value === "string" && value.trim().length > 0
             && !value.includes("\u0000") && Buffer.byteLength(value, "utf8") <= MOTD_BODY_MAX_BYTES;
         const timeValid = (value: unknown) => value === undefined
-            || typeof value === "string" && /T.*(?:Z|[+-]\d{2}:\d{2})$/i.test(value) && Number.isFinite(Date.parse(value));
+            || typeof value === "string" && (value.includes("T") || value.includes("t"))
+                && /(?:Z|[+-]\d{2}:\d{2})$/i.test(value) && Number.isFinite(Date.parse(value));
         const start = input?.startsAt ?? input?.fromAt, end = input?.endsAt ?? input?.toAt;
         if (!input || !textValid(input.bodyMd) || input.mobileBodyMd !== undefined && !textValid(input.mobileBodyMd)
             || ![input.startsAt, input.endsAt, input.fromAt, input.toAt].every(timeValid)

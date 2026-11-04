@@ -14,6 +14,8 @@ changes to the number of sessions needing attention. The MCP unit command
 rebuilds the SDK and MCP, clears stale MCP output, and discovers all unit files,
 including feature flags and messages of the day. Live Copilot chat tests now
 require a separate opt-in and an explicit non-Google model.
+The sync's CodeQL follow-up makes message dismissal/deletion dispatch explicit
+and validates timezone-bearing message timestamps without quadratic backtracking.
 
 **Flight Deck: sessions are organised in projects.** Flight Deck (`packages/flightdeck`, a
 separate browser app over the same Web API; the classic portal is untouched) now treats a

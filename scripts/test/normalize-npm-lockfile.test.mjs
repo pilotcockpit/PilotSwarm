@@ -38,7 +38,7 @@ test("package paths are decoded once, including scoped names", async () => {
     const scoped = { ...entry, resolved: entry.resolved.replace("/example/-/", "/%40scope%2Fexample/-/") };
     const result = await normalizeLockfile({ packages: { "node_modules/@scope/example": scoped } }, async () => ({ ...metadata, name: "@scope/example" }));
     assert.equal(result.normalized, 1);
-    await assert.rejects(normalizeLockfile({ packages: { "node_modules/@scope/example": { ...scoped, resolved: scoped.resolved.replace("%40", "%2540") } } }, async () => metadata), /public npm mirror paths/);
+    await assert.rejects(normalizeLockfile({ packages: { "node_modules/@scope/example": { ...scoped, resolved: scoped.resolved.replaceAll("%40", "%2540") } } }, async () => metadata), /public npm mirror paths/);
 });
 
 test("non-mirror dependencies and the input document are left untouched", async () => {

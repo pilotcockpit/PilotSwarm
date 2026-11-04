@@ -42,6 +42,9 @@ test("MoTD routes reach the authenticated runtime and cannot spoof their viewer"
         await alice.call("getMotdImage", { motdId: "1", mobile: true });
         await admin.call("listMotds", { limit: 2, before: "9" }); await admin.call("deleteMotd", { motdId: "1" });
         assert.equal(calls.length, 6);
+        assert.deepEqual(calls.map(call => call.method), ["createMotd", "getCurrentMotd", "dismissMotd", "getMotdImage", "listMotds", "deleteMotd"]);
+        assert.deepEqual(calls[2].args.slice(1), ["1"]);
+        assert.deepEqual(calls[5].args.slice(1), ["1"]);
         assert.deepEqual(calls[3].args.slice(1), ["1", true]);
         assert.deepEqual(calls[4].args.slice(1), [2, "9"]);
         for (const method of ["createMotd", "deleteMotd"]) {
