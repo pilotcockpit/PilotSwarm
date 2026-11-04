@@ -119,7 +119,11 @@ test('composer shortcuts cross MoA and workspace while search and modal editors 
     await select(page,2); await main(page).locator('textarea').fill('workspace draft');
     await page.getByRole('button',{name:'Master of Agents',exact:true}).click();
     const moaComposer = page.locator('[data-moa-panel="one"] textarea');
-    await moaComposer.fill('MoA draft'); await moaComposer.press('Alt+-');
+    await moaComposer.fill('MoA draft');
+    // Wait for the normal navigation path to publish its Back destination.
+    // The paused-timer cases below cover input arriving before publication.
+    await expect(back(page)).toHaveAccessibleName(/^Back to Session 2 /);
+    await moaComposer.press('Alt+-');
     await expect(page.locator('.ps-moa-workspace')).not.toBeVisible();
     await expect(main(page).locator('textarea')).toHaveValue('workspace draft');
     await main(page).locator('textarea').press('Alt+=');
@@ -134,6 +138,32 @@ test('composer shortcuts cross MoA and workspace while search and modal editors 
     await page.keyboard.press('Alt+-');
     expect((await saved(page)).index).toBe(prior);
     await expect(page.locator('.ps-modal-backdrop')).toBeVisible();
+    expect(f.errors).toEqual([]);
+});
+
+for (const interruptedBy of ['Back', 'another gesture']) test(`a pending MoA visit survives ${interruptedBy} before its timer runs`, async ({page}) => {
+    const f = await fixture(page);
+    await select(page, 2);
+    await main(page).locator('textarea').fill('kept workspace draft');
+    await expect(back(page)).toBeEnabled();
+    // Hold the gesture's zero-delay timer while real React event updates
+    // still render, reproducing queued input overtaking a timer task.
+    await page.clock.install({ time: Date.now() });
+    await page.clock.pauseAt(Date.now() + 1000);
+    await page.getByRole('button', { name: 'Master of Agents', exact: true }).click();
+    const panel = page.locator('[data-moa-panel="one"]');
+    await expect(panel).toBeVisible();
+    if (interruptedBy === 'another gesture') {
+        await panel.locator('header').first().click();
+        await page.clock.runFor(1);
+    }
+    await panel.locator('textarea').press('Alt+-');
+    await expect(page.locator('.ps-moa-workspace')).not.toBeVisible();
+    await expect(main(page).locator('textarea')).toHaveValue('kept workspace draft');
+    await page.clock.runFor(1);
+    await expect(page.locator('.ps-moa-workspace')).not.toBeVisible();
+    await expect(main(page).locator('textarea')).toHaveValue('kept workspace draft');
+    await expect(forward(page)).toHaveAccessibleName(/^Forward to Operations /);
     expect(f.errors).toEqual([]);
 });
 
@@ -227,6 +257,35 @@ test('slow artifact completion never reopens it over Back, and Forward restores 
         await expect(page.locator('.ps-artifact-pane')).toContainText('Bulk pgindent');
         await back(page).click(); await expect(page.locator('.ps-artifact-pane')).toHaveCount(0);
     } finally { release(); }
+});
+
+// The reader belongs to its artifact's session. Switching sessions used to
+// leave it open, titled with the other session's file and empty.
+test('the artifact reader steps aside for another session and comes back with its own', async ({page}) => {
+    await page.route('**/sessions/*/events*', route => {
+        const match = /\/sessions\/([^/]+)\/events$/.exec(new URL(route.request().url()).pathname);
+        if (!match) return route.fallback();
+        return route.fulfill({json:{ok:true,result:[{seq:1,eventType:'assistant.message',timestamp:1785000000000,data:{content:`Review [changes.csv](artifact://${match[1]}/changes.csv)`}}]}});
+    });
+    const f = await fixture(page); await select(page,1);
+    const reader = page.locator('.ps-artifact-pane');
+    await main(page).locator('.ps-artifact-card').first().click();
+    await expect(reader).toBeVisible();
+    await expect(reader).toContainText('Bulk pgindent');
+    await select(page,2);
+    // Let the switch settle: the reader can blink out while the session loads
+    // and come back empty, which a polling assertion would miss.
+    await page.waitForTimeout(1000);
+    expect(await reader.count(), 'no reader over the other session').toBe(0);
+    await select(page,1);
+    await expect(reader).toBeVisible();
+    await expect(reader).toContainText('Bulk pgindent');
+    // Opening the second session's own artifact shows that one there.
+    await select(page,2);
+    await main(page).locator('.ps-artifact-card').first().click();
+    await expect(reader).toBeVisible();
+    await expect(reader.locator('.ps-artifact-pane-name')).toHaveAttribute('title', 'changes.csv');
+    expect(f.errors).toEqual([]);
 });
 
 test('a revoked session fails closed and Forward still reaches the accessible session', async ({page}) => {
@@ -403,7 +462,13 @@ for (const {theme,width,admin=false,touchScale=false} of geometryCases) test(`${
     await expect(page.locator('.portal-header').getByRole('button',{name:'Zoom out',exact:true})).toBeVisible();
     await expect(page.locator('.portal-header').getByRole('combobox',{name:'Choose canvas',exact:true})).toBeVisible();
     await check('maximized canvas');
-    if(theme==='win95') await expect(page.locator('.portal-header').getByRole('button',{name:'Zoom out',exact:true})).toHaveCSS('color','rgb(255, 255, 255)');
+    if(theme==='win95') {
+        // Upstream uses raised grey controls on the navy title bar. Black
+        // text belongs to the button face, rather than white on grey.
+        const zoom=page.locator('.portal-header').getByRole('button',{name:'Zoom out',exact:true});
+        await expect(zoom).toHaveCSS('color','rgb(0, 0, 0)');
+        await expect(zoom).toHaveCSS('background-color','rgb(192, 192, 192)');
+    }
     await page.screenshot({path:test.info().outputPath('maximized-canvas.png')});
     await page.getByRole('button',{name:'Restore canvas',exact:true}).click();
     await check('restored canvas');

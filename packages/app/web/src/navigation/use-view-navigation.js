@@ -1,11 +1,11 @@
 import React from "react";
 import { useControllerSelector } from "pilotswarm/ui-react";
-import { activeMoaDashboard, normalizeMoa, moaLeaves, updateMoaDashboard } from "pilotswarm/ui-core";
+import { activeMoaDashboard, normalizeMoa, moaLeaves, selectArtifactPaneShown, updateMoaDashboard } from "pilotswarm/ui-core";
 import { cleanView, createViewHistory, navigationShortcut, viewKey } from "./view-history.js";
 
 function capture(controller, moa) {
     const s = controller.getState(), dashboard = activeMoaDashboard(normalizeMoa(s.ui.moa));
-    const artifact = s.files.paneOpen ? s.files.selectedArtifactId : null;
+    const artifact = selectArtifactPaneShown(s) ? s.files.selectedArtifactId : null;
     const separator = artifact?.indexOf("/") ?? -1;
     return cleanView({
         mode: moa.active ? "moa" : s.admin.visible ? "admin" : s.ui.budgetOpen ? "budget" : "workspace",
@@ -34,12 +34,26 @@ export function useViewNavigation(controller, moa) {
     const data = React.useRef(null), generation = React.useRef(0), gesture = React.useRef(null);
     const [, redraw] = React.useReducer(n => n + 1, 0);
     const createdSessionId = useControllerSelector(controller, s => s.ui.revealedCreatedSessionId);
-    const publish = React.useCallback(() => {
+    const publish = React.useCallback((notify = true) => {
         const current = data.current;
         if (!current) return;
         try { sessionStorage.setItem(current.key, current.history.serialize()); } catch { /* In-memory navigation still works. */ }
-        redraw();
+        if (notify) redraw();
     }, []);
+    const flushGesture = React.useCallback((notify = true) => {
+        const pending = gesture.current;
+        if (!pending) return;
+        gesture.current = null;
+        const current = data.current;
+        // An account/controller scope change must never publish an old visit
+        // into the new history. Timers and rapid input share this same guard.
+        if (!current || pending.history !== current.history) return;
+        const after = capture(controller, latest.current);
+        current.history.replace(pending.before);
+        if (viewKey(pending.before) !== viewKey(after)) generation.current++;
+        current.history.visit(after);
+        publish(notify);
+    }, [controller, publish]);
     React.useEffect(() => {
         if (!scope) { data.current = null; return; }
         const key = `pilotswarm.view-history.v1:${scope}`;
@@ -56,10 +70,11 @@ export function useViewNavigation(controller, moa) {
         // arrive after the initiating click (and after leaving its dialog).
         const timer = setTimeout(() => {
             if (!data.current || controller.getState().sessions.activeSessionId !== createdSessionId) return;
+            flushGesture(false);
             data.current.history.visit(capture(controller, latest.current)); publish();
         }, 0);
         return () => clearTimeout(timer);
-    }, [createdSessionId, controller, moa.desktop, publish]);
+    }, [createdSessionId, controller, moa.desktop, publish, flushGesture]);
 
     const restore = React.useCallback(view => {
         const request = ++generation.current, currentMoa = latest.current;
@@ -123,12 +138,16 @@ export function useViewNavigation(controller, moa) {
     }, [controller]);
 
     const move = React.useCallback(delta => {
+        if (!latest.current.desktop || !data.current) return;
+        // Queued input can overtake the click's timer. Keep its origin and
+        // destination before moving, rather than replacing the origin with
+        // the new view and jumping past the session (and its draft).
+        flushGesture(false);
         const history = data.current?.history;
-        if (!latest.current.desktop || !history?.destination(delta)) return;
-        gesture.current = null;
+        if (!history?.destination(delta)) { publish(); return; }
         history.replace(capture(controller, latest.current));
         const destination = history.move(delta); publish(); restore(destination);
-    }, [controller, publish, restore]);
+    }, [controller, publish, restore, flushGesture]);
 
     React.useEffect(() => {
         if (!moa.desktop) return;
@@ -146,23 +165,23 @@ export function useViewNavigation(controller, moa) {
                 if (!["Enter", " ", "Escape", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "Tab", "j", "k"].includes(event.key)) return;
             }
             clearTimeout(timer);
+            // Persist the previous visit now, but let this input finish before
+            // redrawing. A root redraw during capture can replace a native
+            // form control before its own click/change handler receives it.
+            flushGesture(false);
             const before = capture(controller, latest.current);
-            const token = {}; gesture.current = token;
+            const token = { before, history: data.current.history }; gesture.current = token;
             timer = setTimeout(() => {
                 if (gesture.current !== token || !data.current) return;
-                gesture.current = null;
-                const after = capture(controller, latest.current), history = data.current.history;
                 // Remember the focused MoA panel without turning panel clicks
                 // into visits. Background state becomes the current view only.
-                history.replace(before);
-                if (viewKey(before) !== viewKey(after)) generation.current++;
-                history.visit(after); publish();
+                flushGesture();
             }, 0);
         };
         document.addEventListener("click", begin, true);
         window.addEventListener("keydown", begin, true);
         return () => { clearTimeout(timer); gesture.current = null; document.removeEventListener("click", begin, true); window.removeEventListener("keydown", begin, true); };
-    }, [controller, moa.desktop, move, publish]);
+    }, [controller, moa.desktop, move, flushGesture]);
 
     const state = controller.getState(), history = data.current?.history;
     const modifier = /Mac|iPhone|iPad/.test(navigator.platform) ? "Option" : "Alt";

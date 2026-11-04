@@ -2,6 +2,11 @@ import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { act, render, type HostNode, type Rendered } from "@/test/render";
 import { newClient, Providers, stubSource } from "@/test/harness";
+import { onlineManager } from "@tanstack/react-query";
+
+// Exercise the real query-to-announcement wiring separately from the live
+// region's debounce behavior, covered by needs-status.test.tsx.
+vi.mock("./needs-status", () => ({ NeedsCountStatus: ({ ready }: { ready: boolean }) => React.createElement("p", { "data-test-needs-ready": ready }) }));
 
 vi.mock("sonner", () => ({ toast: Object.assign(() => 0, { success: vi.fn(), error: vi.fn(), dismiss: () => undefined }) }));
 vi.mock("@tanstack/react-router", async (orig) => ({
@@ -37,20 +42,20 @@ const row = (id: string, status = "idle", extra: object = {}): any => ({ session
 const rowFor = (r: Rendered, id: string): HostNode => r.find((n) => n.type === "a" && n.props["data-session-id"] === id);
 const body = { tagName: "BODY" } as any;
 
-async function mount(initial: any[]) {
+async function mount(initial: any[], options: { profile?: () => Promise<any>; client?: ReturnType<typeof newClient> } = {}) {
   resetSidebarView(SIDEBAR_SECTIONS);
   let sessions = initial;
   const { source } = stubSource({ listGroups: [], getProfile: {} });
   source.listSessions = async () => sessions;
   source.listGroups = async () => [];
-  source.profile = async () => ({ displayName: "Me", provider: "p", subject: "u1", isAdmin: false });
-  const client = newClient();
+  source.profile = options.profile ?? (async () => ({ displayName: "Me", provider: "p", subject: "u1", isAdmin: false }));
+  const client = options.client ?? newClient();
   const doc: any = { activeElement: body, body, addEventListener() {}, removeEventListener() {} };
   (globalThis as any).document = doc;
   const r = await render(<Providers source={source} client={client}><UiStateProvider><SessionsSidebar /></UiStateProvider></Providers>);
   await r.flush(8);
   const change = async (next: any[]) => { sessions = next; await act(() => client.invalidateQueries({ queryKey: ["sessions"] })); await r.flush(8); };
-  return { r, doc, change };
+  return { r, doc, change, client, source };
 }
 const focusRowOf = async (r: Rendered, id: string) => { const el = rowFor(r, id); el.focus(); await r.fire(el, "onFocus"); return el; };
 
@@ -81,5 +86,51 @@ describe("keyboard focus when a row changes section", () => {
     await t.change([row("a", "input_required", { pendingQuestion: { question: "?" } }), row("b")]);
     expect(t.doc.activeElement).toBe(body);
     await t.r.unmount();
+  });
+});
+
+describe("announcement readiness from real queries", () => {
+  const ready = (r: Rendered) => r.find(n => "data-test-needs-ready" in n.props).props["data-test-needs-ready"];
+
+  it("waits for the initial profile after sessions settle", async () => {
+    let finish!: (profile: any) => void;
+    const profile = new Promise(resolve => { finish = resolve; });
+    const t = await mount([row("a")], { profile: () => profile });
+    expect(ready(t.r)).toBe(false);
+    await act(() => finish({ displayName: "Me", provider: "p", subject: "u1", isAdmin: false }));
+    await t.r.flush(8);
+    expect(ready(t.r)).toBe(true);
+    await t.r.unmount();
+    t.client.clear();
+  });
+
+  it("allows a terminal profile error and preserves readiness through a cached session error", async () => {
+    const t = await mount([row("a")], { profile: async () => { throw new Error("profile unavailable"); } });
+    expect(t.client.getQueryState(["profile"])?.status).toBe("error");
+    expect(ready(t.r)).toBe(true);
+    t.source.listSessions = async () => { throw new Error("session refresh unavailable"); };
+    await act(() => t.client.invalidateQueries({ queryKey: ["sessions"] }));
+    await t.r.flush(8);
+    expect(t.client.getQueryState(["sessions"])?.status).toBe("error");
+    expect(t.client.getQueryData(["sessions"])).toHaveLength(1);
+    expect(ready(t.r)).toBe(true);
+    await t.r.unmount();
+    t.client.clear();
+  });
+
+  it("does not treat an offline paused profile query as settled", async () => {
+    const client = newClient();
+    client.setQueryData(["sessions"], [row("a")]);
+    onlineManager.setOnline(false);
+    let t: Awaited<ReturnType<typeof mount>> | undefined;
+    try {
+      t = await mount([row("a")], { client });
+      expect(client.getQueryState(["profile"])?.fetchStatus).toBe("paused");
+      expect(ready(t.r)).toBe(false);
+    } finally {
+      await t?.r.unmount();
+      client.clear();
+      onlineManager.setOnline(true);
+    }
   });
 });

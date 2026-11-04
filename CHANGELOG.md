@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+**Upstream sync and browser regressions.** Incorporates Microsoft's 0.8.9
+changes while retaining Flight Deck and the fork's canvas sandbox and strict
+bound-answer behavior. Lockfile tarball URLs now use the public npm registry;
+the 214 migrated entries retain their exact versions, verify their previous
+digests and use SHA-512 integrity. `npm run normalize:lockfile` repeats this
+checked conversion for future syncs.
+The classic portal's reading-column rail uses valid responsive CSS, and Flight
+Deck waits for its first complete session/profile snapshot before announcing
+changes to the number of sessions needing attention. The MCP unit command
+rebuilds the SDK and MCP, clears stale MCP output, and discovers all unit files,
+including feature flags and messages of the day. Live Copilot chat tests now
+require a separate opt-in and an explicit non-Google model.
+The sync's CodeQL follow-up makes message dismissal/deletion dispatch explicit
+and validates timezone-bearing message timestamps without quadratic backtracking.
+Session search now scans query tokens explicitly, preserving the existing quoted
+phrases, field aliases and incomplete-input behavior.
+Desktop navigation commits a pending visit before Back or another gesture can
+replace its origin, so rapid navigation returns to the right session and draft.
+
 **Flight Deck: sessions are organised in projects.** Flight Deck (`packages/flightdeck`, a
 separate browser app over the same Web API; the classic portal is untouched) now treats a
 session group as a **Project**. One derivation (`src/data/session-tree`) feeds the sidebar and
@@ -64,6 +83,127 @@ valid `expectedQuestion`. This changes the orchestration, so 1.0.82 is frozen an
 session upgrades at its next continue-as-new (sessions still on 1.0.82 ignore the
 flag). See [the bug report](docs/bugreports/stale-bound-answer-runs-as-a-prompt.md)
 and [Bound answers](docs/architecture/orchestration/design.md#bound-answers-1083).
+
+## 0.8.9 — 2026-11-04
+
+**Phone session list.** The session list no longer sits in a strip above the
+chat. The leftmost toolbar button (☰) slides it over the chat at full
+height; picking a session, ✕, the backdrop or Escape closes it, and a dot on
+☰ marks a session waiting on a question. Sub-agents fold behind a chevron in
+the status dot's place, rows are two points larger, and the list scrolls
+natively in both directions: up and down, and long rows sideways. The
+session filter moved to the list header and to Settings › Appearance. The
+toolbar's Chat button is gone; Diagnostics cycles chat, inspector, activity
+and back to the chat.
+
+**Session pickers.** The Master of Agents picker (phone and desktop) and the
+phone's maximized-chat session selector use the same list as the phone
+slide-over, with larger + and × buttons.
+
+**Desktop session list width.** The session list keeps one width when you
+switch between sessions with and without a canvas, beside a canvas width
+remembered wider than the window, and after Settings opens and closes. A
+page load no longer changes the width a frame late, which had pulled a chat
+back to its bottom under a reader who had just scrolled up.
+
+**Smaller portal fixes.** The composer fits narrow panes; zen ignores the
+reading column; arrow and page keys keep the selected session on screen;
+artifact cards no longer widen the phone chat; the markdown reader closes
+when you leave its session.
+
+**Azure deploy: large Azure CLI output.** The base-infra step checks each
+Foundry deployment against `az cognitiveservices model list`. In some
+subscriptions that list is now larger than 1 MiB, which is Node's default
+output limit for `spawnSync`. The deploy then stopped with "Failed to spawn
+az", and the GitHub Action reported "Azure CLI could not start". Three
+changes fix this:
+
+- The model list asks `az` for only the model format, name and version.
+  This makes the output about 20 times smaller.
+- Captured commands may print up to 64 MiB.
+- Output above the limit is reported as "Output too large", and the Action
+  prints "Azure CLI output exceeded the capture limit".
+
+**Azure deploy: HorizonDB API 2026-10-01-preview.** HorizonDB moved compute
+and the settings group from the cluster to a child pool resource. Attaching
+the extension settings group through the old API (2026-01-20-preview) now
+ends in `FailedToApply`, so the HorizonDB step waited ten minutes and failed.
+The HorizonDB module and the CI database script now use the new API:
+
+- Bicep creates the settings group, then the cluster, then one pool
+  (`DefaultPool`), then the password login, then the firewall rule on the
+  pool. Bicep PUTs the pool only to create it: HorizonDB rejects a pool
+  request that changes more than one property group, which a full PUT does
+  on clusters migrated from the old API. A new pool starts on the built-in
+  settings group; the deploy then
+  attaches the extension group with a pool PATCH and waits until the pool
+  reports it as `InSync` (about two minutes, one restart). The first PATCH
+  on a new pool can end without attaching anything, so the deploy resends it
+  after four minutes (at most three PATCHes).
+- The connection host name comes from the cluster's read-write endpoint. New
+  clusters use `<cluster>.rw.<id>.<region>.horizondb.azure.com`.
+- `HORIZONDB_REPLICA_COUNT` is now `HORIZONDB_NODE_COUNT`. The old name still
+  works.
+- The deploy Action names HorizonDB failures: settings group not `InSync` in
+  time, `FailedToApply`, cluster busy (`ClusterNotReady`), and pool lookup
+  failures.
+
+## 0.8.8 — 2026-11-02
+
+**Message of the day.** Admins can post a fleet-wide message with an optional
+start and end time and optional pictures (main and mobile, 2 MB each). The
+portal shows the current message as a splash, and each user can dismiss it.
+Only the newest active message is shown. Dismissing it never brings back an
+older one. Everyone can read the message history. Admins create and delete
+messages through the portal editor, the management API, MCP tools or agent
+tools. Creator identity and dismissal counts are visible to admins only.
+
+**Phone Admin Console.** At 920 px wide and below, a cog in the phone header
+opens a settings list: Packages, Message of the day, Appearance, Model
+providers, Workers and Feature flags. Browser Back and Forward move through
+the console's own pages.
+
+**Portal look and package list.** The Admin Console package list scrolls in a
+fixed-height area and has a Find box. Find filters by package name, agent
+name, author or contributor. To support the contributor filter, the list now
+also loads each package's editors and the publisher of each version. Tool and
+activity cards get a left status rail. A new desktop setting controls the
+chat reading column (width, alignment, inset). A new Hearth theme has an
+animated fire and an optional ambient sound, with separate desktop and phone
+settings. Multi-panel (MoA) headers get an accent rail, stable heights and a
+wider grab area on the dividers.
+
+**CLI sign-in with dev auth.** `pilotswarm auth login` and `pilotswarm auth
+status` no longer treat a dev-auth deployment as Entra. With dev auth, they
+read `PILOTSWARM_DEV_USER` and check it against the persona list the
+deployment publishes at `/api/v1/auth/config`. An unknown persona fails with
+the list of valid ones, also at TUI startup. Logout and other providers are
+unchanged.
+
+**Provider request headers.** A provider type in the model catalog may set
+`headers`: fixed HTTP headers sent on every model request, for endpoints that
+need a header besides the credential. Shared and personal instances inherit
+them and cannot change them. Values are plain strings: `env:` references,
+credential headers and headers the HTTP client owns are refused at catalog
+load, because a personal instance may point the type at its own `baseUrl`.
+Not allowed on `github` providers. Catalogs without `headers` are unchanged.
+
+**Canvas refusal reporting.** Canvas tools return structured failures for
+refusals, unavailable bridges and invalid arguments instead of successful
+results containing error text. Refusal reasons and recovery guidance remain
+visible; saved-app lookup guidance is included only for artifact-based draws.
+
+**Correct native tool-error counts.** Turn telemetry now recognizes SDK
+`success: false` completions across all tools, not just canvas tools. Native
+failures, including rejected or denied calls reported this way, now contribute
+to the calls/errors display and the `pilotswarm.tool_errors` span attribute.
+Higher error counts reflect corrected reporting, not additional tool failures.
+
+**Database upgrade note.** The first start applies CMS migrations `0084` to
+`0087`. They add the `motds` and `motd_dismissals` tables and the `cms_motd_*`
+functions. They do not change existing tables or rows. The orchestration
+(`duroxide`) and facts schemas are unchanged. An older build runs only the
+migrations it knows, so after an image rollback the new tables stay unused.
 
 ## 0.8.7 — 2026-10-28
 

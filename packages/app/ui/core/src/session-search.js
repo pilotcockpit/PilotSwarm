@@ -36,11 +36,29 @@ export function parseSessionSearchQuery(value) {
     const source = String(value || "").trim();
     const terms = [];
     const filters = [];
-    const pattern = /(?:(\w+):)?(?:"([^"]+)"|(\S+))/g;
-    let match;
-    while ((match = pattern.exec(source)) !== null) {
-        const rawField = String(match[1] || "").toLowerCase();
-        const rawValue = match[2] ?? match[3] ?? "";
+    let cursor = 0;
+    while (cursor < source.length) {
+        while (cursor < source.length && /\s/.test(source[cursor])) cursor += 1;
+        if (cursor === source.length) break;
+        const start = cursor;
+        let fieldEnd = start;
+        while (fieldEnd < source.length && /\w/.test(source[fieldEnd])) fieldEnd += 1;
+        const hasField = fieldEnd > start && source[fieldEnd] === ":";
+        let rawField = hasField ? source.slice(start, fieldEnd).toLowerCase() : "";
+        const valueStart = hasField ? fieldEnd + 1 : start;
+        const quoteEnd = source[valueStart] === '"' ? source.indexOf('"', valueStart + 1) : -1;
+        let rawValue;
+        if (quoteEnd > valueStart + 1) {
+            rawValue = source.slice(valueStart + 1, quoteEnd);
+            cursor = quoteEnd + 1;
+        } else {
+            cursor = valueStart;
+            while (cursor < source.length && !/\s/.test(source[cursor])) cursor += 1;
+            // A field without a value remains ordinary text, including its colon.
+            // Empty or unterminated quotes also retain the original token behavior.
+            if (cursor === valueStart && hasField) rawField = "";
+            rawValue = source.slice(rawField ? valueStart : start, cursor);
+        }
         const normalized = normalizeSessionSearchText(rawValue);
         if (!normalized) continue;
         const field = FIELD_ALIASES[rawField];

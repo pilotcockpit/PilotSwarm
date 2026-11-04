@@ -15,6 +15,29 @@ describe("Needs-you count announcement", () => {
     expect(r.text(live(r))).toBe("");
     await r.unmount();
   });
+  it("treats asynchronously loaded sessions and permissions as the initial baseline", async () => {
+    const r = await render(<NeedsCountStatus count={0} ready={false} />);
+    await r.rerender(<NeedsCountStatus count={3} ready={false} />);
+    await act(() => { vi.advanceTimersByTime(2000); });
+    await r.rerender(<NeedsCountStatus count={4} ready />);
+    await act(() => { vi.advanceTimersByTime(5000); });
+    expect(r.text(live(r))).toBe("");
+    await r.rerender(<NeedsCountStatus count={3} ready />);
+    await act(() => { vi.advanceTimersByTime(1000); });
+    expect(r.text(live(r))).toBe("3 sessions need you");
+    await r.unmount();
+  });
+  it("defers a pending announcement until data returns without losing the established baseline", async () => {
+    const r = await render(<NeedsCountStatus count={3} />);
+    await r.rerender(<NeedsCountStatus count={2} />);
+    await r.rerender(<NeedsCountStatus count={0} ready={false} />);
+    await act(() => { vi.advanceTimersByTime(2000); });
+    expect(r.text(live(r))).toBe("");
+    await r.rerender(<NeedsCountStatus count={2} ready />);
+    await act(() => { vi.advanceTimersByTime(2000); });
+    expect(r.text(live(r))).toBe("2 sessions need you");
+    await r.unmount();
+  });
   it("says the new count politely after it settles, never the whole list", async () => {
     const r = await render(<NeedsCountStatus count={3} />);
     await r.rerender(<NeedsCountStatus count={2} />);
