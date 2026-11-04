@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-**Upstream sync and browser regressions.** Incorporates Microsoft's 0.8.8
+**Upstream sync and browser regressions.** Incorporates Microsoft's 0.8.9
 changes while retaining Flight Deck and the fork's canvas sandbox and strict
 bound-answer behavior. Lockfile tarball URLs now use the public npm registry;
 the 214 migrated entries retain their exact versions, verify their previous
@@ -16,6 +16,8 @@ including feature flags and messages of the day. Live Copilot chat tests now
 require a separate opt-in and an explicit non-Google model.
 The sync's CodeQL follow-up makes message dismissal/deletion dispatch explicit
 and validates timezone-bearing message timestamps without quadratic backtracking.
+Desktop navigation commits a pending visit before Back or another gesture can
+replace its origin, so rapid navigation returns to the right session and draft.
 
 **Flight Deck: sessions are organised in projects.** Flight Deck (`packages/flightdeck`, a
 separate browser app over the same Web API; the classic portal is untouched) now treats a
@@ -79,6 +81,33 @@ valid `expectedQuestion`. This changes the orchestration, so 1.0.82 is frozen an
 session upgrades at its next continue-as-new (sessions still on 1.0.82 ignore the
 flag). See [the bug report](docs/bugreports/stale-bound-answer-runs-as-a-prompt.md)
 and [Bound answers](docs/architecture/orchestration/design.md#bound-answers-1083).
+
+## 0.8.9 — 2026-11-04
+
+**Phone session list.** The session list no longer sits in a strip above the
+chat. The leftmost toolbar button (☰) slides it over the chat at full
+height; picking a session, ✕, the backdrop or Escape closes it, and a dot on
+☰ marks a session waiting on a question. Sub-agents fold behind a chevron in
+the status dot's place, rows are two points larger, and the list scrolls
+natively in both directions: up and down, and long rows sideways. The
+session filter moved to the list header and to Settings › Appearance. The
+toolbar's Chat button is gone; Diagnostics cycles chat, inspector, activity
+and back to the chat.
+
+**Session pickers.** The Master of Agents picker (phone and desktop) and the
+phone's maximized-chat session selector use the same list as the phone
+slide-over, with larger + and × buttons.
+
+**Desktop session list width.** The session list keeps one width when you
+switch between sessions with and without a canvas, beside a canvas width
+remembered wider than the window, and after Settings opens and closes. A
+page load no longer changes the width a frame late, which had pulled a chat
+back to its bottom under a reader who had just scrolled up.
+
+**Smaller portal fixes.** The composer fits narrow panes; zen ignores the
+reading column; arrow and page keys keep the selected session on screen;
+artifact cards no longer widen the phone chat; the markdown reader closes
+when you leave its session.
 
 **Azure deploy: large Azure CLI output.** The base-infra step checks each
 Foundry deployment against `az cognitiveservices model list`. In some
